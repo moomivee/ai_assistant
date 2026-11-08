@@ -29,7 +29,7 @@ docker compose -f compose.yaml -f compose.local.yaml up --build
 
 Команда запускает приложение и Ollama; при первом запуске загружается Qwen. Интерфейс доступен по адресу [http://localhost:8000](http://localhost:8000) при стандартных настройках порта.
 
-Для поиска через Tavily нужно указать `TAVILY_API_KEY` в `.env`, созданном по образцу `.env.example`. Без ключа остаётся ограниченный поиск по RSS. Настройка окружения и локальный запуск на Mac описаны в [инструкции Wiki](https://github.com/moomivee/ai_assistant/wiki/03-Setup-Mac).
+Для поиска через Tavily нужно указать `TAVILY_API_KEY` в `.env`, созданном по образцу `.env.example`. Без ключа остаётся ограниченный поиск по RSS. Настройка окружения и локальный запуск на Mac описаны в [инструкции Wiki](https://github.com/moomivee/ai_assistant/wiki/03-Setup-Mac.md).
 
 ## Примеры запросов
 
