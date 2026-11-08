@@ -1,0 +1,18 @@
+[
+  {
+    "id": "eia-russia-2025",
+    "title": "EIA · Country Analysis Brief: Russia",
+    "date": "2025-07-24",
+    "file": "EIA_Russia_2025-07.pdf",
+    "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf",
+    "sha256": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e"
+  },
+  {
+    "id": "cbr-oct-2025",
+    "title": "Банк России · Среднесрочный прогноз от 24 октября 2025 года",
+    "date": "2025-10-24",
+    "file": "CBR_2025-10-24.pdf",
+    "url": "https://www.cbr.ru/Content/Document/File/184551/forecast_251024.pdf",
+    "sha256": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+  }
+]

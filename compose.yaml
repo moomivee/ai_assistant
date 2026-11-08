@@ -1,0 +1,10 @@
+services:
+  analyst:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:${PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data

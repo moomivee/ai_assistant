@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+.cache/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.lock
+.DS_Store
+.ruff_cache/
+
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+
+# Python environment and cache
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+
+# Local files
+.DS_Store
+node_modules/
