@@ -15,7 +15,7 @@ AI-агент на Python с использованием Ouroboros для от�
 
 ## Технологии
 
-**Python 3.12 · Ouroboros · LangGraph · Qwen / Ollama · multilingual-e5 · FAISS · Tavily · FastAPI · Docker Compose**
+**Python 3.12 · uv · Ouroboros · LangGraph · Qwen / Ollama · multilingual-e5 · FAISS · Tavily · FastAPI · Docker Compose**
 
 LangGraph управляет шагами обработки запроса, Ouroboros регистрирует и выполняет инструменты. Локальная Qwen выбрана для работы без обязательного платного LLM API. Численные прогнозы рассчитываются отдельным Python-модулем.
 
@@ -30,6 +30,37 @@ docker compose -f compose.yaml -f compose.local.yaml up --build
 Команда запускает приложение и Ollama; при первом запуске загружается Qwen. Интерфейс доступен по адресу [http://localhost:8000](http://localhost:8000) при стандартных настройках порта.
 
 Для поиска через Tavily нужно указать `TAVILY_API_KEY` в `.env`, созданном по образцу `.env.example`. Без ключа остаётся ограниченный поиск по RSS. Настройка окружения и локальный запуск на Mac описаны в [инструкции Wiki](https://github.com/moomivee/ai_assistant/wiki/03-Setup-Mac.md).
+
+## Зависимости и локальный запуск через uv
+
+`requirements.txt` заменён на `pyproject.toml` и `uv.lock`. Старые инструкции Wiki с `pip install -r requirements.txt` заменяются командой `uv sync --locked`.
+
+`pyproject.toml` содержит зависимости приложения, `uv.lock` фиксирует точные версии, включая транзитивные зависимости. Оба файла хранятся в Git. Python закреплён на ветке 3.12 в `.python-version`. `uv` создаёт `.venv` автоматически; активировать окружение вручную не нужно.
+
+На Mac установите uv через Homebrew, затем из корня проекта:
+
+```bash
+brew install uv
+uv sync --locked
+uv run --locked python -m petro.cli prepare
+uv run --locked python -m uvicorn petro.api:app --port 8000
+```
+
+`uv` управляет Python-зависимостями, но не запускает Ollama. При запуске без Docker настройте LLM в `.env` для доступного вам сервера; с пустым `LLM_API_KEY` приложение работает в ограниченном демонстрационном режиме. Для локальной Qwen вместе с приложением используйте команду Docker Compose выше.
+
+Команды обслуживания:
+
+```bash
+uv run --locked python -m petro.cli ask "Спрогнозируй Brent на 3 месяца"
+uv run --locked python -m petro.cli refresh-prices
+uv add имя-пакета
+uv remove имя-пакета
+uv lock --check
+```
+
+После `uv add` или `uv remove` сохраните изменения `pyproject.toml` и `uv.lock` в Git. Флаг `--locked` запрещает незаметное изменение lock-файла при запуске. Для намеренного обновления зафиксированных зависимостей используйте `uv lock --upgrade`, затем `uv sync --locked` и проверьте приложение.
+
+Docker также устанавливает зависимости через `uv sync --locked --no-dev`. Существующие команды `docker compose exec analyst python ...` продолжают использовать окружение приложения.
 
 ## Примеры запросов
 

@@ -1,0 +1,30 @@
+[project]
+name = "oil-gas-analyst"
+version = "0.1.0"
+description = "AI-agent for oil and gas market analysis"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ouroboros @ https://github.com/razzant/ouroboros/archive/6b8a898023366f281816729daa27d7ab8a31c1f2.zip#sha256=af58039324cefb42566391e06a38eb51c358bc3a9388e55e048a6e7167214298",
+    "langgraph==1.1.10",
+    "fastapi==0.162.0",
+    "uvicorn==0.54.0",
+    "openai==2.54.0",
+    "pydantic==2.14.1",
+    "httpx==0.28.1",
+    "pypdf==6.10.0",
+    "numpy==2.3.5",
+    "faiss-cpu==1.15.1",
+    "onnxruntime==1.31.1",
+    "tokenizers==0.23.3",
+    "filelock==4.2.9",
+    "python-dotenv==1.2.4",
+ ]
+
+[tool.uv]
+package = false
+
+[tool.setuptools.packages.find]
+include = ["petro*"]
+
+[tool.setuptools.package-data]
+petro = ["static/*"]
