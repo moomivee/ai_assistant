@@ -26,3 +26,7 @@ __pycache__/
 # Local files
 .DS_Store
 node_modules/
+
+# Keep the dependency lockfile in Git
+!uv.lock
+*.egg-info/

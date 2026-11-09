@@ -1,0 +1,18 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Оценка агента</title><style>body{font:17px/1.6 system-ui;color:#202c37;background:#f5f6f8;max-width:800px;margin:64px auto;padding:20px}main{background:white;padding:32px;border-radius:20px}h1{font-size:29px}label{display:block;margin:18px 0}select,input,button{font:inherit;padding:8px}button{background:#274c50;color:white;border:0;border-radius:8px;cursor:pointer}pre{white-space:pre-wrap;font:13px/1.6 monospace}a{color:#274c50}</style>
+<main><h1>Оценка нефтегазового аналитика</h1><p>Retrieval сравнивает эмбеддеры. Routing проверяет реальный LLM-план на контролируемых результатах инструментов. Agent запускает полный пайплайн.</p>
+<form id="form"><label>Режим <select id="mode"><option value="retrieval">Retrieval</option><option value="routing">Routing</option><option value="agent">Agent</option></select></label>
+<label>Выборка <select id="split"><option>dev</option><option>test</option><option>all</option></select></label>
+<label>Максимум вопросов <input id="limit" type="number" min="1" max="100" value="5"></label>
+<label><input id="judge" type="checkbox"> Оценить качество ответа через LLM judge (только Agent)</label>
+<p>Routing и Agent вызывают настроенную LLM; Agent также может обращаться к веб-поиску. Если подключён платный API, расходуется его лимит. Результаты сохраняются локально.</p>
+<button id="start">Запустить оценку</button></form><p id="status" role="status"></p><a id="download" hidden>Скачать результат</a><pre id="result"></pre></main>
+<script>
+const $=id=>document.getElementById(id); let timer;
+$('mode').onchange=()=>{ $('judge').disabled=$('mode').value!=='agent'; if($('judge').disabled)$('judge').checked=false; };$('mode').onchange();
+$('form').onsubmit=async e=>{e.preventDefault();$('start').disabled=true;$('download').hidden=true;$('result').textContent='';
+try{const r=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:$('mode').value,split:$('split').value,judge:$('judge').checked,limit:Number($('limit').value)})}); const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:'Проверьте параметры');
+const poll=async()=>{try{const r=await fetch('/runs/'+j.id);if(!r.ok)throw Error('Не удалось прочитать состояние');const s=await r.json();$('status').textContent=s.status+' · сохранено строк: '+s.completed_rows;
+if(s.status==='running'){timer=setTimeout(poll,2000);return;}$('start').disabled=false;if(s.status==='done'){$('result').textContent=JSON.stringify(s.summary,null,2);$('download').href='/runs/'+j.id+'/result';$('download').hidden=false;}else $('result').textContent=s.error;}catch(err){$('status').textContent=err.message;$('start').disabled=false;}};poll();
+}catch(err){$('status').textContent=err.message;$('start').disabled=false;}};
+</script></html>

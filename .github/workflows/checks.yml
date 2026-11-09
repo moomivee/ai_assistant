@@ -1,0 +1,33 @@
+name: checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.5"
+      - run: uv sync --locked
+      - run: uv run ruff format --check src eval tests
+      - run: uv run ruff check src eval tests
+      - run: uv run python -m pytest -q
+      - run: uv run python -m eval.run validate-data
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t oil-gas-analyst:ci .
+      - name: API health smoke
+        run: |
+          docker run -d --name analyst -p 8000:8000 oil-gas-analyst:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs analyst
+          exit 1
+      - if: always()
+        run: docker rm -f analyst || true

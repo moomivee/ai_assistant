@@ -8,3 +8,11 @@ services:
       - "127.0.0.1:${PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
+      - ./.cache/traces:/app/.cache/traces
+    environment:
+      TRACE_FILE: /app/.cache/traces/agent.jsonl
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
