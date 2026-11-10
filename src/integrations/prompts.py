@@ -15,7 +15,7 @@ class Prompt:
 
 
 def get_prompt(name):
-    if name not in {"plan", "answer", "judge"}:
+    if name not in {"plan", "forecast", "answer", "judge"}:
         raise ValueError("Unknown prompt")
     text = (ROOT / "prompts" / f"{name}.txt").read_text(encoding="utf-8")
     if settings().prompt_source == "langfuse":
@@ -44,7 +44,7 @@ def publish_prompts(label="staging"):
     client = langfuse_client()
     if client is None:
         raise ValueError("Включите LANGFUSE_ENABLED и задайте ключи Langfuse.")
-    for name in ("plan", "answer", "judge"):
+    for name in ("plan", "forecast", "answer", "judge"):
         text = (ROOT / "prompts" / f"{name}.txt").read_text(encoding="utf-8")
         prompt = client.create_prompt(
             name=f"oil-gas/{name}",

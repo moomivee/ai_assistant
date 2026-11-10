@@ -24,6 +24,8 @@ def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Pla
         p.parameters = []
         p.benchmark = p.months = p.discount = p.cut = p.sensitivity = None
         return p
+    # Forecast clarification follows validated inputs, not free-form model text.
+    p.clarify = ""
     combined = normalized((previous or "") + " " + question)
     evidence = {e.field: e.quote for e in p.parameters}
     for field in ("months", "discount", "cut", "sensitivity"):

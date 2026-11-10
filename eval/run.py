@@ -18,8 +18,8 @@ from src.integrations.prompts import get_prompt
 from src.integrations.telemetry import flush, langfuse_client, span
 from src.logging import log
 from src.models.schemas import AgentResponse, EvidenceAnswer, JudgeResult
+from src.planning import make_plan
 from src.rag.index import MODEL_SPECS, digest, index, pdf_chunks
-from src.validation import validate_plan
 
 from .metrics import mean_metrics, relevant, retrieval_metrics, route_metrics
 
@@ -94,7 +94,9 @@ def provenance(path):
         "corpus": {r["id"]: digest(settings().data / "reports" / r["file"]) for r in manifest()},
         "python": platform.python_version(),
         "platform": platform.platform(),
-        "prompts": {name: get_prompt(name).version for name in ["plan", "answer", "judge"]},
+        "prompts": {
+            name: get_prompt(name).version for name in ["plan", "forecast", "answer", "judge"]
+        },
     }
 
 
@@ -115,6 +117,15 @@ class RecordingClient:
         if name == "plan":
             self.raw_plan = result
         return result
+
+
+class RecordingPlanner:
+    def __init__(self):
+        self.plan = None
+
+    def __call__(self, client, question, previous=None):
+        self.plan = make_plan(client, question, previous)
+        return self.plan
 
 
 def controlled_executor(case):
@@ -290,19 +301,19 @@ def run(
                 perf_counter(),
             )
             kwargs = {"execute": controlled_executor(case)} if mode == "routing" else {}
-            response = ask(case["question"], case.get("previous"), client=client, **kwargs)
-            AgentResponse.model_validate(response)
-            plan = (
-                validate_plan(client.raw_plan, case["question"], case.get("previous")).model_dump()
-                if client.raw_plan
-                else None
+            recorder = RecordingPlanner()
+            response = ask(
+                case["question"], case.get("previous"), client=client, planner=recorder, **kwargs
             )
+            AgentResponse.model_validate(response)
+            plan = recorder.plan.model_dump() if recorder.plan else None
             metrics = route_metrics(case["expected"], response, plan)
             row = {
                 "case_id": case["id"],
                 "split": case["split"],
                 "metrics": metrics,
                 "plan": plan,
+                "initial_plan": client.raw_plan.model_dump() if client.raw_plan else None,
                 "response": response,
                 "llm_calls": client.calls,
                 "ms": round((perf_counter() - start) * 1000, 2),

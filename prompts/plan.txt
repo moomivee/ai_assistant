@@ -9,7 +9,7 @@ report_only: true when the user forbids the web or requests only uploaded report
 fresh: true ONLY for current/latest events or current published quotes, NOT for calculating a forecast from CSV history.
 news: true ONLY when news/events are requested. quotes: benchmarks for requested CURRENT spot quotes, otherwise [].
 wants_context: true for research explanations; false for ONLY current spot quotes or a pure numerical forecast; true for a forecast with explanation of market context/news.
-benchmark: for forecast copy the stated name exactly (Brent, WTI, Urals); otherwise null.
+benchmark: for forecast copy the stated name exactly (Brent, WTI, Urals); otherwise null. A forecast question that explicitly names Brent, WTI or Urals MUST have that benchmark, not null. Do not confuse benchmark with quotes (quotes is only for CURRENT prices).
 months: requested forecast horizon; otherwise null. Never confuse it with a year or discount.
 discount: explicitly supplied Urals discount to Brent in USD/barrel. Percent discounts without a price basis require clarification.
 cut: explicitly requested reduction in million barrels/day. sensitivity: explicitly stated USD/barrel per reduction of 1 million barrels/day. Do not confuse the unit's denominator with an explicitly requested cut. Never invent numbers. Null when absent.

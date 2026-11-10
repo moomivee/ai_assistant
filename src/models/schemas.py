@@ -31,6 +31,16 @@ class Plan(StrictModel):
     clarify: str = Field(max_length=500)
 
 
+class ForecastInputs(StrictModel):
+    benchmark: Grade | None
+    benchmark_quote: str = Field(max_length=500)
+    months: int | None
+    discount: FiniteFloat | None
+    cut: FiniteFloat | None
+    sensitivity: FiniteFloat | None
+    parameters: list[ParameterEvidence] = Field(max_length=4)
+
+
 class Claim(StrictModel):
     source: str = Field(min_length=1, max_length=20)
     quote: str = Field(min_length=6, max_length=1800)

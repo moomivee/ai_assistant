@@ -8,9 +8,10 @@ from langgraph.graph import END, START, StateGraph
 from .config import settings
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
-from .models.schemas import AgentResponse, EvidenceAnswer, Plan
+from .models.schemas import AgentResponse, EvidenceAnswer
+from .planning import make_plan
 from .tools import make_registry, run_tool
-from .validation import validate_claims, validate_plan
+from .validation import validate_claims
 
 
 class State(TypedDict, total=False):
@@ -59,21 +60,13 @@ def forecast_answer(calc: dict):
     )
 
 
-def build_graph(client=None, registry=None, execute=run_tool):
+def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
     client, registry = client or llm(), registry or make_registry()
 
     def route(s):
         try:
-            plan = client.generate(
-                "plan",
-                {
-                    "question": s["question"],
-                    "previous": s.get("previous"),
-                    "today": date.today().isoformat(),
-                },
-                Plan,
-            )
-            return {"plan": validate_plan(plan, s["question"], s.get("previous")).model_dump()}
+            plan = planner(client, s["question"], s.get("previous"))
+            return {"plan": plan.model_dump()}
         except LLMUnavailable as exc:
             return {"failure": str(exc)}
 
@@ -277,6 +270,7 @@ def ask(
     client=None,
     registry=None,
     execute=run_tool,
+    planner=make_plan,
 ) -> dict:
     question = question.strip()
     if not 1 <= len(question) <= 2000:
@@ -292,7 +286,7 @@ def ask(
             "calc": None,
             "draft": EvidenceAnswer(complete=False, claims=[], limitations=[]).model_dump(),
         }
-        state = build_graph(client, registry, execute).invoke(
+        state = build_graph(client, registry, execute, planner).invoke(
             initial,
             config={
                 "callbacks": callbacks(),

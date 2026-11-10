@@ -6,7 +6,7 @@ import pytest
 from src.agent import ask
 from src.config import settings
 from src.integrations.llm import LLMUnavailable
-from src.models.schemas import EvidenceAnswer, Plan
+from src.models.schemas import EvidenceAnswer, ForecastInputs, Plan
 from src.tools import make_registry, run_tool
 
 
@@ -62,6 +62,16 @@ class FakeLLM:
             raise LLMUnavailable("test offline")
         if name == "plan":
             return self.p
+        if name == "forecast":
+            return ForecastInputs(
+                benchmark=None,
+                benchmark_quote="",
+                months=None,
+                discount=None,
+                cut=None,
+                sensitivity=None,
+                parameters=[],
+            )
         source = payload["sources"][0]
         return EvidenceAnswer(
             complete=self.complete,
