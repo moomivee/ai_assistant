@@ -51,8 +51,9 @@ class ForecastScope(StrictModel):
 
 class Claim(StrictModel):
     source: str = Field(min_length=1, max_length=20)
-    quote: str = Field(min_length=6, max_length=1800)
+    quote: str = Field(min_length=1, max_length=1800)
     text: str = Field(min_length=1, max_length=1200)
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class EvidenceAnswer(StrictModel):
@@ -123,6 +124,41 @@ class AgentResponse(StrictModel):
     trace: list[ToolEvent]
     trace_id: str
     forecast: dict | None
+    decisions: list[dict] = Field(default_factory=list)
+    stop_reason: str = "completed"
+    agent_mode: str = "workflow"
+    rejected_actions: int = 0
+
+
+class NextAction(StrictModel):
+    assessment: Literal["need_evidence", "need_detail", "enough", "unavailable"] = "need_evidence"
+    purpose: str = Field(max_length=250)
+    action: Literal["report_search", "read_report", "web_search", "price_forecast", "finish"]
+    source_ids: list[str] = Field(default_factory=list, max_length=4)
+    query: str = Field(max_length=1500)
+    report: str = Field(max_length=100)
+    page: int | None
+
+
+class CitedClaim(StrictModel):
+    evidence_ids: list[str] = Field(min_length=1, max_length=12)
+    text: str = Field(min_length=1, max_length=1200)
+
+
+class CitedAnswer(StrictModel):
+    evidence_summary: list[str] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Краткие проверяемые наблюдения до формулировки ответа: значения и единицы из источника, направление сравнения. Объясни, как единицы связаны с физической величиной. Это не финальный ответ.",
+    )
+    claims: list[CitedClaim] = Field(max_length=8)
+    complete: bool
+
+
+class CitationReview(StrictModel):
+    feedback: str = Field(max_length=600)
+    supported: list[int] = Field(max_length=8)
+    complete: bool
 
 
 class Question(StrictModel):

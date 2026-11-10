@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 from test_agent import FakeLLM, executor
 
-from src.agent import ask
 from src.answering import checked_review, verified_answer
 from src.integrations.llm import LLMUnavailable
 from src.models.schemas import AnswerReview, EvidenceAnswer, Plan
 from src.validation import validate_claims
+from src.workflow import ask
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/urals_espo_trace.json").read_text())
 URALS = "Urals 30 to 32 1.3% to 1.5% Western Siberia and Volga Urals"

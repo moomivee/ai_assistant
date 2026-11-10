@@ -6,10 +6,10 @@ from openai import OpenAI
 from test_agent import executor, plan
 
 from eval.run import RecordingPlanner
-from src.agent import ask
 from src.integrations.llm import LLMClient, LLMUnavailable
 from src.models.schemas import ForecastInputs
 from src.planning import make_plan
+from src.workflow import ask
 
 QUESTION = "Спрогнозируй Brent на 3 месяца. Только расчёт"
 

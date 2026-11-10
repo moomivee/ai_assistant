@@ -23,7 +23,9 @@ def check_result(result, cases):
             all(
                 row["metrics"][key] == 1
                 for key in (
-                    "tool_sequence_exact",
+                    "tool_policy_pass"
+                    if "tool_policy_pass" in row["metrics"]
+                    else "tool_sequence_exact",
                     "intent_correct",
                     "status_correct",
                     "plan_fields_correct",

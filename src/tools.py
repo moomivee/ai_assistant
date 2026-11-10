@@ -4,9 +4,10 @@ from time import monotonic
 from ouroboros.tools.registry import ToolEntry, ToolRegistry
 from ouroboros.tools.tool_catalog import ToolCatalog
 from pydantic import BaseModel, Field
+from pypdf import PdfReader
 
 from .calculations.forecast import forecast
-from .config import ROOT, settings
+from .config import ROOT, manifest, settings
 from .integrations.telemetry import span
 from .integrations.web import web_lookup
 from .logging import log
@@ -32,11 +33,47 @@ class ForecastArgs(BaseModel):
     sensitivity: float | None = None
 
 
+class ReadReportArgs(BaseModel):
+    report: str = Field(min_length=1, max_length=100)
+    page: int = Field(ge=1)
+
+
+def read_report(report: str, page: int):
+    """Read a registered PDF page, preserving table layout and provenance."""
+    meta = next((r for r in manifest() if r["id"] == report), None)
+    if meta is None:
+        raise ValueError("Unknown report ID. Use an ID returned by report_search.")
+    reader = PdfReader(settings().data / "reports" / meta["file"])
+    if page > len(reader.pages):
+        raise ValueError(f"The report has {len(reader.pages)} pages.")
+    text = reader.pages[page - 1].extract_text(extraction_mode="layout") or ""
+    text = "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())
+    return [
+        {
+            "report": report,
+            "page": page,
+            "chunk_id": f"{report}:p{page}:full",
+            "kind": "report",
+            "title": meta["title"],
+            "date": meta["date"],
+            "url": meta["url"] + f"#page={page}",
+            "text": text[:20000],
+            "full_page": True,
+            "truncated": len(text) > 20000,
+        }
+    ]
+
+
 def reports(query: str):
     return index().search(query, settings().top_k)
 
 
 FUNCTIONS = {
+    "read_report": (
+        ReadReportArgs,
+        read_report,
+        "Прочитать страницу найденного PDF, включая заголовки и строки таблиц.",
+    ),
     "report_search": (
         ReportArgs,
         reports,

@@ -33,10 +33,30 @@ def route_metrics(expected, response, plan):
     wanted = expected["tools"]
     forbidden = expected.get("forbidden", [])
     web_i = actual.index("web_search") if "web_search" in actual else None
+    required = expected.get("required_tools", wanted)
+    # A pure numerical forecast needs no report lookup. Retain the historical
+    # exact sequence only as a diagnostic, not a quality gate for an agent loop.
+    if (
+        response.get("agent_mode") == "loop"
+        and plan
+        and plan.get("intent") == "forecast"
+        and not plan.get("wants_context")
+        and not plan.get("quotes")
+    ):
+        required = [tool for tool in required if tool != "report_search"]
+    required_ok = set(required) <= set(actual) if required else not actual
+    policy_ok = not set(actual) & set(forbidden) and (
+        web_i is None or ("report_search" in actual and actual.index("report_search") < web_i)
+    )
+    successful = {t["tool"] for t in response["trace"] if t.get("status", "ok") == "ok"}
     return {
+        "tool_policy_pass": float(required_ok and policy_ok),
+        "required_tool_success": float(set(required) <= successful),
+        "tool_calls": len(actual),
+        "rejected_actions": response.get("rejected_actions", 0),
         "tool_sequence_exact": float(actual == wanted),
-        "required_tool_recall": len(set(actual) & set(wanted)) / len(set(wanted))
-        if wanted
+        "required_tool_recall": len(set(actual) & set(required)) / len(set(required))
+        if required
         else float(not actual),
         "forbidden_tool_violation": float(bool(set(actual) & set(forbidden))),
         "rag_before_web": float(

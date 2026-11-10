@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import threading
 import urllib.request
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -173,10 +174,48 @@ class ReportIndex:
         log("rag.index_ready", embedding=self.model, fingerprint=self.fingerprint)
         self.index = faiss.read_index(str(folder / "index.faiss"))
         self.chunks = json.loads((folder / "chunks.json").read_text(encoding="utf-8"))
+        self.terms = [Counter(re.findall(r"\w+", c["text"].casefold())) for c in self.chunks]
+        self.document_frequency = Counter(t for row in self.terms for t in row)
+        self.average_length = sum(sum(row.values()) for row in self.terms) / len(self.terms)
 
-    def search(self, question: str, k: int) -> list[dict]:
+    def search(self, question: str, k: int, mode: str | None = None) -> list[dict]:
+        mode = mode or settings().rag_search
+        if mode not in {"dense", "hybrid"}:
+            raise ValueError("RAG_SEARCH_MODE must be dense or hybrid")
         vec = self.encoder.encode([question], "query")
-        sims, indices = self.index.search(vec, min(k, self.index.ntotal))
+        pool = min(k if mode == "dense" else max(40, k * 4), self.index.ntotal)
+        sims, indices = self.index.search(vec, pool)
+        if mode == "hybrid":
+            tokens = set(re.findall(r"\w+", question.casefold()))
+            scores = []
+            n = len(self.terms)
+            for i, row in enumerate(self.terms):
+                score = 0.0
+                length = sum(row.values())
+                for term in tokens:
+                    tf = row.get(term, 0)
+                    df = self.document_frequency[term]
+                    if tf:
+                        idf = np.log(1 + (n - df + 0.5) / (df + 0.5))
+                        score += (
+                            idf
+                            * tf
+                            * 2.5
+                            / (tf + 1.5 * (0.25 + 0.75 * length / self.average_length))
+                        )
+                if score > 0:
+                    scores.append((i, score))
+            lexical = [i for i, _ in sorted(scores, key=lambda x: x[1], reverse=True)[:pool]]
+            fused = {}
+            for ranking in [indices[0].tolist(), lexical]:
+                for rank, i in enumerate(ranking, 1):
+                    if i >= 0:
+                        fused[i] = fused.get(i, 0.0) + 1 / (60 + rank)
+            best = sorted(fused, key=lambda i: (-fused[i], i))[:k]
+            return [
+                dict(self.chunks[i], id=f"R{rank}", score=round(fused[i], 6), search_mode=mode)
+                for rank, i in enumerate(best, 1)
+            ]
         return [
             dict(self.chunks[int(i)], id=f"R{rank}", score=round(float(s), 4))
             for rank, (s, i) in enumerate(zip(sims[0], indices[0]), 1)

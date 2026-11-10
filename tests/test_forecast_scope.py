@@ -3,10 +3,10 @@
 import pytest
 from test_agent import WEB, FakeLLM, executor, plan
 
-from src.agent import ask
 from src.integrations.llm import LLMUnavailable
 from src.models.schemas import ForecastScope
 from src.planning import make_plan
+from src.workflow import ask
 
 QUESTION = "Спрогнозируй цену Brent на 3 месяца."
 

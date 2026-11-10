@@ -3,11 +3,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from src.agent import ask
 from src.config import settings
 from src.integrations.llm import LLMUnavailable
 from src.models.schemas import AnswerReview, EvidenceAnswer, ForecastInputs, Plan
 from src.tools import make_registry, run_tool
+from src.workflow import ask
 
 
 def plan(**kwargs):

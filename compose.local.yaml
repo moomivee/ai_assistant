@@ -2,7 +2,7 @@ services:
   analyst:
     environment:
       LLM_BASE_URL: http://ollama:11434/v1
-      LLM_MODEL: qwen2.5:3b
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:3b}
       LLM_API_KEY: local
       HTTP_TIMEOUT: "120"
     depends_on:
@@ -23,7 +23,7 @@ services:
     image: ollama/ollama:latest
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["ollama","pull","qwen2.5:3b"]
+    entrypoint: ["ollama","pull","${LLM_MODEL:-qwen2.5:3b}"]
     depends_on:
       ollama:
         condition: service_healthy
