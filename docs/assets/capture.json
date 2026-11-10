@@ -1,0 +1,31 @@
+{
+  "kind": "interface_replay",
+  "ui_commit": "8ffb4f85dd470525a999851dfda0a2e9ae4aff2f",
+  "recorded_result": "eval/results/live-qwen-3b-2026-11-10.json",
+  "case_id": "regression-brent-explicit-001",
+  "question": "Спрогнозируй Brent на 3 месяца. Только расчёт",
+  "new_llm_run": false,
+  "note": "Actual HTML/CSS/JS; recorded evaluation response; frame durations do not measure model latency.",
+  "files": [
+    {
+      "file": "interface-home.png",
+      "bytes": 74514,
+      "sha256": "02da56a9f09c13bd127af074889208d070262ff3c7cd3b1d71f26afb63e16e2d"
+    },
+    {
+      "file": "interface-forecast.png",
+      "bytes": 93936,
+      "sha256": "a9e624e818956ad61a5bce3410da406ed3630e9eb4984086fd7bcbedc0a4cd3f"
+    },
+    {
+      "file": "interface-reports.png",
+      "bytes": 49770,
+      "sha256": "dc25085f6115b5ac409925bff3a4e66f0d3ff804e7ace48607b6d4b11e47cf75"
+    },
+    {
+      "file": "interface-demo.gif",
+      "bytes": 302765,
+      "sha256": "0a96cf29ce91f2f3b6745262dbaabb0d80bbad01e173a46452d2902b1ea6c3aa"
+    }
+  ]
+}

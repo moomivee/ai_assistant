@@ -4,6 +4,29 @@
 
 **Стек:** Python 3.12, uv, FastAPI, FAISS, ONNX-эмбеддеры, OpenAI-совместимый LLM-клиент, Langfuse. Локальная Qwen 2.5 3B выбрана как доступная стартовая модель.
 
+## Интерфейс
+
+![Ввод вопроса, результат прогноза, расчёт по месяцам и раскрытие графика](docs/assets/interface-demo.gif)
+
+Демонстрация интерфейса на сохранённом ответе [реального прогона Qwen 3B](eval/results/live-qwen-3b-2026-11-10.json); ожидание генерации не показано.
+
+<details>
+<summary>Открыть отдельные скриншоты</summary>
+
+**Стартовый экран**
+
+![Стартовый экран с полем вопроса и примерами запросов](docs/assets/interface-home.png)
+
+**Прогноз и расчёт по месяцам**
+
+![Ответ с прогнозом Brent, интервалом и таблицей ARIMA и сглаживания](docs/assets/interface-forecast.png)
+
+**Отчёты и график по требованию**
+
+![Загруженные отчёты и раскрытый график истории Brent и WTI](docs/assets/interface-reports.png)
+
+</details>
+
 ## Запуск
 
 После установки [uv](https://docs.astral.sh/uv/getting-started/installation/) и [Ollama](https://ollama.com/download):
