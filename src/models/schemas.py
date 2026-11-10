@@ -61,6 +61,13 @@ class EvidenceAnswer(StrictModel):
     limitations: list[str] = Field(max_length=5)
 
 
+class DraftAnswer(StrictModel):
+    # Extract the facts before deciding whether they answer the whole question.
+    claims: list[Claim] = Field(max_length=10)
+    complete: bool
+    limitations: list[str] = Field(max_length=0)
+
+
 class EvidenceSpan(StrictModel):
     source: str = Field(min_length=1, max_length=20)
     quote: str = Field(min_length=6, max_length=1800)

@@ -7,7 +7,7 @@ from pydantic import Field, create_model
 
 from .integrations.llm import LLMUnavailable
 from .logging import log
-from .models.schemas import AnswerReview, ClaimReview, EvidenceAnswer
+from .models.schemas import AnswerReview, ClaimReview, DraftAnswer, EvidenceAnswer
 from .validation import normalized, validate_claims
 
 
@@ -107,7 +107,7 @@ def verified_answer(client, payload, *, allow_repair=True):
         )
         return checked_review(draft, result, context)
 
-    raw = client.generate("answer", {**base, "phase": "draft"}, EvidenceAnswer)
+    raw = client.generate("answer", {**base, "phase": "draft"}, DraftAnswer)
     draft = validate_claims(raw, sources)
     checked, evidence = review(draft, sources, "draft")
     if checked.complete or not allow_repair or not evidence:
@@ -122,9 +122,10 @@ def verified_answer(client, payload, *, allow_repair=True):
                 **base,
                 "phase": "repair",
                 "sources": context,
+                "supported_claims": [claim.model_dump() for claim in checked.claims],
                 "instruction": "Пересобери ответ только по этим проверенным цитатам. Ответь на все части question; не добавляй другие темы.",
             },
-            EvidenceAnswer,
+            DraftAnswer,
         )
         # Joined excerpts must not become invented contiguous quotations.
         ids = {source["id"] for source in context}

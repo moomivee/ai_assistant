@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.answering import review_schema, verified_answer
-from src.models.schemas import AnswerReview, EvidenceAnswer
+from src.models.schemas import AnswerReview, DraftAnswer, EvidenceAnswer
 from src.validation import numbers, validate_claims
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/qwen-review-failure.json").read_text())
@@ -85,3 +85,13 @@ def test_real_draft_reaches_review_without_unrequested_limitations():
     )
     assert answer.complete and len(answer.claims) == 1
     assert not repaired and answer.limitations == []
+
+
+def test_draft_extracts_facts_first_without_generated_missing_data_claims():
+    schema = DraftAnswer.model_json_schema()
+    assert list(schema["properties"]) == ["claims", "complete", "limitations"]
+    assert schema["properties"]["limitations"]["maxItems"] == 0
+    good = {**FIXTURE["draft"], "limitations": []}
+    DraftAnswer.model_validate(good)
+    with pytest.raises(ValidationError):
+        DraftAnswer.model_validate(FIXTURE["draft"])
