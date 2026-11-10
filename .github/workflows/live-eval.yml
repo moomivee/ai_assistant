@@ -16,6 +16,7 @@ jobs:
       LLM_MODEL: qwen2.5:3b
       LLM_MAX_TOKENS: '2400'
       HTTP_TIMEOUT: '120'
+      LLM_HTTP_TIMEOUT: '600'
       OLLAMA_CONTEXT_LENGTH: '8192'
       RAG_EMBEDDING: minilm-multi
       TRACE_FILE: .cache/eval/live-traces.jsonl

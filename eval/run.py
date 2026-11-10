@@ -190,7 +190,7 @@ def make_judge():
         OpenAI(
             api_key=key,
             base_url=os.getenv("JUDGE_BASE_URL", cfg.llm_base),
-            timeout=cfg.timeout,
+            timeout=cfg.llm_timeout,
             max_retries=0,
         ),
         model=os.getenv("JUDGE_MODEL", cfg.llm_model),

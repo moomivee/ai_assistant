@@ -20,6 +20,7 @@ class Settings(BaseModel):
     web_key: str
     domains: tuple[str, ...]
     timeout: float = Field(gt=0, le=120)
+    llm_timeout: float = Field(default=120, gt=0, le=600)
     news_days: int = Field(ge=1, le=365)
     forecast_windows: int = Field(ge=24, le=96)
     embedding: str = "minilm-multi"
@@ -50,6 +51,7 @@ def settings() -> Settings:
             if d.strip()
         ),
         timeout=float(os.getenv("HTTP_TIMEOUT", "25")),
+        llm_timeout=float(os.getenv("LLM_HTTP_TIMEOUT", os.getenv("HTTP_TIMEOUT", "25"))),
         news_days=int(os.getenv("NEWS_MAX_DAYS", "30")),
         forecast_windows=int(os.getenv("BACKTEST_ORIGINS", "48")),
         embedding=os.getenv("RAG_EMBEDDING", "minilm-multi"),

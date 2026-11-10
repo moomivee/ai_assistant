@@ -25,7 +25,7 @@ class LLMClient:
             OpenAI(
                 api_key=cfg.llm_key,
                 base_url=cfg.llm_base,
-                timeout=cfg.timeout,
+                timeout=cfg.llm_timeout,
                 max_retries=0,
             )
             if cfg.llm_key

@@ -109,3 +109,16 @@ def test_ort_optout_before_import():
         capture_output=True,
     )
     assert result.returncode == 0
+
+
+def test_slow_llm_timeout_does_not_increase_web_timeout(monkeypatch):
+    from src.config import settings
+
+    monkeypatch.setenv("HTTP_TIMEOUT", "25")
+    monkeypatch.setenv("LLM_HTTP_TIMEOUT", "600")
+    monkeypatch.setenv("LLM_API_KEY", "local")
+    settings.cache_clear()
+    client = LLMClient()
+    assert settings().timeout == 25
+    assert httpx.Timeout(client.client.timeout).read == 600
+    client.client.close()
