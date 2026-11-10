@@ -1,0 +1,163 @@
+{
+  "review_type": "AI-assisted source review; not independent human evaluation",
+  "human_review": "pending",
+  "criteria": "Answer addresses the request, has no incorrect or unsupported material claims, and task_pass additionally respects the predeclared tool constraints. Repetition is noted separately.",
+  "rows": [
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-brent-explicit-001",
+      "trace_id": "f8d587b298284289aaaf10f11999f9ff",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Расчёт, горизонт, интервал и оговорки соответствуют инструменту; лишних тем нет."
+    },
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-brent-context-002",
+      "trace_id": "dbdda399b69142b48361ba09cb9d978e",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Расчёт выполнен без незапрошенного веб-контекста."
+    },
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-urals-espo-grounding-003",
+      "trace_id": "218f4115242143b49884699cbe401894",
+      "answer_acceptable": false,
+      "task_pass": false,
+      "note": "Числа верны, но вывод о меньшей физической плотности Urals перевёрнут. Статус ok и наличие ссылок ошибку не обнаружили."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-wti-quarter",
+      "trace_id": "193bbf009aa24321a4055a96e14f0c20",
+      "answer_acceptable": true,
+      "task_pass": false,
+      "note": "Прогноз WTI на квартал верен, но дополнительно вызван веб и добавлена незапрошенная котировка. Нарушена заранее заданная рубрика маршрута."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-urals-discount",
+      "trace_id": "fe69bf7f64694cc485fc9181b3be5dc0",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Urals на четыре месяца с фиксированным дисконтом 8 USD; допущение явно указано."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-missing-discount",
+      "trace_id": "7e872c59b9d14146a42599a9c87495c7",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Уточнён отсутствующий дисконт; расчёт не вызван, число не выдумано."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-sokol-values",
+      "trace_id": "960fd85cd24249e686184166c346b82c",
+      "answer_acceptable": false,
+      "task_pass": false,
+      "note": "Запрошенный диапазон 0.2–0.3% найден, но добавлены выводы о других сортах и привлекательности для производителей, которых источник не подтверждает. Диапазоны Sokol и Sakhalin по сере перекрываются; строгое превосходство не следует из таблицы."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-new-comparison",
+      "trace_id": "33adc19ae206414bac0920e8bd61518d",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "API и сера ARCO/Siberian Light приведены верно; Siberian Light правильно названа более лёгкой и менее сернистой. Есть повторение выводов."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-false-premise",
+      "trace_id": "1a5231e7aa0f46c294b82b0930157c82",
+      "answer_acceptable": false,
+      "task_pass": false,
+      "note": "Модель утверждает обратную связь API с плотностью, но тут же делает противоположный вывод: меньший API якобы означает меньшую плотность."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-production",
+      "trace_id": "341c7492c131489b9df0e7561d34716c",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "9.2 млн б/с в 2024 против 9.6 в 2023 и снижение на 4% соответствуют PDF. Прочитана полная страница; четыре повторные попытки были отклонены. Дополнительные сведения о жидком топливе обозначены отдельно."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-unanswerable",
+      "trace_id": "66c0ba6d91f74a08a5028254c5127168",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Корректный partial без выдуманных сведений о несуществующей компании; неэффективные повторные попытки до лимита."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-quote",
+      "trace_id": "87d30ac12ba140268f0f28ca00c18604",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Приведено полученное от FRED дневное наблюдение с датой, USD/барр. и оговоркой о задержке; не названо ценой в реальном времени. Проверяется соответствие полученному snapshot, не независимая биржевая верификация."
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-outside",
+      "trace_id": "a0b54c76c44240a2ac2013f62723619c",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Короткое обозначение специализации; кулинарный запрос не выполняется."
+    },
+    {
+      "file": "agent-audit-7b-counterfactual.json",
+      "case_id": "counterfactual-original",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "В исходной синтетической таблице правильно выбрана Orion. Избыточные повторы."
+    },
+    {
+      "file": "agent-audit-7b-counterfactual.json",
+      "case_id": "counterfactual-swapped",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "После перестановки значений правильно выбрана Vega; вопрос не менялся. Проверяется зависимость вывода от данных, не общая точность."
+    },
+    {
+      "file": "agent-audit-7b-counterfactual.json",
+      "case_id": "counterfactual-empty-first",
+      "answer_acceptable": true,
+      "task_pass": false,
+      "note": "Безопасный partial, но задача не решена: вместо нового запроса повторялся старый. Первоначальная защита затем блокировала дальнейший поиск."
+    },
+    {
+      "file": "agent-audit-7b-recovery.json",
+      "case_id": "counterfactual-empty-first",
+      "answer_acceptable": true,
+      "task_pass": false,
+      "note": "После исправления защиты другая формулировка разрешена, но настоящая Qwen 7B всё равно повторила исходный запрос пять раз. Второй успешный поиск, который мог вернуть данные, не выполнен. Сбой способности адаптироваться сохранён."
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-brent-explicit-001",
+      "trace_id": "6ba4035792d046a28aa8e7b26c3d433c",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Корректный прогноз без лишнего веба."
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-brent-context-002",
+      "trace_id": "82da55c62b524ab2b62a7bb52be39df3",
+      "answer_acceptable": true,
+      "task_pass": true,
+      "note": "Корректный прогноз без лишнего веба."
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-urals-espo-grounding-003",
+      "trace_id": "66c48a7575cf41e4984e8bc3ad4ce0b3",
+      "answer_acceptable": false,
+      "task_pass": false,
+      "note": "Возвращён partial вместо сравнения; retrieval нашёл таблицу, но пригодный полный ответ не сформирован."
+    }
+  ]
+}

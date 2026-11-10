@@ -24,15 +24,13 @@ def assess(results, output, data):
     controls = load_cases(ROOT / "eval/data/judge_controls.jsonl")
     calibration = []
     for case in controls:
-        grade = client.generate("judge", case["payload"], JudgeResult).model_dump()
-        calibration.append(
-            {
-                "id": case["id"],
-                "expected_acceptable": case["acceptable"],
-                "grade": grade,
-                "passed": acceptable(grade) == case["acceptable"],
-            }
-        )
+        item = {"id": case["id"], "expected_acceptable": case["acceptable"], "passed": False}
+        try:
+            grade = client.generate("judge", case["payload"], JudgeResult).model_dump()
+            item.update(grade=grade, passed=acceptable(grade) == case["acceptable"])
+        except Exception as exc:
+            item["error"] = type(exc).__name__
+        calibration.append(item)
     calibrated = all(row["passed"] for row in calibration)
     if not calibrated:
         result = {

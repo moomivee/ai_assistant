@@ -6,14 +6,14 @@ from pathlib import Path
 from time import perf_counter
 
 from src.agent import ask
-from src.config import ROOT, settings
+from src.config import settings
 
 from .run import provenance
 
 QUESTION = "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт."
 
 
-def run(output):
+def run(output, only=None):
     if Path(output).exists() or Path(output).with_suffix(".jsonl").exists():
         raise FileExistsError("Choose a new output path to preserve previous measurements.")
     rows = []
@@ -37,6 +37,8 @@ def run(output):
             True,
         ),
     ]:
+        if only and key not in only:
+            continue
         source = {
             "id": "R1",
             "report": "synthetic-evaluation",
@@ -89,7 +91,9 @@ def run(output):
     result = {
         "model": settings().llm_model,
         "scope": "actual_llm_controlled_synthetic_evidence",
-        "provenance": provenance(ROOT / "eval/data/judge_controls.jsonl"),
+        "case_selection": only or ["original", "swapped", "empty-first"],
+        "provenance": provenance(Path(__file__)),
+        "dataset_source": "Fixtures embedded in eval/counterfactual.py; exact evidence is saved in every row.",
         "rows": rows,
         "note": "Outputs must follow the supplied values; changed output alone is not a semantic accuracy metric.",
     }
@@ -99,4 +103,5 @@ def run(output):
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
-    run(p.parse_args().output)
+    p.add_argument("--case", dest="only", nargs="+", choices=["original", "swapped", "empty-first"])
+    run(**vars(p.parse_args()))

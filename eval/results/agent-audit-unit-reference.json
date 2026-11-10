@@ -1,0 +1,49 @@
+{
+  "scope": "diagnostic_not_benchmark",
+  "model": "qwen2.5:7b",
+  "payload": {
+    "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+    "sources": [
+      {
+        "id": "R1",
+        "title": "EIA · Country Analysis Brief: Russia",
+        "date": "2025-07-24",
+        "page": 6,
+        "kind": "report"
+      }
+    ],
+    "evidence": {
+      "R1:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+    },
+    "feedback": "",
+    "unit_reference": {
+      "API gravity": "Более высокий °API означает меньшую физическую плотность: нефть легче. Более низкий °API означает большую физическую плотность: нефть тяжелее.",
+      "sulfur content": "Процент массового содержания серы. Меньшее значение означает менее сернистую нефть. Это не показатель плотности.",
+      "source": "https://www.eia.gov/dnav/pet/tbldefs/pet_pnp_crq_tbldef2.asp"
+    }
+  },
+  "answer": {
+    "claims": [
+      {
+        "evidence_ids": [
+          "R1:B1"
+        ],
+        "text": "Уралы имеют плотность от 30 до 32 °API, в то время как ESPO имеют плотность от 34 до 37 °API. Это означает, что Уралы легче, чем ESPO."
+      },
+      {
+        "evidence_ids": [
+          "R1:B1"
+        ],
+        "text": "Уралы содержат серу в количестве от 1.3% до 1.5%, в то время как ESPO содержат серу в количестве от 0.4% до 0.6%. Это означает, что ESPO менее сернистые, чем Уралы."
+      },
+      {
+        "evidence_ids": [
+          "R1:B1"
+        ],
+        "text": "Уралы имеют плотность от 30 до 32 °API, в то время как ESPO имеют плотность от 34 до 37 °API. Это означает, что ESPO тяжелее, чем Уралы."
+      }
+    ],
+    "complete": true
+  },
+  "seconds": 43.61520504951477
+}

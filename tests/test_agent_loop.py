@@ -365,3 +365,43 @@ def test_no_tool_expected_rejects_unnecessary_execution():
         "agent_mode": "loop",
     }
     assert route_metrics(expected, response, {"intent": "outside"})["tool_policy_pass"] == 0
+
+
+def test_predicted_plan_cannot_relax_gold_tool_requirements():
+    expected = {
+        "tools": ["report_search", "price_forecast"],
+        "intent": "forecast",
+        "statuses": ["ok"],
+        "plan_checks": {"wants_context": True},
+    }
+    response = {
+        "trace": [event("price_forecast")],
+        "intent": "forecast",
+        "status": "ok",
+        "agent_mode": "loop",
+    }
+    wrong_plan = {"intent": "forecast", "wants_context": False, "quotes": []}
+    metrics = route_metrics(expected, response, wrong_plan)
+    assert metrics["tool_policy_pass"] == 0 and metrics["plan_fields_correct"] == 0
+
+
+def test_duplicate_empty_search_still_allows_a_different_query():
+    queries = []
+
+    def execute(registry, name, **args):
+        queries.append(args["query"])
+        return ([] if args["query"] == "broad" else [REPORT]), None, event(name)
+
+    client = Scripted(
+        [
+            action("report_search", "broad"),
+            action("report_search", "broad"),
+            action("report_search", "focused"),
+            action("finish"),
+        ]
+    )
+    response = ask(
+        "Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan(report_only=True)
+    )
+    assert queries == ["broad", "focused"]
+    assert response["status"] == "ok" and response["rejected_actions"] == 1

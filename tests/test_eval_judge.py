@@ -1,16 +1,23 @@
 import json
 
+import pytest
+
 from eval import assess_saved
 from src.models.schemas import JudgeResult
 
 
-def test_failed_calibration_does_not_score_answers_or_publish_success(monkeypatch, tmp_path):
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_failed_calibration_does_not_score_answers_or_publish_success(
+    monkeypatch, tmp_path, unavailable
+):
     class ApprovesEverything:
         model = "test-judge"
         calls = 0
 
         def generate(self, *args):
             self.calls += 1
+            if unavailable:
+                raise RuntimeError("Judge unavailable")
             return JudgeResult(
                 groundedness=4,
                 relevance=4,

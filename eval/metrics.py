@@ -38,10 +38,9 @@ def route_metrics(expected, response, plan):
     # exact sequence only as a diagnostic, not a quality gate for an agent loop.
     if (
         response.get("agent_mode") == "loop"
-        and plan
-        and plan.get("intent") == "forecast"
-        and not plan.get("wants_context")
-        and not plan.get("quotes")
+        and expected.get("intent") == "forecast"
+        and expected.get("plan_checks", {}).get("wants_context") is False
+        and not expected.get("plan_checks", {}).get("quotes")
     ):
         required = [tool for tool in required if tool != "report_search"]
     required_ok = set(required) <= set(actual) if required else not actual

@@ -84,7 +84,9 @@ def allowed_actions(state):
         last = state["observations"][-1]
         if str(last.get("error") or "").startswith("Duplicate action rejected"):
             alternatives = [name for name in actions if name != last["tool"]]
-            if alternatives:
+            # Do not force completion after an empty search: a different query
+            # is still useful when no other evidence-gathering action exists.
+            if any(name != "finish" for name in alternatives):
                 actions = alternatives
     return actions
 

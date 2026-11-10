@@ -1,0 +1,1757 @@
+{
+  "mode": "agent",
+  "scope": "agent",
+  "provenance": {
+    "time": "2026-11-10T20:15:44.605460+00:00",
+    "git_commit": "fd9977182a78f505635bff90ace9ae0a6ff89e74",
+    "git_dirty": true,
+    "code_sha256": "6fa603758f72e2cf4ec36f46e41b1fd3a6e590b91e116cc4dd5fe03557a8b488",
+    "dataset_sha256": "9d4bf3da422dd7ececd48fe5b7bd234604314f68561582b8ce37557de52bb0dc",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "configuration": {
+      "model": "qwen2.5:7b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2000
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:3d30aaa1bec345edcde8137777f996158295d3d2562b42eb847734f66cb88dec",
+      "cited_answer": "sha256:8e847a3438092fe9b14e39406feb7d8e2770ac2138eb7318d1c3eef0d03ed35f",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "split": "all",
+  "rows": [
+    {
+      "case_id": "audit-wti-quarter",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 0.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 4,
+        "rejected_actions": 1,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 1.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Нужен расчёт WTI на ближайший квартал",
+        "fresh": true,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [
+          "WTI"
+        ],
+        "benchmark": "WTI",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "WTI oil price forecast for the next quarter",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": "WTI",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Нужен расчёт WTI на ближайший квартал. Новости не нужны.",
+        "answer": "Прогноз WTI на 3 мес. В 2027-01 модель ожидает 102.86 USD/барр. Ориентировочный 90%-й прогнозный интервал — 80.46–131.51 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена WTI составила 102.07 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 9.24 USD/барр. Для прогноза «цена останется последней» — 9.04. [M1]\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.\n\nПоследнее опубликованное наблюдение WTI spot за 2026-11-03 — 99.64 USD/барр. Ряд дневной, публикуется с задержкой. [W1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · WTI",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILWTICO",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          },
+          {
+            "id": "W1",
+            "kind": "web",
+            "title": "EIA через FRED · WTI spot",
+            "date": "2026-11-03",
+            "url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "text": "Последнее опубликованное наблюдение WTI spot за 2026-11-03 — 99.64 USD/барр. Ряд дневной, публикуется с задержкой.",
+            "page": null,
+            "chunk_id": null,
+            "grade": "WTI",
+            "price": 99.64
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 111
+          },
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "error",
+            "ms": 1
+          },
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 989
+          },
+          {
+            "tool": "web_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 11071
+          }
+        ],
+        "trace_id": "193bbf009aa24321a4055a96e14f0c20",
+        "forecast": {
+          "benchmark": "WTI",
+          "base": "WTI",
+          "as_of": "2026-10",
+          "last": 102.07,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 103.28,
+              "ses": 102.07,
+              "point": 102.68,
+              "lower": 93.36,
+              "upper": 112.92,
+              "mae": 4.53,
+              "naive_mae": 4.67
+            },
+            {
+              "month": "2026-12",
+              "arima": 103.58,
+              "ses": 102.07,
+              "point": 102.83,
+              "lower": 84.39,
+              "upper": 125.29,
+              "mae": 7.39,
+              "naive_mae": 7.35
+            },
+            {
+              "month": "2027-01",
+              "arima": 103.66,
+              "ses": 102.07,
+              "point": 102.86,
+              "lower": 80.46,
+              "upper": 131.51,
+              "mae": 9.24,
+              "naive_mae": 9.04
+            }
+          ],
+          "discount": null,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILWTICO"
+        },
+        "decisions": [
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the price forecast for WTI for the next quarter.",
+            "action": "price_forecast",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the WTI price forecast for the next quarter based on the provided data.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the WTI price forecast for the next quarter based on the available data.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "WTI price forecast for the next quarter",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the WTI price forecast for the next quarter based on available information.",
+            "action": "web_search",
+            "source_ids": [],
+            "query": "WTI price forecast for the next quarter",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the WTI price forecast for the next quarter based on the available information.",
+            "action": "finish",
+            "source_ids": [
+              "R1",
+              "R2",
+              "R3",
+              "R4"
+            ],
+            "query": "",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 1
+      },
+      "llm_calls": 7,
+      "ms": 177425.06,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": ""
+          },
+          "chunk_ids": [],
+          "metrics": null
+        },
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "WTI price forecast for the next quarter"
+          },
+          "chunk_ids": [
+            "cbr-oct-2025:p1:w0",
+            "cbr-oct-2025:p1:w164",
+            "eia-russia-2025:p27:w164",
+            "eia-russia-2025:p25:w246",
+            "eia-russia-2025:p19:w82",
+            "eia-russia-2025:p15:w82"
+          ],
+          "metrics": null
+        }
+      ]
+    },
+    {
+      "case_id": "audit-urals-discount",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Urals oil price forecast with fixed discount to Brent",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Urals",
+        "months": 4,
+        "discount": 8.0,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [
+          {
+            "field": "discount",
+            "quote": "фиксирован: 8 USD за баррель"
+          }
+        ],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "Urals oil price forecast with fixed discount to Brent",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Urals",
+        "months": 4,
+        "discount": 8.0,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Рассчитай Urals на 4 месяца, если дисконт к Brent фиксирован: 8 USD за баррель.",
+        "answer": "Прогноз Urals на 4 мес. В 2027-02 модель ожидает 117.97 USD/барр. Ориентировочный 90%-й прогнозный интервал — 75.45–182.15 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена Brent составила 123.93 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 11.25 USD/барр. Для прогноза «цена останется последней» — 10.89. [M1]\n\nУсловный Urals равен расчёту Brent минус заданные 8 USD/барр. Интервал условен при фиксированном дисконте.\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · Brent",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILBRENTEU",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 14
+          }
+        ],
+        "trace_id": "fe69bf7f64694cc485fc9181b3be5dc0",
+        "forecast": {
+          "benchmark": "Urals",
+          "base": "Brent",
+          "as_of": "2026-10",
+          "last": 123.93,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 118.85,
+              "ses": 115.93,
+              "point": 117.39,
+              "lower": 103.3,
+              "upper": 133.26,
+              "mae": 5.3,
+              "naive_mae": 5.38
+            },
+            {
+              "month": "2026-12",
+              "arima": 119.69,
+              "ses": 115.93,
+              "point": 117.81,
+              "lower": 91.75,
+              "upper": 150.68,
+              "mae": 8.45,
+              "naive_mae": 8.32
+            },
+            {
+              "month": "2027-01",
+              "arima": 119.94,
+              "ses": 115.93,
+              "point": 117.93,
+              "lower": 79.95,
+              "upper": 172.31,
+              "mae": 10.37,
+              "naive_mae": 10.14
+            },
+            {
+              "month": "2027-02",
+              "arima": 120.0,
+              "ses": 115.93,
+              "point": 117.97,
+              "lower": 75.45,
+              "upper": 182.15,
+              "mae": 11.25,
+              "naive_mae": 10.89
+            }
+          ],
+          "discount": 8.0,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILBRENTEU"
+        },
+        "decisions": [
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the Urals oil price forecast with a fixed discount to Brent for 4 months.",
+            "action": "price_forecast",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Calculate the Urals oil price forecast with a fixed discount to Brent for 4 months.",
+            "action": "finish",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 4,
+      "ms": 67764.93,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": []
+    },
+    {
+      "case_id": "audit-missing-discount",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 0,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "расчёт цены Urals через два месяца",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Urals",
+        "months": 2,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": "Укажите дисконт Urals к Brent в USD за баррель."
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "расчёт цены Urals через два месяца",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Urals",
+        "months": 2,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Дай расчёт цены Urals через два месяца. Дисконт я пока не задала.",
+        "answer": "Укажите дисконт Urals к Brent в USD за баррель.",
+        "status": "clarification",
+        "clarification": true,
+        "intent": "forecast",
+        "mode": "qwen2.5:7b",
+        "sources": [],
+        "claims": [],
+        "trace": [],
+        "trace_id": "7e872c59b9d14146a42599a9c87495c7",
+        "forecast": null,
+        "decisions": [],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 2,
+      "ms": 15997.27,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": []
+    },
+    {
+      "case_id": "audit-sokol-values",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "sera content in Sokol crude oil according to the uploaded report",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "sera content in Sokol crude oil according to the uploaded report",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Что отчёт говорит о сере в Sokol? Нужны границы диапазона, без интернета.",
+        "answer": "Sokol нефть имеет API от 35 до 37. [R1]\n\nSokol нефть содержит серу от 0.2% до 0.3%. [R1]\n\nSokol нефть легче, чем Urals, но тяжелее, чем Sakhalin. [R1]\n\nСерное содержание Sokol нефти ниже, чем у ARCO, но выше, чем у Sakhalin. [R1]\n\nSokol нефть производится в дальневосточной части России. [R1]\n\nSokol нефть имеет среднюю API, что указывает на среднюю плотность. [R1]\n\nSokol нефть имеет низкое серное содержание, что делает её более привлекательной для некоторых производителей нефтепродуктов. [R1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+            "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "page": 6,
+            "chunk_id": "eia-russia-2025:p6:w0",
+            "report": "eia-russia-2025",
+            "start_word": 0,
+            "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+            "score": 0.5787,
+            "evidence": {
+              "R1:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть имеет API от 35 до 37.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть содержит серу от 0.2% до 0.3%.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть легче, чем Urals, но тяжелее, чем Sakhalin.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Серное содержание Sokol нефти ниже, чем у ARCO, но выше, чем у Sakhalin.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть производится в дальневосточной части России.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть имеет среднюю API, что указывает на среднюю плотность.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть имеет низкое серное содержание, что делает её более привлекательной для некоторых производителей нефтепродуктов.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Sokol нефть производится в дальневосточной части России.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 4
+          }
+        ],
+        "trace_id": "960fd85cd24249e686184166c346b82c",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find information about the sulfur content in Sokol crude oil according to the uploaded report.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "sulfur content Sokol crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Provide sulfur content range for Sokol crude oil according to the uploaded report.",
+            "action": "finish",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 4,
+      "ms": 105973.2,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "sulfur content Sokol crude oil"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p6:w0",
+            "eia-russia-2025:p5:w82",
+            "eia-russia-2025:p7:w0",
+            "eia-russia-2025:p5:w0",
+            "eia-russia-2025:p16:w0",
+            "eia-russia-2025:p24:w410"
+          ],
+          "metrics": {
+            "hit@1": 1.0,
+            "hit@5": 1.0,
+            "mrr@10": 1.0,
+            "evidence_recall@5": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "audit-new-comparison",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "API and sulfur content comparison between ARCO and Siberian Light",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "API and sulfur content comparison between ARCO and Siberian Light",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Сопоставь ARCO и Siberian Light по API и сере, используя только отчёт. Какая нефть легче и менее сернистая?",
+        "answer": "Siberian Light имеет API от 34 до 36 °API, что выше, чем API от 23 до 24 °API у ARCO. [R1]\n\nSiberian Light содержит от 0.2% до 0.6% серы, что меньше, чем 2.2% до 2.4% серы в ARCO. [R1]\n\nПоэтому Siberian Light легче и менее сернистая, чем ARCO. [R1]\n\nARCO имеет API от 23 до 24 °API, что означает более тяжелую нефть по сравнению с Siberian Light. [R1]\n\nSiberian Light содержит от 0.2% до 0.6% серы, что делает её менее сернистой, чем ARCO с 2.2% до 2.4% серы. [R1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+            "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "page": 6,
+            "chunk_id": "eia-russia-2025:p6:w0",
+            "report": "eia-russia-2025",
+            "start_word": 0,
+            "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+            "score": 0.5895,
+            "evidence": {
+              "R1:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Siberian Light имеет API от 34 до 36 °API, что выше, чем API от 23 до 24 °API у ARCO.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Siberian Light содержит от 0.2% до 0.6% серы, что меньше, чем 2.2% до 2.4% серы в ARCO.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Поэтому Siberian Light легче и менее сернистая, чем ARCO.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "ARCO имеет API от 23 до 24 °API, что означает более тяжелую нефть по сравнению с Siberian Light.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Siberian Light содержит от 0.2% до 0.6% серы, что делает её менее сернистой, чем ARCO с 2.2% до 2.4% серы.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 5
+          }
+        ],
+        "trace_id": "33adc19ae206414bac0920e8bd61518d",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find API and sulfur content comparison between ARCO and Siberian Light in a report.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "API and sulfur content comparison between ARCO and Siberian Light",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Compare API and sulfur content of ARCO and Siberian Light using the provided report.",
+            "action": "finish",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 4,
+      "ms": 108080.99,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "API and sulfur content comparison between ARCO and Siberian Light"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p6:w0",
+            "eia-russia-2025:p2:w0",
+            "eia-russia-2025:p6:w82",
+            "eia-russia-2025:p24:w410",
+            "eia-russia-2025:p25:w328",
+            "eia-russia-2025:p4:w0"
+          ],
+          "metrics": {
+            "hit@1": 1.0,
+            "hit@5": 1.0,
+            "mrr@10": 1.0,
+            "evidence_recall@5": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "audit-false-premise",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "сравнение плотности Urals и ESPO по API",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "сравнение плотности Urals и ESPO по API",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Верно ли, что более низкий API у Urals означает меньшую плотность, чем у ESPO? Проверь только по отчёту.",
+        "answer": "Urals имеет API от 30 до 32, а ESPO — от 34 до 37. [R2]\n\nAPI градусы обратно пропорциональны физической плотности, поэтому более низкий API у Urals указывает на меньшую плотность по сравнению с ESPO. [R2]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R2",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+            "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "page": 6,
+            "chunk_id": "eia-russia-2025:p6:w0",
+            "report": "eia-russia-2025",
+            "start_word": 0,
+            "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+            "score": 0.3198,
+            "evidence": {
+              "R2:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R2",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Urals имеет API от 30 до 32, а ESPO — от 34 до 37.",
+            "evidence_ids": [
+              "R2:B1"
+            ]
+          },
+          {
+            "source": "R2",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "API градусы обратно пропорциональны физической плотности, поэтому более низкий API у Urals указывает на меньшую плотность по сравнению с ESPO.",
+            "evidence_ids": [
+              "R2:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 5
+          }
+        ],
+        "trace_id": "1a5231e7aa0f46c294b82b0930157c82",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find a report comparing the API values of Urals and ESPO to determine their densities.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "comparison of API values for Urals and ESPO",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Compare the API values of Urals and ESPO to determine if a lower API value corresponds to lower density.",
+            "action": "finish",
+            "source_ids": [
+              "R2"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 6
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 4,
+      "ms": 88393.94,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "comparison of API values for Urals and ESPO"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p2:w0",
+            "eia-russia-2025:p6:w0",
+            "eia-russia-2025:p16:w410",
+            "eia-russia-2025:p25:w410",
+            "eia-russia-2025:p25:w492",
+            "eia-russia-2025:p6:w82"
+          ],
+          "metrics": {
+            "hit@1": 0.0,
+            "hit@5": 1.0,
+            "mrr@10": 0.5,
+            "evidence_recall@5": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "audit-production",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 2,
+        "rejected_actions": 4,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "Россия добыча нефти 2024 год vs 2023 год",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "Россия добыча нефти 2024 год vs 2023 год",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Сколько сырой нефти добыла Россия в 2024 году в сутки, и что изменилось к 2023-му? Только документы.",
+        "answer": "Россия добыла 9.2 млн баррелей в сутки сырой нефти в 2024 году, что на 4% меньше, чем в 2023 году (9.6 млн баррелей в сутки). [R7]\n\nВ 2023 году Россия добыла 9.6 млн баррелей в сутки сырой нефти. [R7]\n\nРоссия добыла 10.5 млн баррелей в сутки жидкого топлива в 2024 году, что на 3% меньше, чем в 2023 году (10.9 млн баррелей в сутки). [R7]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R7",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=5",
+            "text": "July 2025\nPetroleum and Other Liquids\n• Russia’s proved oil reserves were 58 billion barrels as of January 1, 2024 , according to Rystad\nEnergy. 6\n• Russia produced 9.2 million barrels per day (b/d) of crude oil in 2024 , a decrease of 4% from 9.6\nmillion b/d in 2023 (Figure 3). 7\n• Western Siberia is the main production region for crude oil and condensate in Russia, and upstream\noil developments in Russia have primarily been onshore fields in northern areas of the region since\nthe early 2000s. 8\n• Russia produces eight main grades of crude oil. I ts major crude oil export is Urals, a medium-sour\ncrude oil produced mainly in Western Siberia and Russia’s Volga- Urals region (Table 2 ). 9 Historically,\nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western\nmarkets, but Ukraine -related sanctions have shifted the trade and pricing of Urals eastward. 10\n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second\nquarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these\nvoluntary cuts through the first quarter of 2025, before beginning to unwind the cuts in April 2025. 12\n• Russia produced 10.5 million b/d in total liquid fuels in 202 4, a decrease of 3% from 10.9 million b/d\nin 2023 (Figure 3). 13 Rosneft, Russia’s largest oil producer and a major refiner, accounted for 31% of\nRussia’s annual oil production in 2024 (Table 3). 14\n• Rosneft plans to commission the first stage of its Vostok Oil project in 2026 , which the company\nexpects to produce up to 2.0 million b/d by 2030. 15 The project, located in Western Siberia, includes\n13 oil and natural gas fields, a 478-mile oil pipeline, and an Arctic oil terminal that will become\nRussia’s largest oil terminal when it reaches full capacity (approximately 2.3 million b/d). 16\n• Transneft, Russia’s state-owned pipeline company and the world’s largest pipeline company,\ntransports more than 80% of Russia’s crude oil. 17\n• Russia’s refineries processed 5.4 million b/d of oil in 2024. Between January 2024 and January 2025,\naverage refinery runs in Russia remained relatively flat. 18 Refinery runs are down from almost 6\nmillion b/d in January 2022, before Russia’s full- scale invasion of Ukraine. 19\n• Beginning in January 2024, Russia experienced several refinery outages because of reported drone\nstrikes, maintenance or technical issues, and possible impacts from Ukraine-related sanctions. 20 In\nJanuary 2025, Ukrainian drone strikes reportedly hit a number of Russia’s refineries, including major\nfacilities such as Ryazan and Volgograd (Table 4), which temporarily halted production. 21 In late-\nMarch 2025, Russia and Ukraine agreed to a limited truce on energy infrastructure, although both\nsides claimed violations of the truce. 22\n• Russia consumed 3.9 million b/d of petroleum and other liquids in 2024 , remaining flat in 2023\n(Figure 3).23\nU.S. Energy Information Administration | Country Analysis Brief: Russia 3",
+            "page": 5,
+            "chunk_id": "eia-russia-2025:p5:full",
+            "report": "eia-russia-2025",
+            "full_page": true,
+            "truncated": false,
+            "evidence": {
+              "R7:B1": "July 2025\nPetroleum and Other Liquids\n• Russia’s proved oil reserves were 58 billion barrels as of January 1, 2024 , according to Rystad\nEnergy. 6\n• Russia produced 9.2 million barrels per day (b/d) of crude oil in 2024 , a decrease of 4% from 9.6\nmillion b/d in 2023 (Figure 3). 7\n• Western Siberia is the main production region for crude oil and condensate in Russia, and upstream\noil developments in Russia have primarily been onshore fields in northern areas of the region since\nthe early 2000s. 8\n• Russia produces eight main grades of crude oil. I ts major crude oil export is Urals, a medium-sour\ncrude oil produced mainly in Western Siberia and Russia’s Volga- Urals region (Table 2 ). 9 Historically,\nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western\nmarkets, but Ukraine -related sanctions have shifted the trade and pricing of Urals eastward. 10\n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second\nquarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these\nvoluntary cuts through the first quarter of 2025, before beginning to unwind the cuts in April 2025. 12\n• Russia produced 10.5 million b/d in total liquid fuels in 202 4, a decrease of 3% from 10.9 million b/d\nin 2023 (Figure 3). 13 Rosneft, Russia’s largest oil producer and a major refiner, accounted for 31% of\nRussia’s annual oil production in 2024 (Table 3). 14\n• Rosneft plans to commission the first stage of its Vostok Oil project in 2026 , which the company",
+              "R7:B2": "expects to produce up to 2.0 million b/d by 2030. 15 The project, located in Western Siberia, includes\n13 oil and natural gas fields, a 478-mile oil pipeline, and an Arctic oil terminal that will become\nRussia’s largest oil terminal when it reaches full capacity (approximately 2.3 million b/d). 16\n• Transneft, Russia’s state-owned pipeline company and the world’s largest pipeline company,\ntransports more than 80% of Russia’s crude oil. 17\n• Russia’s refineries processed 5.4 million b/d of oil in 2024. Between January 2024 and January 2025,\naverage refinery runs in Russia remained relatively flat. 18 Refinery runs are down from almost 6\nmillion b/d in January 2022, before Russia’s full- scale invasion of Ukraine. 19\n• Beginning in January 2024, Russia experienced several refinery outages because of reported drone\nstrikes, maintenance or technical issues, and possible impacts from Ukraine-related sanctions. 20 In\nJanuary 2025, Ukrainian drone strikes reportedly hit a number of Russia’s refineries, including major\nfacilities such as Ryazan and Volgograd (Table 4), which temporarily halted production. 21 In late-\nMarch 2025, Russia and Ukraine agreed to a limited truce on energy infrastructure, although both\nsides claimed violations of the truce. 22\n• Russia consumed 3.9 million b/d of petroleum and other liquids in 2024 , remaining flat in 2023\n(Figure 3).23\nU.S. Energy Information Administration | Country Analysis Brief: Russia 3"
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R7",
+            "quote": "July 2025\nPetroleum and Other Liquids\n• Russia’s proved oil reserves were 58 billion barrels as of January 1, 2024 , according to Rystad\nEnergy. 6\n• Russia produced 9.2 million barrels per day (b/d) of crude oil in 2024 , a decrease of 4% from 9.6\nmillion b/d in 2023 (Figure 3). 7\n• Western Siberia is the main production region for crude oil and condensate in Russia, and upstream\noil developments in Russia have primarily been onshore fields in northern areas of the region since\nthe early 2000s. 8\n• Russia produces eight main grades of crude oil. I ts major crude oil export is Urals, a medium-sour\ncrude oil produced mainly in Western Siberia and Russia’s Volga- Urals region (Table 2 ). 9 Historically,\nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western\nmarkets, but Ukraine -related sanctions have shifted the trade and pricing of Urals eastward. 10\n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second\nquarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these\nvoluntary cuts through the first quarter of 2025, before beginning to unwind the cuts in April 2025. 12\n• Russia produced 10.5 million b/d in total liquid fuels in 202 4, a decrease of 3% from 10.9 million b/d\nin 2023 (Figure 3). 13 Rosneft, Russia’s largest oil producer and a major refiner, accounted for 31% of\nRussia’s annual oil production in 2024 (Table 3). 14\n• Rosneft plans to commission the first stage of its Vostok Oil project in 2026 , which the company",
+            "text": "Россия добыла 9.2 млн баррелей в сутки сырой нефти в 2024 году, что на 4% меньше, чем в 2023 году (9.6 млн баррелей в сутки).",
+            "evidence_ids": [
+              "R7:B1"
+            ]
+          },
+          {
+            "source": "R7",
+            "quote": "July 2025\nPetroleum and Other Liquids\n• Russia’s proved oil reserves were 58 billion barrels as of January 1, 2024 , according to Rystad\nEnergy. 6\n• Russia produced 9.2 million barrels per day (b/d) of crude oil in 2024 , a decrease of 4% from 9.6\nmillion b/d in 2023 (Figure 3). 7\n• Western Siberia is the main production region for crude oil and condensate in Russia, and upstream\noil developments in Russia have primarily been onshore fields in northern areas of the region since\nthe early 2000s. 8\n• Russia produces eight main grades of crude oil. I ts major crude oil export is Urals, a medium-sour\ncrude oil produced mainly in Western Siberia and Russia’s Volga- Urals region (Table 2 ). 9 Historically,\nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western\nmarkets, but Ukraine -related sanctions have shifted the trade and pricing of Urals eastward. 10\n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second\nquarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these\nvoluntary cuts through the first quarter of 2025, before beginning to unwind the cuts in April 2025. 12\n• Russia produced 10.5 million b/d in total liquid fuels in 202 4, a decrease of 3% from 10.9 million b/d\nin 2023 (Figure 3). 13 Rosneft, Russia’s largest oil producer and a major refiner, accounted for 31% of\nRussia’s annual oil production in 2024 (Table 3). 14\n• Rosneft plans to commission the first stage of its Vostok Oil project in 2026 , which the company",
+            "text": "В 2023 году Россия добыла 9.6 млн баррелей в сутки сырой нефти.",
+            "evidence_ids": [
+              "R7:B1"
+            ]
+          },
+          {
+            "source": "R7",
+            "quote": "July 2025\nPetroleum and Other Liquids\n• Russia’s proved oil reserves were 58 billion barrels as of January 1, 2024 , according to Rystad\nEnergy. 6\n• Russia produced 9.2 million barrels per day (b/d) of crude oil in 2024 , a decrease of 4% from 9.6\nmillion b/d in 2023 (Figure 3). 7\n• Western Siberia is the main production region for crude oil and condensate in Russia, and upstream\noil developments in Russia have primarily been onshore fields in northern areas of the region since\nthe early 2000s. 8\n• Russia produces eight main grades of crude oil. I ts major crude oil export is Urals, a medium-sour\ncrude oil produced mainly in Western Siberia and Russia’s Volga- Urals region (Table 2 ). 9 Historically,\nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western\nmarkets, but Ukraine -related sanctions have shifted the trade and pricing of Urals eastward. 10\n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second\nquarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these\nvoluntary cuts through the first quarter of 2025, before beginning to unwind the cuts in April 2025. 12\n• Russia produced 10.5 million b/d in total liquid fuels in 202 4, a decrease of 3% from 10.9 million b/d\nin 2023 (Figure 3). 13 Rosneft, Russia’s largest oil producer and a major refiner, accounted for 31% of\nRussia’s annual oil production in 2024 (Table 3). 14\n• Rosneft plans to commission the first stage of its Vostok Oil project in 2026 , which the company",
+            "text": "Россия добыла 10.5 млн баррелей в сутки жидкого топлива в 2024 году, что на 3% меньше, чем в 2023 году (10.9 млн баррелей в сутки).",
+            "evidence_ids": [
+              "R7:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 4
+          },
+          {
+            "tool": "read_report",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 50
+          }
+        ],
+        "trace_id": "341c7492c131489b9df0e7561d34716c",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the daily crude oil production of Russia in 2024 and compare it to 2023.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "Россия добыча нефти 2024 год vs 2023 год",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Extract daily crude oil production figures for Russia in 2024 and 2023 from the provided reports.",
+            "action": "read_report",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 5
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Extract daily crude oil production figures for Russia in 2024 and 2023 from the provided report.",
+            "action": "read_report",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 5
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Identify the daily crude oil production in Russia for 2024 and compare it to 2023.",
+            "action": "report_search",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "Россия добыча нефти 2024 год vs 2023 год",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Read the specific page to find the daily crude oil production figures for 2024 and 2023.",
+            "action": "read_report",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 5
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Find the daily crude oil production for Russia in 2024 and compare it to 2023.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "Россия добыча нефти 2024 год vs 2023 год",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 4
+      },
+      "llm_calls": 8,
+      "ms": 328241.65,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "Россия добыча нефти 2024 год vs 2023 год"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p5:w0",
+            "eia-russia-2025:p1:w0",
+            "eia-russia-2025:p7:w0",
+            "eia-russia-2025:p5:w328",
+            "eia-russia-2025:p27:w82",
+            "eia-russia-2025:p25:w164"
+          ],
+          "metrics": {
+            "hit@1": 1.0,
+            "hit@5": 1.0,
+            "mrr@10": 1.0,
+            "evidence_recall@5": 1.0
+          }
+        },
+        {
+          "tool": "read_report",
+          "arguments": {
+            "report": "eia-russia-2025",
+            "page": 5
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p5:full"
+          ],
+          "metrics": {
+            "hit@1": 0.0,
+            "hit@5": 0.0,
+            "mrr@10": 0.0,
+            "evidence_recall@5": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "audit-unanswerable",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 2,
+        "rejected_actions": 4,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "добыча вымышленной компании ЛуннаяНефть в 2035 году",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "добыча вымышленной компании ЛуннаяНефть в 2035 году",
+        "fresh": false,
+        "report_only": true,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Какова добыча вымышленной компании ЛуннаяНефть в 2035 году? Ищи только в загруженных PDF.",
+        "answer": "Подтверждённых данных для ответа недостаточно.\n\nЗапрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа.",
+        "status": "partial",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 5
+          },
+          {
+            "tool": "read_report",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 15
+          }
+        ],
+        "trace_id": "66c0ba6d91f74a08a5028254c5127168",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the production data for the fictional company ЛуннаяНефть in 2035 from uploaded PDF reports.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "ЛуннаяНефть 2035 production",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for information on the production of the fictional company ЛуннаяНефть in 2035.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "ЛуннаяНефть 2035 production",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Read the relevant page to find the production data for ЛуннаяНефть in 2035.",
+            "action": "read_report",
+            "source_ids": [
+              "R1",
+              "R2",
+              "R3",
+              "R4"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 1
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for production data of ЛуннаяНефть in 2035 from the available reports.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "ЛуннаяНефть 2035 production",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Read a specific page to find the production data for ЛуннаяНефть in 2035.",
+            "action": "read_report",
+            "source_ids": [
+              "R7",
+              "R1",
+              "R2",
+              "R3"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 1
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for production data of ЛуннаяНефть in 2035 from the available reports.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "ЛуннаяНефть 2035 production",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "budget_exhausted",
+        "agent_mode": "loop",
+        "rejected_actions": 4
+      },
+      "llm_calls": 8,
+      "ms": 239959.93,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "ЛуннаяНефть 2035 production"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p9:w164",
+            "eia-russia-2025:p5:w246",
+            "eia-russia-2025:p21:w82",
+            "eia-russia-2025:p8:w164",
+            "eia-russia-2025:p26:w164",
+            "eia-russia-2025:p27:w164"
+          ],
+          "metrics": null
+        },
+        {
+          "tool": "read_report",
+          "arguments": {
+            "report": "eia-russia-2025",
+            "page": 1
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p1:full"
+          ],
+          "metrics": null
+        }
+      ]
+    },
+    {
+      "case_id": "audit-quote",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 3,
+        "rejected_actions": 3,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "last published daily value of WTI",
+        "fresh": true,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [
+          "WTI"
+        ],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "last published daily value of WTI",
+        "fresh": true,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [
+          "WTI"
+        ],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Покажи последнее опубликованное дневное значение WTI и дату этого наблюдения.",
+        "answer": "Последнее опубликованное наблюдение WTI spot за 2026-11-03 — 99.64 USD/барр. Ряд дневной, публикуется с задержкой. [W1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "W1",
+            "kind": "web",
+            "title": "EIA через FRED · WTI spot",
+            "date": "2026-11-03",
+            "url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "text": "Последнее опубликованное наблюдение WTI spot за 2026-11-03 — 99.64 USD/барр. Ряд дневной, публикуется с задержкой.",
+            "page": null,
+            "chunk_id": null,
+            "grade": "WTI",
+            "price": 99.64
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 27
+          },
+          {
+            "tool": "web_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 8507
+          },
+          {
+            "tool": "read_report",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 83
+          }
+        ],
+        "trace_id": "87d30ac12ba140268f0f28ca00c18604",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the last published daily value of WTI and its date.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "last published daily value of WTI",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the last published daily value of WTI",
+            "action": "web_search",
+            "source_ids": [],
+            "query": "last published daily value of WTI",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the last published daily value of WTI and its date.",
+            "action": "web_search",
+            "source_ids": [],
+            "query": "last published daily value of WTI",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the last published daily value of WTI and its date.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "last published daily value of WTI",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "Find the last published daily value of WTI and its date.",
+            "action": "read_report",
+            "source_ids": [
+              "W1"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 26
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find the last published daily value of WTI and its date.",
+            "action": "web_search",
+            "source_ids": [],
+            "query": "last published daily value of WTI",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 3
+      },
+      "llm_calls": 7,
+      "ms": 329115.46,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "last published daily value of WTI"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p26:w246",
+            "cbr-oct-2025:p1:w164",
+            "cbr-oct-2025:p1:w82",
+            "cbr-oct-2025:p1:w492",
+            "eia-russia-2025:p27:w410",
+            "eia-russia-2025:p23:w246"
+          ],
+          "metrics": null
+        },
+        {
+          "tool": "read_report",
+          "arguments": {
+            "report": "eia-russia-2025",
+            "page": 26
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p26:full"
+          ],
+          "metrics": null
+        }
+      ]
+    },
+    {
+      "case_id": "audit-outside",
+      "split": "test",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 0,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 1.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "outside",
+        "rag_query": "яблочный пирог рецепт",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "outside",
+        "rag_query": "яблочный пирог рецепт",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Помоги подобрать рецепт яблочного пирога.",
+        "answer": "Этот запрос вне нефтегазовой специализации. Могу помочь с отраслевыми отчётами, ценами нефти и расчётом прогноза.",
+        "status": "outside",
+        "clarification": false,
+        "intent": "outside",
+        "mode": "qwen2.5:7b",
+        "sources": [],
+        "claims": [],
+        "trace": [],
+        "trace_id": "a0b54c76c44240a2ac2013f62723619c",
+        "forecast": null,
+        "decisions": [],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 1,
+      "ms": 8218.12,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": []
+    }
+  ],
+  "model": "qwen2.5:7b",
+  "agent_mode": "loop",
+  "judge_model": null,
+  "judge_same_model": false,
+  "summary": {
+    "n": 10,
+    "forbidden_tool_violation": 0.1,
+    "intent_correct": 1.0,
+    "plan_fields_correct": 1.0,
+    "rag_before_web": 1.0,
+    "rejected_actions": 1.2,
+    "required_tool_recall": 1.0,
+    "required_tool_success": 1.0,
+    "status_correct": 1.0,
+    "tool_calls": 1.5,
+    "tool_policy_pass": 0.9,
+    "tool_sequence_exact": 0.6,
+    "response_contract_valid_rate": 1.0,
+    "llm_plan_valid_rate": 1.0,
+    "judge_coverage": 0.0,
+    "task_success_rate": null,
+    "judge_calibrated": false,
+    "judge_assisted_success_rate": null
+  },
+  "judge_summary": {}
+}
