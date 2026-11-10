@@ -1,0 +1,27 @@
+name: interface-previews
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/capture_interface.py
+      - .github/workflows/interface-previews.yml
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.13.5'
+      - name: Install capture browser
+        run: uv run --no-project --with playwright==1.62.0 python -m playwright install --with-deps chromium
+      - name: Capture UI with a recorded evaluation response
+        run: uv run --no-project --with playwright==1.62.0 --with pillow==13.0.0 python tools/capture_interface.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: interface-previews
+          path: docs/assets/
