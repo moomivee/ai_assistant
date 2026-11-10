@@ -42,6 +42,19 @@ jobs:
       - run: uv run python -m src.cli prepare
       - name: Evaluate reported regressions
         run: uv run python -m eval.smoke --output .cache/eval/live-regressions.json
+      - name: Record public regression generations
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path(".cache/eval/live-traces.jsonl")
+          if path.exists():
+              for line in path.read_text().splitlines():
+                  event = json.loads(line)
+                  if event.get("name") in {"llm.answer", "llm.answer_review"}:
+                      print("GENERATION_TRACE=" + json.dumps(event, ensure_ascii=False))
+          PY
       - name: Record runtime and context
         if: always()
         run: |
@@ -54,3 +67,43 @@ jobs:
           path: .cache/eval/
       - if: always()
         run: docker rm -f ollama || true
+
+  inspect:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[inspect-eval:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Select evaluation run
+        id: run
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          match = re.search(r"\[inspect-eval:(\d+)\]", os.environ["COMMIT_MESSAGE"])
+          if match is None:
+              raise SystemExit("Expected an evaluation run ID.")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("id=" + match.group(1) + "\n")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: qwen-live-regressions
+          path: evaluation
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.run.outputs.id }}
+      - name: Read public regression generations
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in Path("evaluation").rglob("live-traces.jsonl"):
+              for line in path.read_text().splitlines():
+                  event = json.loads(line)
+                  if event.get("name") in {"llm.answer", "llm.answer_review"}:
+                      print("GENERATION_TRACE=" + json.dumps(event, ensure_ascii=False))
+          PY
