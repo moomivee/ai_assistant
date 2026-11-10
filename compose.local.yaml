@@ -10,6 +10,8 @@ services:
         condition: service_completed_successfully
   ollama:
     image: ollama/ollama:latest
+    environment:
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:

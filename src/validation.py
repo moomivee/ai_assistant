@@ -64,7 +64,11 @@ def validate_claims(draft: EvidenceAnswer, sources: list[dict]) -> EvidenceAnswe
     accepted = []
     for claim in draft.claims:
         source = lookup.get(claim.source)
-        valid = source is not None and normalized(claim.quote) in normalized(source["text"])
+        valid = (
+            source is not None
+            and bool(normalized(claim.quote))
+            and normalized(claim.quote) in normalized(source["text"])
+        )
         if valid:
             valid = numbers(claim.text) <= numbers(claim.quote + " " + (source["date"] or ""))
         if valid:

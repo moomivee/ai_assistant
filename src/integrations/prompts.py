@@ -6,7 +6,7 @@ from ..config import ROOT, settings
 from ..logging import log
 from .telemetry import langfuse_client
 
-PROMPT_NAMES = ("plan", "forecast", "forecast_scope", "answer", "judge")
+PROMPT_NAMES = ("plan", "forecast", "forecast_scope", "answer", "answer_review", "judge")
 
 
 @dataclass

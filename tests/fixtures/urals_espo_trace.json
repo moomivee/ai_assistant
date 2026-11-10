@@ -1,0 +1,180 @@
+{
+  "provenance": {
+    "kind": "user_supplied_full_trace",
+    "trace_id": "b717fd08fec843f39d42b955db97b4fa",
+    "model": "qwen2.5:3b",
+    "captured_at": "2026-11-10T09:36:30.376743+00:00",
+    "scope": "plan, retrieved sources, first draft and final response; transport/span identifiers omitted"
+  },
+  "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+  "plan": {
+    "intent": "research",
+    "rag_query": "difference between Urals and ESPO density and sulfur content",
+    "fresh": false,
+    "report_only": false,
+    "wants_context": true,
+    "news": false,
+    "quotes": [],
+    "benchmark": null,
+    "months": null,
+    "discount": null,
+    "cut": null,
+    "sensitivity": null,
+    "parameters": [],
+    "clarify": ""
+  },
+  "sources": [
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p6:w0",
+      "start_word": 0,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 6,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+      "kind": "report",
+      "text": "July 2025 U.S. Energy Information Administration | Country Analysis Brief: Russia 4 Table 2. Major crude oil grades from Russia API gravity Sulfur content Regions Urals 30 to 32 1.3% to 1.5% Western Siberia and Volga Urals ESPO 34 to 37 0.4% to 0.6% Eastern Siberia Sokol 35 to 37 0.2% to 0.3% Far East Varandey 25 to 37 0.2% to 0.5% Northern ARCO 23 to 24 2.2% to 2.4% Northern Siberian Light 34 to 36 0.2% to 0.6% Western Siberia Sakhalin 37 to 45 0.1% to 0.3% Far East Novy Port 30 to 35 0.1% to 0.3% Western Siberia Data source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+      "id": "R1",
+      "score": 0.5348
+    },
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p5:w82",
+      "start_word": 82,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 5,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=5",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=5",
+      "kind": "report",
+      "text": "primarily been onshore fields in northern areas of the region since the early 2000s.8 • Russia produces eight main grades of crude oil. Its major crude oil export is Urals, a medium-sour crude oil produced mainly in Western Siberia and Russia’s Volga-Urals region (Table 2).9 Historically, Urals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western markets, but Ukraine-related sanctions have shifted the trade and pricing of Urals eastward.10 • As an OPEC+ participant, Russia announced additional voluntary production cuts for the second quarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these voluntary cuts through",
+      "id": "R2",
+      "score": 0.3903
+    },
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p6:w82",
+      "start_word": 82,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 6,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+      "kind": "report",
+      "text": "37 to 45 0.1% to 0.3% Far East Novy Port 30 to 35 0.1% to 0.3% Western Siberia Data source: McKinsey & Company, Independent Commodity Intelligence Services, Trading Economics, Hydrocarbons Technology, Pipeline and Gas Journal, Reuters, Nasdaq, NS Energy, and Mitsubishi Corporation 0 2 4 6 8 10 12 total liquid fuels production Data source: U.S. Energy Information Administration, Short-Term Energy Outlook Data Browser Figure 3. Total annual petroleum and other liquids production and consumption in Russia, 2014–2024 million barrels per day total liquid fuels consumption total crude oil production",
+      "id": "R3",
+      "score": 0.3517
+    },
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p2:w0",
+      "start_word": 0,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 2,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=2",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=2",
+      "kind": "report",
+      "text": "U.S. Energy Information Administration | Country Analysis Brief: Russia i The U.S. Energy Information Administration (EIA), the statistical and analytical agency within the U.S. Department of Energy (DOE), prepared this report. By law, our data, analyses, and forecasts are independent of approval by any other officer or employee of the U.S. Government. The views in this report do not represent those of DOE or any other federal agencies.",
+      "id": "R4",
+      "score": 0.3197
+    },
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p25:w410",
+      "start_word": 410,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 25,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=25",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=25",
+      "kind": "report",
+      "text": "Data (accessed February 2025). 35 U.S. Energy Information Administration, International Energy Statistics (accessed February 202 5). 36 U.S. Energy Information Administration, International Energy Statistics (accessed February 2025). 37 Indra Overland and Julia Loginova, Energy Research & Social Science, Vol. 102, “The Russian coal industry in an uncertain world: Finally pivoting to Asia?” August 2023; Britannia, Geography & Travel, Physical Geography of Land, Kuznetsk Coal Basin (accessed February 2025); Kaliningrad Packaging Plant, Coal, Geography (accessed February 2025). 38 U.S. Energy Information Administration, International Energy Statistics (accessed February 2025). 39 The other six regions are the eastern United States, eastern Australia, western Canada, China, Mozambique, and Mongolia. 40 U.S. Energy Information Administration,",
+      "id": "R5",
+      "score": 0.2997
+    },
+    {
+      "report": "eia-russia-2025",
+      "chunk_id": "eia-russia-2025:p16:w82",
+      "start_word": 82,
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 16,
+      "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=16",
+      "local_url": "/reports/EIA_Russia_2025-07.pdf#page=16",
+      "kind": "report",
+      "text": "oil transported via the pipeline. Eastern Siberia– Pacific Ocean 1 and 2 (ESPO 1 and ESPO 2) 600– 1,610 2,990 Tayshet, Russia, (in Eastern Siberia) to Mohe County, China, and Kozmino, Russia, (on the Pacific Coast) Active Transneft Asia Includes Skovorodino-Mohe branch, connecting to Russia-China 1 and 2 in Mohe County, China Druzhba 120– 1,490 3,170 Central Russia to Central Europe via northern and southern branches that split in Belarus. Partially active Transneft and others Europe Throughput declined in 2022 because of Ukraine- related sanctions. The northern branch has only transported small volumes of crude oil from Kazakhstan since 2022. Baltic Pipeline System 2 (BPS-2) 720 620 Bryansk Oblast, Russia,",
+      "id": "R6",
+      "score": 0.2979
+    }
+  ],
+  "draft": {
+    "complete": false,
+    "claims": [
+      {
+        "source": "R1",
+        "quote": "Historically, Urals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western markets, but Ukraine-related sanctions have shifted the trade and pricing of Urals eastward.",
+        "text": "Уралы были основным экспортируемым видом нефти через трубы из Балтийских и Черноморских портов в западные рынки, но санкции по отношению к Украине перенесли торговлю и ценовую политику Уралов восточными направлениями."
+      },
+      {
+        "source": "R2",
+        "quote": "As an OPEC+ participant, Russia announced additional voluntary production cuts for the second quarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these voluntary cuts through",
+        "text": "Россия, как участник ОПЕК+, объявила дополнительные добровольные сокращения производства на втором квартале 2024 года на 8.978 млн баррелей в сутки. Россия, вместе с другими участниками ОПЕК+, продлила эти добровольные сокращения."
+      }
+    ],
+    "limitations": [
+      "Отсутствуют данные о плотности и содержании серы для Urals и ESPO.",
+      "Отсутствуют данные о плотности и содержании серы для других видов нефти.",
+      "Отсутствуют данные о плотности и содержании серы для других экспортируемых видов нефти.",
+      "Отсутствуют данные о плотности и содержании серы для других экспортируемых видов нефти.",
+      "Отсутствуют данные о плотности и содержании серы для других экспортируемых видов нефти."
+    ]
+  },
+  "response": {
+    "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+    "answer": "Россия, как участник ОПЕК+, объявила дополнительные добровольные сокращения производства на втором квартале 2024 года на 8.978 млн баррелей в сутки. Россия, вместе с другими участниками ОПЕК+, продлила эти добровольные сокращения. [R2] (Отчёт, 2025-07-24)\n\nДля свободного веб-поиска укажите TAVILY_API_KEY в .env. Последние наблюдения Brent и WTI доступны через FRED без ключа.\n\nОтсутствуют данные о плотности и содержании серы для Urals и ESPO.\n\nОтсутствуют данные о плотности и содержании серы для других видов нефти.\n\nОтсутствуют данные о плотности и содержании серы для других экспортируемых видов нефти.\n\nИсточники подтверждают только часть запроса или не содержат необходимых сведений.",
+    "status": "partial",
+    "clarification": false,
+    "intent": "research",
+    "mode": "qwen2.5:3b",
+    "sources": [
+      {
+        "id": "R2",
+        "kind": "report",
+        "title": "EIA · Country Analysis Brief: Russia",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=5",
+        "text": "primarily been onshore fields in northern areas of the region since the early 2000s.8 • Russia produces eight main grades of crude oil. Its major crude oil export is Urals, a medium-sour crude oil produced mainly in Western Siberia and Russia’s Volga-Urals region (Table 2).9 Historically, Urals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western markets, but Ukraine-related sanctions have shifted the trade and pricing of Urals eastward.10 • As an OPEC+ participant, Russia announced additional voluntary production cuts for the second quarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these voluntary cuts through",
+        "page": 5,
+        "chunk_id": "eia-russia-2025:p5:w82",
+        "report": "eia-russia-2025",
+        "start_word": 82,
+        "local_url": "/reports/EIA_Russia_2025-07.pdf#page=5",
+        "score": 0.3903
+      }
+    ],
+    "claims": [
+      {
+        "source": "R2",
+        "quote": "As an OPEC+ participant, Russia announced additional voluntary production cuts for the second quarter of 2024 to 8.978 million b/d. 11 Russia, along with other OPEC+ countries, extended these voluntary cuts through",
+        "text": "Россия, как участник ОПЕК+, объявила дополнительные добровольные сокращения производства на втором квартале 2024 года на 8.978 млн баррелей в сутки. Россия, вместе с другими участниками ОПЕК+, продлила эти добровольные сокращения."
+      }
+    ],
+    "trace": [
+      {
+        "tool": "report_search",
+        "engine": "ouroboros.ToolRegistry",
+        "status": "ok",
+        "ms": 699
+      },
+      {
+        "tool": "web_search",
+        "engine": "ouroboros.ToolRegistry",
+        "status": "ok",
+        "ms": 1
+      }
+    ],
+    "forecast": null
+  }
+}

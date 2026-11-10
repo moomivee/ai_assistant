@@ -17,7 +17,7 @@ from src.integrations.llm import LLMClient
 from src.integrations.prompts import PROMPT_NAMES, get_prompt
 from src.integrations.telemetry import flush, langfuse_client, span
 from src.logging import log
-from src.models.schemas import AgentResponse, EvidenceAnswer, JudgeResult
+from src.models.schemas import AgentResponse, AnswerReview, EvidenceAnswer, JudgeResult
 from src.planning import make_plan
 from src.rag.index import MODEL_SPECS, digest, index, pdf_chunks
 
@@ -104,6 +104,13 @@ class RecordingClient:
         self.calls = 0
 
     def generate(self, name, payload, schema):
+        if self.controlled and name == "answer_review":
+            claims = payload["draft"]["claims"]
+            return AnswerReview(
+                checks=[{"index": i, "verdict": "supported"} for i, _ in enumerate(claims)],
+                complete=bool(claims),
+                repair_evidence=[],
+            )
         if self.controlled and name == "answer":
             sources = payload["sources"]
             claims = [

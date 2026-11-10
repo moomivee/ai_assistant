@@ -1,0 +1,119 @@
+{
+  "kind": "retrieval_regression_check",
+  "baseline": "eval/results/retrieval-2026-11-10.json",
+  "provenance": {
+    "time": "2026-11-10T10:00:55.504072+00:00",
+    "git_commit": "8b04cf79d3b22230a13c6aa31ae8f7fe3f6da0b5",
+    "git_dirty": true,
+    "code_sha256": "f4c6935849248212d0abb081df003552f1e727d030314b1eabf537a85e9dd152",
+    "dataset_sha256": "3733a57f4d268d180bc0053fa41ea29bdcc18b1b0858c124bf1b6bb3d26b28da",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:fbd99fbd1df213e9a2aa4f74e0ea0bab702fc0acfb87beddb0d54779c879251b",
+      "answer_review": "sha256:942a1828785eadb08718d0c75cda3cf6386d40e0e6425b615c8fcf54af28c011",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a"
+    }
+  },
+  "queries_executed": 160,
+  "summary_unchanged": true,
+  "rankings_unchanged": true,
+  "summary": {
+    "e5-small/clean_query/all": {
+      "n": 40,
+      "evidence_recall@5": 0.525,
+      "hit@1": 0.225,
+      "hit@5": 0.525,
+      "mrr@10": 0.36107142857142854
+    },
+    "e5-small/clean_query/dev": {
+      "n": 15,
+      "evidence_recall@5": 0.4666666666666667,
+      "hit@1": 0.2,
+      "hit@5": 0.4666666666666667,
+      "mrr@10": 0.32896825396825397
+    },
+    "e5-small/clean_query/test": {
+      "n": 25,
+      "evidence_recall@5": 0.56,
+      "hit@1": 0.24,
+      "hit@5": 0.56,
+      "mrr@10": 0.38033333333333336
+    },
+    "e5-small/full_question/all": {
+      "n": 40,
+      "evidence_recall@5": 0.4,
+      "hit@1": 0.2,
+      "hit@5": 0.4,
+      "mrr@10": 0.2785714285714286
+    },
+    "e5-small/full_question/dev": {
+      "n": 15,
+      "evidence_recall@5": 0.4,
+      "hit@1": 0.13333333333333333,
+      "hit@5": 0.4,
+      "mrr@10": 0.21722222222222223
+    },
+    "e5-small/full_question/test": {
+      "n": 25,
+      "evidence_recall@5": 0.4,
+      "hit@1": 0.24,
+      "hit@5": 0.4,
+      "mrr@10": 0.3153809523809524
+    },
+    "minilm-multi/clean_query/all": {
+      "n": 40,
+      "evidence_recall@5": 0.55,
+      "hit@1": 0.35,
+      "hit@5": 0.55,
+      "mrr@10": 0.4454464285714286
+    },
+    "minilm-multi/clean_query/dev": {
+      "n": 15,
+      "evidence_recall@5": 0.7333333333333333,
+      "hit@1": 0.4,
+      "hit@5": 0.7333333333333333,
+      "mrr@10": 0.5255555555555556
+    },
+    "minilm-multi/clean_query/test": {
+      "n": 25,
+      "evidence_recall@5": 0.44,
+      "hit@1": 0.32,
+      "hit@5": 0.44,
+      "mrr@10": 0.3973809523809524
+    },
+    "minilm-multi/full_question/all": {
+      "n": 40,
+      "evidence_recall@5": 0.55,
+      "hit@1": 0.25,
+      "hit@5": 0.55,
+      "mrr@10": 0.3852380952380952
+    },
+    "minilm-multi/full_question/dev": {
+      "n": 15,
+      "evidence_recall@5": 0.6666666666666666,
+      "hit@1": 0.3333333333333333,
+      "hit@5": 0.6666666666666666,
+      "mrr@10": 0.4666666666666667
+    },
+    "minilm-multi/full_question/test": {
+      "n": 25,
+      "evidence_recall@5": 0.48,
+      "hit@1": 0.2,
+      "hit@5": 0.48,
+      "mrr@10": 0.3363809523809524
+    }
+  },
+  "new_fingerprints": {
+    "e5-small": "91abcb521cf08395f335603385bc09fbeed03bae89a63757f75a2548b2323287",
+    "minilm-multi": "19e4f61e375a8bfb4d2eff7d0ee58544ff54d644da109ab7cf1b5b82ad23c98f"
+  }
+}

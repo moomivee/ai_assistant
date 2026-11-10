@@ -5,13 +5,15 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from .answering import verified_answer
 from .config import settings
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
+from .logging import log
 from .models.schemas import AgentResponse, EvidenceAnswer
 from .planning import make_plan
 from .tools import make_registry, run_tool
-from .validation import validate_claims
+from .validation import normalized
 
 
 class State(TypedDict, total=False):
@@ -26,6 +28,7 @@ class State(TypedDict, total=False):
     trace: list
     failure: str
     response: dict
+    answer_repairs: int
 
 
 def forecast_answer(calc: dict):
@@ -90,8 +93,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if not sources:
             return {"draft": empty}
         try:
-            draft = client.generate(
-                "answer",
+            draft, repaired = verified_answer(
+                client,
                 {
                     "task": "forecast_context" if is_forecast else "research",
                     "question": s["plan"]["rag_query"] if is_forecast else s["question"],
@@ -99,9 +102,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "today": date.today().isoformat(),
                     "sources": sources,
                 },
-                EvidenceAnswer,
+                allow_repair=s.get("answer_repairs", 0) == 0,
             )
-            return {"draft": validate_claims(draft, sources).model_dump()}
+            return {
+                "draft": draft.model_dump(),
+                "answer_repairs": s.get("answer_repairs", 0) + int(repaired),
+            }
         except LLMUnavailable:
             return {
                 "draft": empty,
@@ -148,6 +154,15 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             or (p["wants_context"] and not s["draft"]["complete"])
         ):
             return "web"
+        return "forecast" if p["intent"] == "forecast" else "finish"
+
+    def after_web(s):
+        p = s["plan"]
+        known = {(normalized(r["text"]), r.get("date")) for r in s["reports"]}
+        novel = any((normalized(r["text"]), r.get("date")) not in known for r in s["web"])
+        if p["wants_context"] and novel:
+            return "synthesize"
+        log("answer.web_synthesis_skipped", wants_context=p["wants_context"], new_context=novel)
         return "forecast" if p["intent"] == "forecast" else "finish"
 
     def finish(s):
@@ -225,11 +240,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     ],
                     False,
                 )
-            # Report limitations are not an assessment of a separate calculation.
-            # For mixed forecasts use the scoped message above, never a model's
-            # free-form claim that the already calculated forecast is missing.
-            if p["intent"] != "forecast":
-                notes += s["draft"]["limitations"]
+            # Unverified free-form missing-data claims are never shown as facts.
             if not enough and p["intent"] != "forecast":
                 notes.append(
                     "Источники подтверждают только часть запроса или не содержат необходимых сведений."
@@ -275,7 +286,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     g.add_conditional_edges("plan", after_route, {"reports": "reports", "finish": "finish"})
     g.add_edge("reports", "assess")
     g.add_conditional_edges("assess", after_assess, {k: k for k in ("web", "forecast", "finish")})
-    g.add_edge("web", "synthesize")
+    g.add_conditional_edges("web", after_web, {k: k for k in ("synthesize", "forecast", "finish")})
     g.add_conditional_edges(
         "synthesize",
         lambda s: "forecast" if s["plan"]["intent"] == "forecast" else "finish",
@@ -307,6 +318,7 @@ def ask(
             "notes": [],
             "trace": [],
             "calc": None,
+            "answer_repairs": 0,
             "draft": EvidenceAnswer(complete=False, claims=[], limitations=[]).model_dump(),
         }
         state = build_graph(client, registry, execute, planner).invoke(

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -22,7 +23,7 @@ from ..logging import log
 ort.disable_telemetry_events()
 
 MODEL_SPECS = json.loads((Path(__file__).parent / "embedders.json").read_text())
-INDEX_VERSION = "page-110-overlap-28-v3-stable-ids"
+INDEX_VERSION = "page-110-overlap-28-v4-preserve-lines"
 _init_lock = threading.Lock()
 
 
@@ -99,7 +100,8 @@ class Encoder:
 
 def pdf_chunks(report: dict, path: Path):
     for page, pdf_page in enumerate(PdfReader(path).pages, start=1):
-        words = (pdf_page.extract_text() or "").split()
+        text = pdf_page.extract_text() or ""
+        words = list(re.finditer(r"\S+", text))
         if len(words) < 12:
             continue
         for start in range(0, len(words), 82):
@@ -116,7 +118,7 @@ def pdf_chunks(report: dict, path: Path):
                 "url": report["url"] + f"#page={page}",
                 "local_url": f"/reports/{report['file']}#page={page}",
                 "kind": "report",
-                "text": " ".join(part),
+                "text": text[part[0].start() : part[-1].end()],
             }
             if start + 110 >= len(words):
                 break

@@ -61,6 +61,22 @@ class EvidenceAnswer(StrictModel):
     limitations: list[str] = Field(max_length=5)
 
 
+class EvidenceSpan(StrictModel):
+    source: str = Field(min_length=1, max_length=20)
+    quote: str = Field(min_length=6, max_length=1800)
+
+
+class ClaimReview(StrictModel):
+    index: int = Field(ge=0, le=9)
+    verdict: Literal["supported", "irrelevant", "contradicted", "unsupported"]
+
+
+class AnswerReview(StrictModel):
+    checks: list[ClaimReview] = Field(max_length=10)
+    complete: bool
+    repair_evidence: list[EvidenceSpan] = Field(max_length=6)
+
+
 class JudgeResult(StrictModel):
     groundedness: int = Field(ge=0, le=4)
     relevance: int = Field(ge=0, le=4)

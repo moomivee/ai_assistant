@@ -1,0 +1,55 @@
+name: live-regressions
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  qwen:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[live-eval]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LLM_BASE_URL: http://127.0.0.1:11434/v1
+      LLM_API_KEY: local
+      LLM_MODEL: qwen2.5:3b
+      LLM_MAX_TOKENS: '2400'
+      HTTP_TIMEOUT: '120'
+      OLLAMA_CONTEXT_LENGTH: '8192'
+      RAG_EMBEDDING: minilm-multi
+      TRACE_FILE: .cache/eval/live-traces.jsonl
+      TRACE_CONTENT: 'true'
+      LANGFUSE_ENABLED: 'false'
+      PROMPT_SOURCE: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.13.5'
+      - run: uv sync --locked
+      - name: Start real Ollama on CPU
+        run: |
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 -e OLLAMA_CONTEXT_LENGTH ollama/ollama:latest
+          for attempt in $(seq 1 30); do
+            if docker exec ollama ollama list; then break; fi
+            sleep 2
+          done
+          docker exec ollama ollama pull qwen2.5:3b
+          docker inspect ollama --format '{{.Image}}'
+          docker exec ollama ollama list
+      - run: uv run python -m src.cli prepare
+      - name: Evaluate reported regressions
+        run: uv run python -m eval.smoke --output .cache/eval/live-regressions.json
+      - name: Record runtime and context
+        if: always()
+        run: |
+          docker exec ollama ollama ps || true
+          docker logs --tail 60 ollama || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qwen-live-regressions
+          path: .cache/eval/
+      - if: always()
+        run: docker rm -f ollama || true

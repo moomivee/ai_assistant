@@ -6,7 +6,7 @@ import pytest
 from src.agent import ask
 from src.config import settings
 from src.integrations.llm import LLMUnavailable
-from src.models.schemas import EvidenceAnswer, ForecastInputs, Plan
+from src.models.schemas import AnswerReview, EvidenceAnswer, ForecastInputs, Plan
 from src.tools import make_registry, run_tool
 
 
@@ -71,6 +71,15 @@ class FakeLLM:
                 cut=None,
                 sensitivity=None,
                 parameters=[],
+            )
+        if name == "answer_review":
+            return AnswerReview(
+                checks=[
+                    {"index": i, "verdict": "supported"}
+                    for i, _ in enumerate(payload["draft"]["claims"])
+                ],
+                complete=self.complete,
+                repair_evidence=[],
             )
         source = payload["sources"][0]
         return EvidenceAnswer(
