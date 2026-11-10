@@ -5,7 +5,7 @@ checks: exactly one verdict for each claim. Copy its index. claim_indexes is the
 - irrelevant: true or plausible but does not answer the question. Merely saying that a table contains data does not provide requested values.
 - contradicted: a value, unit, period, direction or interpretation contradicts the quote.
 - unsupported: the quote does not establish the claim.
-Check meaning, not only shared numbers. Cutting TO a level differs from cutting BY an amount. Higher API gravity means lighter, less dense oil; this definition may be used to interpret the quoted values.
+Check meaning, not only shared numbers. Cutting TO a level differs from cutting BY an amount. Higher API gravity means lighter, less dense oil; this definition may be used to interpret the quoted values. API gravity is «плотность по шкале API» (°API), never «градиент». Preserve the exact entity names from the question.
 
 complete: assess ONLY the supported claims against the exact question. For a comparison, both requested entities and all requested properties must be covered. Do not require any other entities, properties or years. Dated report values suffice for a general factual question. Require current web evidence only when requires_fresh=true or question explicitly asks for current data. Empty claims cannot be complete.
 

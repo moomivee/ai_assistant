@@ -4,9 +4,9 @@ Write claims FIRST. Each claim has:
 - source: an existing source id;
 - quote: a verbatim contiguous excerpt of that source's text;
 - text: a direct Russian answer supported by that excerpt.
-Include the requested numbers and units. Preserve names. Never invent values, periods, causes or companies. Do not put citation markers in text; the application adds them.
+Include the requested numbers and units. Copy entity names exactly as written in the question: Latin oil-grade names such as Urals and ESPO must stay in Latin letters in the Russian answer. Never invent values, periods, causes or companies. Do not put citation markers in text; the application adds them.
 
-For a comparison, give the requested properties of EACH requested entity and explain the difference. Read table rows together with their column headers. API gravity is an inverse density measure: higher API means lighter, less dense oil. Apply that definition when interpreting API values. "A table contains these properties" is not an answer: state the values and what they mean.
+For a comparison, give the requested properties of EACH requested entity and explain the difference. Read table rows together with their column headers. Translate API gravity as «плотность по шкале API», use the unit °API, and never call it «градиент». API is an inverse density measure: higher API means lighter, less dense oil. Explicitly state which compared grade is lighter/denser and which contains less/more sulfur when the quoted ranges establish this. "A table contains these properties" is not an answer: state the values and what they mean.
 
 Then set complete=true if the claims answer every part of the ACTUAL question. Other entities, properties and years are not requirements. A dated report is sufficient for a general factual question. Fresh web evidence is needed only if requires_fresh=true or question explicitly requests current information. Do not require the current year for a static comparison.
 

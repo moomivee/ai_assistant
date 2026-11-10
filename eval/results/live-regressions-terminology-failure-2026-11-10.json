@@ -1,0 +1,427 @@
+{
+  "mode": "agent",
+  "scope": "agent",
+  "provenance": {
+    "time": "2026-11-10T10:44:10.781551+00:00",
+    "git_commit": "5ac3e6801eae7c23c8a8986e17f64afccb93a933",
+    "git_dirty": false,
+    "code_sha256": "dcea960567f4bbfad852659ab95f8794bc41b8a27bca57ce7dadb5cd8f5d3a21",
+    "dataset_sha256": "df57ff373e55744998918bbd30897dc95ccaeca4a38b3d6fb34cf454b8e8a490",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39",
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:41f2b43691048d5f8d1ccbf35c00293e3864289bff6a878441e45f613613a220",
+      "answer_review": "sha256:b274054503b635137acf2ae6401f51139469a9adaebb8163eb394c5da42dbab6",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a"
+    }
+  },
+  "split": "all",
+  "rows": [
+    {
+      "case_id": "regression-brent-explicit-001",
+      "split": "dev",
+      "metrics": {
+        "tool_sequence_exact": 1,
+        "required_tool_recall": 1,
+        "forbidden_tool_violation": 0,
+        "rag_before_web": 1,
+        "intent_correct": 1,
+        "status_correct": 1,
+        "plan_fields_correct": 1
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Brent price forecast 3 months",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "Brent price forecast 3 months",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Спрогнозируй Brent на 3 месяца. Только расчёт",
+        "answer": "Прогноз Brent на 3 мес. В 2027-01 модель ожидает 125.93 USD/барр. Ориентировочный 90%-й прогнозный интервал — 84.83–186.94 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена Brent составила 123.93 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 10.86 USD/барр. Для прогноза «цена останется последней» — 10.59. [M1]\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · Brent",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILBRENTEU",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 1117
+          },
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 20
+          }
+        ],
+        "trace_id": "ee398753fbb64fda8ce69aa40321df1f",
+        "forecast": {
+          "benchmark": "Brent",
+          "base": "Brent",
+          "as_of": "2026-10",
+          "last": 123.93,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 126.85,
+              "ses": 123.93,
+              "point": 125.39,
+              "lower": 111.3,
+              "upper": 141.26,
+              "mae": 5.24,
+              "naive_mae": 5.29
+            },
+            {
+              "month": "2026-12",
+              "arima": 127.69,
+              "ses": 123.93,
+              "point": 125.81,
+              "lower": 92.02,
+              "upper": 172.01,
+              "mae": 8.67,
+              "naive_mae": 8.49
+            },
+            {
+              "month": "2027-01",
+              "arima": 127.94,
+              "ses": 123.93,
+              "point": 125.93,
+              "lower": 84.83,
+              "upper": 186.94,
+              "mae": 10.86,
+              "naive_mae": 10.59
+            }
+          ],
+          "discount": null,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILBRENTEU"
+        }
+      },
+      "llm_calls": 1,
+      "ms": 24187.59
+    },
+    {
+      "case_id": "regression-brent-context-002",
+      "split": "dev",
+      "metrics": {
+        "tool_sequence_exact": 1,
+        "required_tool_recall": 1,
+        "forbidden_tool_violation": 0,
+        "rag_before_web": 1,
+        "intent_correct": 1,
+        "status_correct": 1,
+        "plan_fields_correct": 1
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Brent oil price forecast",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "Brent oil price forecast",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Спрогнозируй цену Brent на 3 месяца.",
+        "answer": "Прогноз Brent на 3 мес. В 2027-01 модель ожидает 125.93 USD/барр. Ориентировочный 90%-й прогнозный интервал — 84.83–186.94 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена Brent составила 123.93 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 10.86 USD/барр. Для прогноза «цена останется последней» — 10.59. [M1]\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · Brent",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILBRENTEU",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 4
+          },
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 23
+          }
+        ],
+        "trace_id": "a5b2359e0c7a419aa7383e2a1a408af4",
+        "forecast": {
+          "benchmark": "Brent",
+          "base": "Brent",
+          "as_of": "2026-10",
+          "last": 123.93,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 126.85,
+              "ses": 123.93,
+              "point": 125.39,
+              "lower": 111.3,
+              "upper": 141.26,
+              "mae": 5.24,
+              "naive_mae": 5.29
+            },
+            {
+              "month": "2026-12",
+              "arima": 127.69,
+              "ses": 123.93,
+              "point": 125.81,
+              "lower": 92.02,
+              "upper": 172.01,
+              "mae": 8.67,
+              "naive_mae": 8.49
+            },
+            {
+              "month": "2027-01",
+              "arima": 127.94,
+              "ses": 123.93,
+              "point": 125.93,
+              "lower": 84.83,
+              "upper": 186.94,
+              "mae": 10.86,
+              "naive_mae": 10.59
+            }
+          ],
+          "discount": null,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILBRENTEU"
+        }
+      },
+      "llm_calls": 2,
+      "ms": 14854.86
+    },
+    {
+      "case_id": "regression-urals-espo-grounding-003",
+      "split": "dev",
+      "metrics": {
+        "tool_sequence_exact": 1,
+        "required_tool_recall": 1,
+        "forbidden_tool_violation": 0,
+        "rag_before_web": 1,
+        "intent_correct": 1,
+        "status_correct": 1,
+        "plan_fields_correct": 1
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "difference between Urals and ESPO density and sulfur content",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "difference between Urals and ESPO density and sulfur content",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+        "answer": "Урал и ESPO отличаются друг от друга плотностью и содержанием серы. Урал имеет API градиент от 30 до 32 и содержание серы от 1,3% до 1,5%, в то время как ESPO имеет API градиент от 34 до 37 и содержание серы от 0,4% до 0,6%. [R1] (Отчёт, 2025-07-24)",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+            "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "page": 6,
+            "chunk_id": "eia-russia-2025:p6:w0",
+            "report": "eia-russia-2025",
+            "start_word": 0,
+            "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+            "score": 0.5375
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "Table 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6%\nEastern Siberia",
+            "text": "Урал и ESPO отличаются друг от друга плотностью и содержанием серы. Урал имеет API градиент от 30 до 32 и содержание серы от 1,3% до 1,5%, в то время как ESPO имеет API градиент от 34 до 37 и содержание серы от 0,4% до 0,6%."
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 5
+          }
+        ],
+        "trace_id": "5054dad8dd764c50b8cafabe1cb9646f",
+        "forecast": null
+      },
+      "llm_calls": 5,
+      "ms": 124460
+    }
+  ],
+  "model": "qwen2.5:3b",
+  "judge_model": null,
+  "judge_same_model": false,
+  "summary": {
+    "n": 3,
+    "forbidden_tool_violation": 0,
+    "intent_correct": 1,
+    "plan_fields_correct": 1,
+    "rag_before_web": 1,
+    "required_tool_recall": 1,
+    "status_correct": 1,
+    "tool_sequence_exact": 1,
+    "response_contract_valid_rate": 1,
+    "llm_plan_valid_rate": 1,
+    "judge_coverage": 0
+  },
+  "judge_summary": {},
+  "regression_checks": [
+    {
+      "case_id": "regression-brent-explicit-001",
+      "route_ok": true,
+      "facts": [],
+      "passed": true
+    },
+    {
+      "case_id": "regression-brent-context-002",
+      "route_ok": true,
+      "facts": [],
+      "passed": true
+    },
+    {
+      "case_id": "regression-urals-espo-grounding-003",
+      "route_ok": true,
+      "facts": [
+        {
+          "entity": "Urals",
+          "covered": false
+        },
+        {
+          "entity": "ESPO",
+          "covered": true
+        }
+      ],
+      "passed": false
+    }
+  ],
+  "execution": {
+    "workflow_url": "https://github.com/moomivee/ai_assistant/actions/runs/42801464863",
+    "job_id": 129779770631,
+    "context_length": 8192,
+    "processor": "GitHub Actions CPU",
+    "llm_timeout_seconds": 600,
+    "limitation": "The report-only route now passes and the values are correct. The output renames Urals to Урал, uses the incorrect term API градиент, and lacks a clear inverse-density interpretation. The entity-name fact check remains failed."
+  }
+}
