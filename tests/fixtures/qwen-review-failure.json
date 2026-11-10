@@ -1,0 +1,146 @@
+{
+  "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+  "sources": [
+    {
+      "id": "R1",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 6,
+      "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+    },
+    {
+      "id": "R2",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 5,
+      "text": "primarily been onshore fields in northern areas of the region since \nthe early 2000s.8 \n• Russia produces eight main grades of crude oil. Its major crude oil export is Urals, a medium-sour \ncrude oil produced mainly in Western Siberia and Russia’s Volga-Urals region (Table 2).9 Historically, \nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western \nmarkets, but Ukraine-related sanctions have shifted the trade and pricing of Urals eastward.10 \n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second \nquarter of 2024 to 8.978 million b/d.\n11 Russia, along with other OPEC+ countries, extended these \nvoluntary cuts through"
+    },
+    {
+      "id": "R3",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 6,
+      "text": "37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading \nEconomics, Hydrocarbons Technology, Pipeline and Gas Journal, Reuters, Nasdaq, NS Energy, and \nMitsubishi Corporation \n \n \n \n \n \n \n \n \n \n0\n2\n4\n6\n8\n10\n12\ntotal liquid \nfuels \nproduction\nData source: U.S. Energy Information Administration, Short-Term Energy Outlook Data Browser\nFigure 3. Total annual petroleum and other liquids production and consumption in Russia, \n2014–2024\nmillion barrels per day\ntotal liquid \nfuels \nconsumption\ntotal crude oil \nproduction"
+    },
+    {
+      "id": "R4",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 2,
+      "text": "U.S. Energy Information Administration   |   Country Analysis Brief: Russia i \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \nThe U.S. Energy Information Administration (EIA), the statistical and analytical agency within the  \nU.S. Department of Energy (DOE), prepared this report. By law, our data, analyses, and forecasts are \nindependent of approval by any other officer or employee of the U.S. Government. The views in this \nreport do not represent those of DOE or any other federal agencies."
+    },
+    {
+      "id": "R5",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 16,
+      "text": "border) to Daqing \nCity, China Active \nChina \nNational \nPetroleum \nCorporation Asia \nConnects to ESPO-1 and \nESPO-2, running parallel to \nRussia-China 2. \nRussia-China 2 300 590 \nMohe County, China, \n(near Russian \nborder) to Daqing \nCity, China Active \nChina \nNational \nPetroleum \nCorporation Asia \nConnects to ESPO-1 and \nESPO-2, running parallel to \nRussia-China 1. \nData source: Reuters, Interfax, Centre for Research on Energy and Clean Air, Kazakhstan-China Pipeline LLC, Kursiv, Hillhouse Analytics, Global \nEnergy Monitor, and Upstream \nNote: Ranges in capacity represent the minimum and maximum values of the referenced pipeline branches and segments in each row. The \nlength of the Baltic Pipeline System 1 (BPS-1) excludes the Palkino-Primorsk pipeline (440 miles). Capacity"
+    },
+    {
+      "id": "R6",
+      "kind": "report",
+      "title": "EIA · Country Analysis Brief: Russia",
+      "date": "2025-07-24",
+      "page": 16,
+      "text": "oil \ntransported via the pipeline. \nEastern Siberia–\nPacific Ocean 1 \nand 2 (ESPO 1 \nand ESPO 2) \n600–\n1,610 2,990 \nTayshet, Russia, (in \nEastern Siberia) to \nMohe County, China, \nand Kozmino, Russia, \n(on the Pacific Coast) Active Transneft Asia \nIncludes Skovorodino-Mohe \nbranch, connecting to \nRussia-China 1 and 2 in \nMohe County, China \nDruzhba \n120–\n1,490 3,170 \nCentral Russia to \nCentral Europe via \nnorthern and \nsouthern branches \nthat split in Belarus. \nPartially \nactive \nTransneft and  \nothers Europe \nThroughput declined in \n2022 because of Ukraine-\nrelated sanctions. The \nnorthern branch has only \ntransported small volumes \nof crude oil from \nKazakhstan since 2022. \nBaltic Pipeline \nSystem 2 (BPS-2) 720 620 \nBryansk Oblast, \nRussia,"
+    }
+  ],
+  "draft": {
+    "complete": false,
+    "claims": [
+      {
+        "source": "R1",
+        "quote": "Table 2. Major crude oil grades from Russia  \nAPI gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and Volga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia",
+        "text": "Urals и ESPO имеют разные плотности и содержание серы. Urals имеет плотность API 30-32 и содержание серы 1.3%-1.5%, в то время как ESPO имеет плотность API 34-37 и содержание серы 0.4%-0.6%."
+      }
+    ],
+    "limitations": [
+      "Отсутствуют данные о плотности и содержании серы для других сортов нефти, кроме Urals и ESPO."
+    ]
+  },
+  "review": {
+    "checks": [
+      {
+        "index": 0,
+        "verdict": "supported"
+      },
+      {
+        "index": 1,
+        "verdict": "supported"
+      },
+      {
+        "index": 2,
+        "verdict": "supported"
+      },
+      {
+        "index": 3,
+        "verdict": "supported"
+      },
+      {
+        "index": 4,
+        "verdict": "supported"
+      },
+      {
+        "index": 5,
+        "verdict": "supported"
+      }
+    ],
+    "complete": false,
+    "repair_evidence": [
+      {
+        "source": "R1",
+        "quote": "Table 2. Major crude oil grades from Russia  \nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and Volga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia"
+      },
+      {
+        "source": "R1",
+        "quote": "Data source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+      }
+    ]
+  },
+  "repair": {
+    "complete": false,
+    "claims": [
+      {
+        "source": "R1",
+        "quote": "Table 2. Major crude oil grades from Russia  \nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and Volga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia",
+        "text": "Urals и ESPO имеют разную плотность и содержание серы."
+      }
+    ],
+    "limitations": [
+      "Данные отсутствуют для сравнения плотности и содержания серы Urals и ESPO за 2026 год."
+    ]
+  },
+  "repair_review": {
+    "checks": [
+      {
+        "index": 0,
+        "verdict": "supported"
+      },
+      {
+        "index": 1,
+        "verdict": "supported"
+      },
+      {
+        "index": 2,
+        "verdict": "contradicted"
+      }
+    ],
+    "complete": false,
+    "repair_evidence": [
+      {
+        "source": "R1",
+        "quote": "Table 2. Major crude oil grades from Russia  \nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and Volga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia"
+      }
+    ]
+  },
+  "provenance": {
+    "kind": "real_qwen_cpu_run",
+    "workflow_run": 42797682838,
+    "code_commit": "f34fbdb121b7cbda4a097df2b55f8c6841928b85"
+  }
+}

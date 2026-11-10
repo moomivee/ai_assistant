@@ -1,9 +1,33 @@
 """Grounded drafting, semantic review, and at most one focused repair."""
 
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, create_model
+
 from .integrations.llm import LLMUnavailable
 from .logging import log
-from .models.schemas import AnswerReview, EvidenceAnswer
+from .models.schemas import AnswerReview, ClaimReview, EvidenceAnswer
 from .validation import normalized, validate_claims
+
+
+@lru_cache(maxsize=11)
+def review_schema(count):
+    """Constrain guided generation to the actual claims, not source indexes."""
+    if not 0 <= count <= 10:
+        raise ValueError("Expected between zero and ten claims.")
+    item = ClaimReview
+    if count:
+        item = create_model(
+            "ScopedClaimReview",
+            __base__=ClaimReview,
+            index=(Literal[tuple(range(count))], ...),
+        )
+    return create_model(
+        "ScopedAnswerReview",
+        __base__=AnswerReview,
+        checks=(list[item], Field(min_length=count, max_length=count)),
+    )
 
 
 def compact_sources(sources):
@@ -68,8 +92,18 @@ def verified_answer(client, payload, *, allow_repair=True):
     def review(draft, context, phase):
         result = client.generate(
             "answer_review",
-            {**base, "sources": context, "phase": phase, "draft": draft.model_dump()},
-            AnswerReview,
+            {
+                **base,
+                "sources": context,
+                "phase": phase,
+                "claim_indexes": list(range(len(draft.claims))),
+                "draft": {
+                    "claims": [
+                        {"index": i, **claim.model_dump()} for i, claim in enumerate(draft.claims)
+                    ]
+                },
+            },
+            review_schema(len(draft.claims)),
         )
         return checked_review(draft, result, context)
 

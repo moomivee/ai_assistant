@@ -12,6 +12,10 @@ def normalized(text):
 
 
 def numbers(text):
+    # A separator in "1.3%-1.5%" is not a negative sign. Keep unary minus
+    # (including the Unicode minus) for actual negative changes and prices.
+    text = text.replace("−", "-")
+    text = re.sub(r"(?<=\d)(\s*%?)\s*[-–—]\s*(?=\d)", r"\1 ", text)
     return {Decimal(x.replace(",", ".")) for x in re.findall(r"(?<!\w)-?\d+(?:[.,]\d+)?", text)}
 
 
