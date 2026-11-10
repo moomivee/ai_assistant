@@ -5,7 +5,7 @@ from test_agent import WEB, FakeLLM, executor, plan
 
 from src.agent import ask
 from src.integrations.llm import LLMUnavailable
-from src.models.schemas import EvidenceAnswer, ForecastScope
+from src.models.schemas import ForecastScope
 from src.planning import make_plan
 
 QUESTION = "Спрогнозируй цену Brent на 3 месяца."
@@ -205,7 +205,7 @@ def test_unavailable_context_answer_does_not_remove_forecast():
 
     class OfflineAnswer(ScopeClient):
         def generate(self, name, payload, schema):
-            if schema is EvidenceAnswer:
+            if name == "answer":
                 raise LLMUnavailable("answer unavailable")
             return super().generate(name, payload, schema)
 
