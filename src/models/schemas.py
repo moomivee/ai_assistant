@@ -41,6 +41,14 @@ class ForecastInputs(StrictModel):
     parameters: list[ParameterEvidence] = Field(max_length=4)
 
 
+class ForecastScope(StrictModel):
+    context_request: str = Field(max_length=2000)
+    fresh: bool
+    news: bool
+    quote_request: str = Field(max_length=2000)
+    quotes: list[Grade] = Field(max_length=3)
+
+
 class Claim(StrictModel):
     source: str = Field(min_length=1, max_length=20)
     quote: str = Field(min_length=6, max_length=1800)

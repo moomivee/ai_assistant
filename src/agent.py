@@ -84,6 +84,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def assess(s):
         if not s["plan"]["wants_context"]:
             return {}
+        is_forecast = s["plan"]["intent"] == "forecast"
         sources = s["reports"] + s["web"]
         empty = EvidenceAnswer(complete=False, claims=[], limitations=[]).model_dump()
         if not sources:
@@ -92,8 +93,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             draft = client.generate(
                 "answer",
                 {
-                    "question": s["question"],
-                    "previous": s.get("previous"),
+                    "task": "forecast_context" if is_forecast else "research",
+                    "question": s["plan"]["rag_query"] if is_forecast else s["question"],
+                    "previous": None if is_forecast else s.get("previous"),
                     "today": date.today().isoformat(),
                     "sources": sources,
                 },
@@ -111,7 +113,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         data, update = invoke(
             s,
             "web_search",
-            query=s["question"],
+            query=p["rag_query"] if p["intent"] == "forecast" else s["question"],
             fresh=p["fresh"],
             quotes=p["quotes"],
             search=p["news"] or p["wants_context"] or not p["quotes"],
@@ -163,6 +165,20 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         elif p["clarify"]:
             blocks, status = [p["clarify"]], "clarification"
         else:
+            # Calculation is the primary answer for a forecast. Its availability
+            # never depends on whether a report contains the same prediction.
+            if calc:
+                blocks.append(forecast_answer(calc))
+                sources.append(
+                    {
+                        "id": "M1",
+                        "kind": "model",
+                        "title": f"Расчёт · EIA/FRED · {calc['base']}",
+                        "date": calc["as_of"],
+                        "url": calc["source_url"],
+                        "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+                    }
+                )
             lookup = {r["id"]: r for r in s["reports"] + s["web"]}
             claims = s["draft"]["claims"]
             for c in claims:
@@ -176,24 +192,23 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 if "price" in r and r["id"] not in {c["source"] for c in claims}:
                     blocks.append(r["text"] + f" [{r['id']}] (Веб, {r['date']})")
                     sources.append(r)
-            if calc:
-                blocks.append(forecast_answer(calc))
-                sources.append(
-                    {
-                        "id": "M1",
-                        "kind": "model",
-                        "title": f"Расчёт · EIA/FRED · {calc['base']}",
-                        "date": calc["as_of"],
-                        "url": calc["source_url"],
-                        "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
-                    }
-                )
             enough = not p["wants_context"] or s["draft"]["complete"]
             if p["intent"] == "forecast":
                 enough = enough and bool(calc)
+                if not calc:
+                    notes.append("Расчётный модуль не вернул прогноз.")
+                if p["wants_context"] and not s["draft"]["complete"]:
+                    notes.append(
+                        f"Дополнительный вопрос «{p['rag_query']}» подтверждён источниками не полностью."
+                    )
             if p["quotes"]:
                 found = {r.get("grade") for r in s["web"] if "price" in r}
-                enough = enough and set(p["quotes"]) <= found
+                missing = set(p["quotes"]) - found
+                enough = enough and not missing
+                if missing:
+                    notes.append(
+                        f"Последние опубликованные котировки {', '.join(sorted(missing))} не получены."
+                    )
             if p["fresh"] and not s["web"]:
                 enough = False
                 notes.append("Актуальные данные для этого запроса не подтверждены.")
@@ -203,11 +218,19 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 )
             if not blocks:
                 blocks, enough = (
-                    ["Подтверждённых данных для ответа недостаточно."],
+                    [
+                        "Прогноз не рассчитан."
+                        if p["intent"] == "forecast"
+                        else "Подтверждённых данных для ответа недостаточно."
+                    ],
                     False,
                 )
-            notes += s["draft"]["limitations"]
-            if not enough:
+            # Report limitations are not an assessment of a separate calculation.
+            # For mixed forecasts use the scoped message above, never a model's
+            # free-form claim that the already calculated forecast is missing.
+            if p["intent"] != "forecast":
+                notes += s["draft"]["limitations"]
+            if not enough and p["intent"] != "forecast":
                 notes.append(
                     "Источники подтверждают только часть запроса или не содержат необходимых сведений."
                 )

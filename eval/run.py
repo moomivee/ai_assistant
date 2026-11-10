@@ -14,7 +14,7 @@ from openai import OpenAI
 
 from src.config import ROOT, manifest, settings
 from src.integrations.llm import LLMClient
-from src.integrations.prompts import get_prompt
+from src.integrations.prompts import PROMPT_NAMES, get_prompt
 from src.integrations.telemetry import flush, langfuse_client, span
 from src.logging import log
 from src.models.schemas import AgentResponse, EvidenceAnswer, JudgeResult
@@ -94,9 +94,7 @@ def provenance(path):
         "corpus": {r["id"]: digest(settings().data / "reports" / r["file"]) for r in manifest()},
         "python": platform.python_version(),
         "platform": platform.platform(),
-        "prompts": {
-            name: get_prompt(name).version for name in ["plan", "forecast", "answer", "judge"]
-        },
+        "prompts": {name: get_prompt(name).version for name in PROMPT_NAMES},
     }
 
 

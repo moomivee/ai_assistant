@@ -1,9 +1,9 @@
-"""Plan validation with one evidence-grounded repair for incomplete forecasts."""
+"""Bounded structured checks of forecast inputs and explicitly requested context."""
 
 from datetime import date
 
 from .logging import log
-from .models.schemas import ForecastInputs, Plan
+from .models.schemas import ForecastInputs, ForecastScope, Plan
 from .validation import normalized, validate_plan
 
 FORECAST_FIELDS = ("benchmark", "months", "discount", "cut", "sensitivity")
@@ -12,6 +12,55 @@ BENCHMARK_NAMES = {
     "WTI": ("wti",),
     "Urals": ("urals", "уралс", "юралс"),
 }
+
+
+def resolve_forecast_scope(client, plan: Plan, payload: dict) -> Plan:
+    """Verify proposed research separately from the numerical forecast task."""
+    scope = client.generate("forecast_scope", payload, ForecastScope)
+    inputs = [
+        normalized(x).strip(" .!?;:") for x in (payload["question"], payload["previous"] or "")
+    ]
+
+    def subrequest(value):
+        quote = normalized(value).strip(" .!?;:")
+        # Evidence must be an actual additional clause, not the entire forecast
+        # request copied into the research field. A follow-up may consist solely
+        # of an additional question. Semantics use the schema, not keyword rules.
+        valid = bool(quote) and any(
+            quote in source and (quote != source or (i == 0 and bool(payload["previous"])))
+            for i, source in enumerate(inputs)
+        )
+        if value and not valid:
+            log("plan.scope_evidence_rejected")
+        return value.strip() if valid else ""
+
+    context = subrequest(scope.context_request)
+    quote_request = subrequest(scope.quote_request)
+    source_tokens = [
+        word.strip(".,:;!?()[]«»\"'") for word in " ".join(inputs).replace("/", " ").split()
+    ]
+    quotes = [
+        grade
+        for grade in scope.quotes
+        if quote_request and any(name in source_tokens for name in BENCHMARK_NAMES[grade])
+    ]
+    resolved = plan.model_copy(
+        update={
+            "wants_context": bool(context),
+            "news": bool(context and scope.news),
+            "fresh": bool((context and (scope.fresh or scope.news)) or quotes),
+            "quotes": list(dict.fromkeys(quotes)),
+            "rag_query": context or quote_request or plan.rag_query,
+        }
+    )
+    log(
+        "plan.forecast_scope",
+        wants_context=resolved.wants_context,
+        fresh=resolved.fresh,
+        news=resolved.news,
+        quotes=resolved.quotes,
+    )
+    return resolved
 
 
 def merge_forecast_inputs(plan: Plan, extracted: ForecastInputs, question, previous=None):
@@ -50,21 +99,26 @@ def make_plan(client, question, previous=None) -> Plan:
         months=plan.months,
         needs_clarification=bool(plan.clarify),
     )
-    if plan.intent != "forecast" or not (plan.clarify or raw.clarify):
+    if plan.intent != "forecast":
         return plan
 
-    # At most one extra LLM call. A genuinely absent parameter stays absent.
-    log("plan.repair_requested", missing=[f for f in FORECAST_FIELDS if getattr(plan, f) is None])
-    extracted = client.generate("forecast", payload, ForecastInputs)
-    if raw.clarify and not plan.clarify:
-        # A model may ask a spurious question or signal genuine ambiguity even
-        # with all fields filled. Re-extract these inputs before dismissing it.
-        plan = plan.model_copy(update={**{f: None for f in FORECAST_FIELDS}, "parameters": []})
-    repaired = merge_forecast_inputs(plan, extracted, question, previous)
-    log(
-        "plan.repaired",
-        benchmark=repaired.benchmark,
-        months=repaired.months,
-        needs_clarification=bool(repaired.clarify),
-    )
-    return repaired
+    if plan.clarify or raw.clarify:
+        # At most one input repair. A genuinely absent parameter stays absent.
+        log(
+            "plan.repair_requested",
+            missing=[f for f in FORECAST_FIELDS if getattr(plan, f) is None],
+        )
+        extracted = client.generate("forecast", payload, ForecastInputs)
+        if raw.clarify and not plan.clarify:
+            # Recheck a possible ambiguity before dismissing the clarification.
+            plan = plan.model_copy(update={**{f: None for f in FORECAST_FIELDS}, "parameters": []})
+        plan = merge_forecast_inputs(plan, extracted, question, previous)
+        log(
+            "plan.repaired",
+            benchmark=plan.benchmark,
+            months=plan.months,
+            needs_clarification=bool(plan.clarify),
+        )
+    if not plan.clarify and (plan.wants_context or plan.fresh or plan.news or plan.quotes):
+        plan = resolve_forecast_scope(client, plan, payload)
+    return plan
