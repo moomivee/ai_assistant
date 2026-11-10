@@ -18,7 +18,7 @@ uv run python -m src.cli prepare
 uv run uvicorn src.api:app --host 127.0.0.1 --port 8000
 ```
 
-Ollama должна быть запущена. Интерфейс: **http://localhost:8000**. Запуск приложения и Ollama в Docker:
+Ollama должна быть запущена с контекстом **8192 токена**; настройка и обновление описаны в [инструкции](docs/Setup.md). Интерфейс: **http://localhost:8000**. Запуск приложения и Ollama в Docker:
 
 ```bash
 docker compose -f compose.yaml -f compose.local.yaml up --build -d
@@ -40,7 +40,7 @@ uv run python -m eval.run retrieval
 uv run python -m eval.ui
 ```
 
-Eval-интерфейс: **http://localhost:8001**. Набор содержит 100 вопросов, из них 40 с эталонными фрагментами PDF [Результаты и статус проверок](docs/Results.md).
+Eval-интерфейс: **http://localhost:8001**. Набор содержит 100 вопросов, из них 40 с эталонными фрагментами PDF. Проверки кода: **80 тестов**. В отдельном прогоне трёх регрессий с реальными Qwen 3B и 7B успешно пройдены **2 из 3** для каждой модели. Сравнение Urals/ESPO остаётся известным ограничением; версия является учебным прототипом. [Результаты и ограничения](docs/Results.md).
 
-Актуальная документация архитектуры: [схема и файлы](docs/Architecture.md), [eval](docs/Evaluation.md), [трейсы и промпты](docs/Observability.md), [учёт обратной связи](docs/Review-checklist.md). 
+Актуальная документация архитектуры: [схема и файлы](docs/Architecture.md), [eval](docs/Evaluation.md), [трейсы и промпты](docs/Observability.md), [установка и обновление](docs/Setup.md). 
 
