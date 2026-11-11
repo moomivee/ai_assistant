@@ -130,6 +130,18 @@ RESPONSE = dict(
         no_progress_limit=2,
         no_progress_steps=0,
         timeout_seconds=180,
+        answer_reserve_seconds=60,
+        answer_checks=[
+            dict(
+                after_step=3,
+                source_ids=["R1"],
+                status="ok",
+                claims=1,
+                complete=True,
+                ms=300,
+                feedback="",
+            )
+        ],
     ),
 )
 LEGACY = next(
@@ -203,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
                 stop_reason="budget_exhausted",
                 answer="Данных недостаточно. Попытки поиска завершены.",
             )
-        elif question in {"no_progress", "time_budget_exhausted"}:
+        elif question in {"no_progress", "time_budget_exhausted", "research_budget_exhausted"}:
             response.update(status="partial", stop_reason=question)
         elif question == "controller":
             response["decisions"][-1].update(
@@ -294,6 +306,12 @@ async def check(url):
         await assessment.click()
         assert "Повтор шага 1" in await page.locator(".trace-panel").inner_text()
         assert "Новые данные: да" in await page.locator(".trace-panel").inner_text()
+        handoff = page.locator(".inspector-detail > summary").filter(
+            has_text="Как источники переданы в ответ"
+        )
+        await handoff.click()
+        assert "переданы источники R1" in await page.locator(".answer-check").inner_text()
+        await handoff.click()
         await page.locator(".text-button").click()
         assert await page.evaluate("navigator.clipboard.readText()") == RESPONSE["trace_id"]
         await page.locator("#result").screenshot(path=str(OUT / "trace-workbench-desktop.png"))
@@ -333,6 +351,8 @@ async def check(url):
         )
         await submit("time_budget_exhausted")
         assert "Достигнут общий лимит времени" in await page.locator(".trace-stop").inner_text()
+        await submit("research_budget_exhausted")
+        assert "резервом времени на ответ" in await page.locator(".trace-stop").inner_text()
         await submit("controller")
         assert (
             "Контроллер перевёл запрос к ответу" in await page.locator(".trace-panel").inner_text()
@@ -385,6 +405,7 @@ async def check(url):
             "evidence assessment and missing facts",
             "no progress and time budget stops",
             "controller override and unknown references",
+            "evidence handoff and answer reserve",
             "clarification",
             "unavailable",
             "outside",

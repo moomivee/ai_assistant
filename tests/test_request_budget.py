@@ -105,6 +105,50 @@ def test_multiple_calls_inside_one_node_share_deadline(clock):
     assert response["stop_reason"] == "time_budget_exhausted"
 
 
+def test_research_deadline_leaves_time_for_answer_generation(clock):
+    class Recorder(Scripted):
+        def generate(self, name, payload, schema):
+            if name == "cited_answer":
+                # 10s total, reserve clamped to 5s. Tool ends after research
+                # deadline, but the answer can use the remaining global time.
+                assert budget.remaining_seconds() == 4
+            return super().generate(name, payload, schema)
+
+    def execute(registry, name, **args):
+        clock[0] = 6
+        return [REPORT], None, event(name)
+
+    response = ask(
+        "Вопрос",
+        client=Recorder([action("report_search", "fact")]),
+        planner=lambda *_: plan(),
+        execute=execute,
+    )
+    assert response["status"] == "ok" and response["claims"]
+    assert len(response["decisions"]) == 1
+
+
+def test_replanning_cannot_consume_reserved_answer_time(clock):
+    class Partial(Scripted):
+        def generate(self, name, payload, schema):
+            result = super().generate(name, payload, schema)
+            if name == "cited_answer":
+                result.complete = False
+                clock[0] = 6
+            return result
+
+    client = Partial([action("report_search", "fact")])
+    response = ask(
+        "Вопрос",
+        client=client,
+        planner=lambda *_: plan(),
+        execute=lambda r, n, **kw: ([REPORT], None, event(n)),
+    )
+    assert response["status"] == "partial" and response["claims"]
+    assert response["stop_reason"] == "research_budget_exhausted"
+    assert len(response["decisions"]) == 1
+
+
 def completion():
     return httpx.Response(
         200,

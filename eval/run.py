@@ -101,6 +101,7 @@ def provenance(path):
             "agent_max_steps": settings().agent_max_steps,
             "agent_no_progress_limit": settings().agent_no_progress_limit,
             "agent_timeout_seconds": settings().agent_timeout_seconds,
+            "agent_answer_reserve_seconds": settings().agent_answer_reserve_seconds,
             "llm_http_timeout": settings().llm_timeout,
             "answer_self_review": settings().answer_review,
             "embedding": settings().embedding,

@@ -99,6 +99,9 @@ def status():
         "agent_max_steps": cfg.agent_max_steps,
         "agent_no_progress_limit": cfg.agent_no_progress_limit,
         "agent_timeout_seconds": cfg.agent_timeout_seconds,
+        "agent_answer_reserve_seconds": min(
+            cfg.agent_answer_reserve_seconds, cfg.agent_timeout_seconds / 2
+        ),
         "reports": [
             {"title": r["title"], "date": r["date"], "url": "/reports/" + r["file"]}
             for r in manifest()

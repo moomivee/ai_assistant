@@ -17,6 +17,7 @@ window.TraceView = (() => {
     llm_unavailable: "LLM недоступна или ответ не прошёл схему",
     no_progress: "Повторные попытки не добавили данных",
     time_budget_exhausted: "Достигнут общий лимит времени",
+    research_budget_exhausted: "Поиск завершён с резервом времени на ответ",
   };
   const intents = { research: "Анализ источников", forecast: "Прогноз", outside: "Вне специализации" };
   const node = (tag, text, cls) => {
@@ -152,6 +153,18 @@ window.TraceView = (() => {
     stop.append(node("span", "Состояние: "), node("strong", statuses[data.status] || data.status), node("p", "Завершение: " + (stops[data.stop_reason] || data.stop_reason || "не указано")));
     if (diagnostics?.failure) stop.append(node("p", diagnostics.failure, "step-error"));
     if (diagnostics?.timeout_seconds) stop.append(node("p", `Бюджет обработки: ${diagnostics.timeout_seconds} с. Порог отсутствия прогресса: ${diagnostics.no_progress_limit} попытки.`, "small"));
+    if (diagnostics?.answer_reserve_seconds) stop.append(node("p", `Резерв на ответ внутри общего бюджета: ${diagnostics.answer_reserve_seconds} с.`, "small"));
+    if (diagnostics?.answer_checks?.length) {
+      const handoffs = node("div");
+      for (const check of diagnostics.answer_checks) {
+        const item = node("div", undefined, "answer-check");
+        item.append(node("p", `После шага ${check.after_step}: переданы источники ${(check.source_ids || []).join(", ") || "отсутствуют"}.`));
+        item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
+        if (check.feedback) item.append(node("p", check.feedback, "small"));
+        handoffs.append(item);
+      }
+      box.append(detail("Как источники переданы в ответ", handoffs));
+    }
     if (diagnostics?.answer_feedback) stop.append(detail("Замечание проверки ответа", node("p", diagnostics.answer_feedback)));
     box.append(stop);
     if (diagnostics) box.append(detail(`Найденные фрагменты · ${diagnostics.retrieved_sources?.length || 0}`, sourcesView(diagnostics.retrieved_sources || [])));

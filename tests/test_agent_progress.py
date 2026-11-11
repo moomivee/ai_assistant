@@ -20,7 +20,8 @@ def test_search_read_ping_pong_stops_and_reuses_results():
             action("read_report", report="fixture-report", page=6),
             action("read_report", report="fixture-report", page=6),
             action("report_search", "composition"),
-        ]
+        ],
+        complete=False,
     )
 
     def execute(registry, name, **args):
@@ -48,7 +49,8 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
             action("report_search", "broad"),
             action("report_search", "specific missing property"),
             action("finish"),
-        ]
+        ],
+        complete=[False, True],
     )
     calls = []
 
@@ -66,7 +68,9 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
 
 def test_new_queries_and_urls_with_same_content_do_not_extend_loop():
     calls = []
-    client = Scripted([action("report_search", q) for q in ("first", "second", "third")])
+    client = Scripted(
+        [action("report_search", q) for q in ("first", "second", "third")], complete=False
+    )
 
     def execute(registry, name, **args):
         calls.append(args["query"])
@@ -117,7 +121,9 @@ def test_referenced_sufficiency_can_finish_but_missing_or_invalid_evidence_canno
         "missing_facts": missing,
         "evidence_checks": [{"fact": "Property found", "source_ids": ids}],
     }
-    client = Scripted([action("report_search", "property"), decision, action("finish")])
+    client = Scripted(
+        [action("report_search", "property"), decision, action("finish")], complete=False
+    )
     calls = []
 
     def execute(registry, name, **args):

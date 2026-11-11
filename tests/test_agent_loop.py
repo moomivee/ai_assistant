@@ -1,5 +1,7 @@
 """Harness tests with scripted LLMs. Live model quality is measured separately."""
 
+from itertools import repeat
+
 import pytest
 from test_agent import REPORT, WEB, plan
 
@@ -15,8 +17,9 @@ def action(name, query="", report="", page=None):
 
 
 class Scripted:
-    def __init__(self, actions):
+    def __init__(self, actions, *, complete=True):
         self.actions, self.payloads = iter(actions), []
+        self.completeness = repeat(complete) if isinstance(complete, bool) else iter(complete)
 
     def generate(self, name, payload, schema):
         self.payloads.append((name, payload))
@@ -27,7 +30,7 @@ class Scripted:
             return schema.model_validate(
                 {
                     "claims": [{"text": payload["evidence"][key], "evidence_ids": [key]}],
-                    "complete": True,
+                    "complete": next(self.completeness),
                 }
             )
         if name == "citation_review":
@@ -49,7 +52,14 @@ def test_replans_after_empty_search_and_reads_full_page():
         data = (
             []
             if len(calls) == 1
-            else [{**REPORT, "report": "eia", "full_page": name == "read_report"}]
+            else [
+                {
+                    **REPORT,
+                    "report": "eia",
+                    "full_page": name == "read_report",
+                    "text": ("Header\n" if name == "read_report" else "") + REPORT["text"],
+                }
+            ]
         )
         return data, None, event(name)
 
@@ -59,7 +69,8 @@ def test_replans_after_empty_search_and_reads_full_page():
             action("report_search", "focused"),
             action("read_report", report="eia", page=6),
             action("finish"),
-        ]
+        ],
+        complete=[False, True],
     )
     response = ask(
         "Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan(report_only=True)
@@ -218,7 +229,8 @@ def test_answer_context_uses_model_selected_source_ids():
         "text": "Unrelated refinery fact.",
     }
     client = Scripted(
-        [action("report_search", "Sokol"), {**action("finish"), "source_ids": ["R1"]}]
+        [action("report_search", "Sokol"), {**action("finish"), "source_ids": ["R1"]}],
+        complete=[False, True],
     )
     result = ask(
         "Сера Sokol",
@@ -226,7 +238,7 @@ def test_answer_context_uses_model_selected_source_ids():
         planner=lambda *_: plan(report_only=True),
         execute=lambda *a, **kw: ([REPORT, other], None, event("report_search")),
     )
-    payload = next(p for n, p in client.payloads if n == "cited_answer")
+    payload = [p for n, p in client.payloads if n == "cited_answer"][-1]
     assert all(key.startswith("R1:") for key in payload["evidence"])
     assert result["status"] == "ok"
 
@@ -317,7 +329,6 @@ def test_failed_repair_does_not_erase_previously_grounded_facts():
     client = Client(
         [
             action("report_search", "Sokol"),
-            action("finish"),
             action("read_report", report="eia", page=6),
             action("finish"),
         ]
@@ -326,13 +337,24 @@ def test_failed_repair_does_not_erase_previously_grounded_facts():
         "Sokol?",
         client=client,
         planner=lambda *_: plan(report_only=True),
-        execute=lambda r, n, **kw: ([{**REPORT, "report": "eia"}], None, event(n)),
+        execute=lambda r, n, **kw: (
+            [
+                {
+                    **REPORT,
+                    "report": "eia",
+                    "text": ("Header\n" if n == "read_report" else "") + REPORT["text"],
+                }
+            ],
+            None,
+            event(n),
+        ),
     )
     assert (
         response["status"] == "partial"
         and "0.2%" in response["answer"]
         and "99%" not in response["answer"]
     )
+    assert client.answers == 2
 
 
 def test_blocks_keep_table_headers_and_rows_together():

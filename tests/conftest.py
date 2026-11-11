@@ -18,6 +18,7 @@ def isolated(monkeypatch, tmp_path):
         "AGENT_MAX_STEPS": "6",
         "AGENT_NO_PROGRESS_LIMIT": "2",
         "AGENT_TIMEOUT_SECONDS": "180",
+        "AGENT_ANSWER_RESERVE_SECONDS": "60",
         "ANSWER_SELF_REVIEW": "false",
     }.items():
         monkeypatch.setenv(name, value)

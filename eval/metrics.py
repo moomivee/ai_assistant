@@ -60,6 +60,10 @@ def route_metrics(expected, response, plan):
         ),
         "stopped_no_progress": float(response.get("stop_reason") == "no_progress"),
         "stopped_time_budget": float(response.get("stop_reason") == "time_budget_exhausted"),
+        "stopped_research_budget": float(
+            response.get("stop_reason") == "research_budget_exhausted"
+        ),
+        "answer_attempts": len((response.get("diagnostics") or {}).get("answer_checks", [])),
         "tool_sequence_exact": float(actual == wanted),
         "required_tool_recall": len(set(actual) & set(required)) / len(set(required))
         if required

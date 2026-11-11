@@ -14,7 +14,8 @@ def test_diagnostics_link_decisions_to_actual_results_and_shared_progress():
         [
             action("report_search", "Sokol sulfur"),
             {**action("finish"), "source_ids": ["R1"]},
-        ]
+        ],
+        complete=[False, True],
     )
     response = ask(
         "Сера Sokol?",

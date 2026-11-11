@@ -1,7 +1,9 @@
 """Bounded observe/act loop: the LLM chooses the next tool after every result."""
 
+from contextlib import nullcontext
 from datetime import date
 from functools import lru_cache
+from time import perf_counter
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -10,9 +12,11 @@ from pydantic import create_model
 from .budget import (
     BudgetedClient,
     RequestBudgetExceeded,
+    ResearchBudgetExceeded,
     check_budget,
     remaining_seconds,
     request_budget,
+    research_phase,
 )
 from .config import settings
 from .evidence import generate_answer, render_claims
@@ -41,10 +45,13 @@ class State(TypedDict, total=False):
     attempts: int
     feedback: str
     answer_attempts: int
+    answer_context_ids: list
+    answer_checks: list
     draft: dict
     evidence: dict
     failure: str
     stop_reason: str
+    research_stopped: bool
     response: dict
 
 
@@ -108,6 +115,33 @@ def merge_sources(existing, incoming):
     return result
 
 
+def answer_sources(state):
+    # A search decision may contain spurious source_ids. Only an explicit
+    # finish selection may narrow the sources sent to answer generation.
+    decision = state.get("decision", {})
+    selected = set(decision.get("source_ids", [])) if decision.get("action") == "finish" else set()
+    return [s for s in state["sources"] if s["id"] in selected] if selected else state["sources"]
+
+
+def needs_answer(state):
+    if not state.get("plan", {}).get("wants_context"):
+        return False
+    ids = [s["id"] for s in answer_sources(state)]
+    return bool(ids) and ids != state.get("answer_context_ids", [])
+
+
+def task_complete(state):
+    p = state.get("plan")
+    if not p or (p["wants_context"] and not state["draft"]["complete"]):
+        return False
+    if p["intent"] == "forecast" and not state["calc"]:
+        return False
+    web = [s for s in state["sources"] if s["kind"] == "web"]
+    return (not p["fresh"] or bool(web)) and set(p["quotes"]) <= {
+        s.get("grade") for s in web if "price" in s
+    }
+
+
 def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
     client, registry = BudgetedClient(client or llm()), registry or make_registry()
 
@@ -132,6 +166,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "sources": decision_sources(state["sources"]),
                     "calculation_available": bool(state["calc"]),
                     "answer_feedback": state["feedback"],
+                    "current_answer": state["draft"],
                     "no_progress_steps": state["no_progress_steps"],
                     "no_progress_limit": settings().agent_no_progress_limit,
                     "seconds_remaining": remaining_seconds(),
@@ -283,13 +318,17 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         p = state.get("plan")
         if not p or p["clarify"] or p["intent"] == "outside" or not p["wants_context"]:
             return {}
+        sources = answer_sources(state)
+        ids = [s["id"] for s in sources]
+        start = perf_counter()
+        check = {"after_step": state["attempts"], "source_ids": ids}
+
+        def result_check(**values):
+            return state["answer_checks"] + [
+                {**check, **values, "ms": round((perf_counter() - start) * 1000, 2)}
+            ]
+
         try:
-            selected = set(state.get("decision", {}).get("source_ids", []))
-            sources = (
-                [s for s in state["sources"] if s["id"] in selected]
-                if selected
-                else state["sources"]
-            )
             draft, evidence, feedback = generate_answer(
                 client,
                 p["rag_query"] if p["intent"] == "forecast" else state["question"],
@@ -305,9 +344,22 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "evidence": evidence,
                 "feedback": feedback,
                 "answer_attempts": state["answer_attempts"] + 1,
+                "answer_context_ids": ids,
+                "answer_checks": result_check(
+                    status="ok",
+                    complete=draft.complete,
+                    claims=len(draft.claims),
+                    feedback=feedback,
+                ),
             }
-        except LLMUnavailable as exc:
-            return {"failure": str(exc), "stop_reason": "llm_unavailable"}
+        except (LLMUnavailable, RequestBudgetExceeded) as exc:
+            return {
+                "failure": str(exc),
+                "stop_reason": "time_budget_exhausted"
+                if isinstance(exc, RequestBudgetExceeded)
+                else "llm_unavailable",
+                "answer_checks": result_check(status="error", error=str(exc)),
+            }
 
     def finish(state):
         p, calc = state.get("plan"), state["calc"]
@@ -345,14 +397,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 if "price" in source and source["id"] not in {s["id"] for s in sources}:
                     blocks.append(source["text"] + f" [{source['id']}]")
                     sources.append(source)
-            complete = bool(p) and (not p["wants_context"] or draft.complete)
-            complete = complete and (intent != "forecast" or bool(calc))
-            if p and p["quotes"]:
-                complete = complete and set(p["quotes"]) <= {
-                    s.get("grade") for s in web if "price" in s
-                }
-            if p and p["fresh"]:
-                complete = complete and bool(web)
+            complete = task_complete(state)
             if (
                 state["attempts"] >= settings().agent_max_steps
                 and not complete
@@ -384,6 +429,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             blocks.append("Поиск остановлен: повторные попытки не добавили новых данных.")
         elif stop == "time_budget_exhausted":
             blocks.append("Достигнут общий лимит времени запроса. Обработка остановлена.")
+        elif stop == "research_budget_exhausted":
+            blocks.append(
+                "Поиск остановлен, чтобы сохранить время на ответ по найденным источникам."
+            )
         return {
             "response": {
                 "question": state["question"],
@@ -417,6 +466,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "no_progress_steps": state["no_progress_steps"],
                     "no_progress_limit": settings().agent_no_progress_limit,
                     "timeout_seconds": settings().agent_timeout_seconds,
+                    "answer_reserve_seconds": min(
+                        settings().agent_answer_reserve_seconds,
+                        settings().agent_timeout_seconds / 2,
+                    ),
+                    "answer_checks": state["answer_checks"],
                 },
             }
         }
@@ -425,6 +479,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         return (
             "finish"
             if state.get("failure")
+            or state.get("research_stopped")
             or state["plan"]["intent"] == "outside"
             or state["plan"]["clarify"]
             else "decide"
@@ -433,8 +488,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_decide(state):
         if state.get("failure"):
             return "finish"
+        if state.get("research_stopped"):
+            return "answer" if needs_answer(state) else "finish"
         return (
-            "answer"
+            ("answer" if needs_answer(state) else "finish")
             if state["decision"]["action"] == "finish" and "finish" in allowed_actions(state)
             else "act"
         )
@@ -442,22 +499,25 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_act(state):
         if state.get("failure"):
             return "finish"
-        return (
-            "answer"
-            if (
-                state["attempts"] >= settings().agent_max_steps
-                or state.get("stop_reason") == "no_progress"
-            )
-            else "decide"
-        )
+        # Every new evidence set reaches the answer node immediately. Another
+        # planning decision is not required to unlock already retrieved facts.
+        if needs_answer(state):
+            return "answer"
+        if (
+            task_complete(state)
+            or state.get("research_stopped")
+            or state.get("stop_reason") == "no_progress"
+            or state["attempts"] >= settings().agent_max_steps
+        ):
+            return "finish"
+        return "decide"
 
     def after_answer(state):
         if (
             not state.get("failure")
             and state.get("stop_reason", "completed") == "completed"
-            and state["plan"]["wants_context"]
-            and not state["draft"]["complete"]
-            and state["answer_attempts"] < 2
+            and not state.get("research_stopped")
+            and not task_complete(state)
             and state["attempts"] < settings().agent_max_steps
         ):
             return "decide"
@@ -467,9 +527,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         def call(state):
             with span("agent." + name) as obs:
                 try:
-                    if name != "finish":
-                        check_budget()
-                    result = fn(state)
+                    with research_phase() if name in {"plan", "decide", "act"} else nullcontext():
+                        if name != "finish":
+                            check_budget()
+                        result = fn(state)
+                except ResearchBudgetExceeded as exc:
+                    result = {"research_stopped": True, "stop_reason": "research_budget_exhausted"}
+                    if not state.get("plan"):
+                        result["failure"] = str(exc)
                 except RequestBudgetExceeded as exc:
                     result = {"failure": str(exc), "stop_reason": "time_budget_exhausted"}
                 obs.update(output=result, status="error" if result.get("failure") else "ok")
@@ -489,7 +554,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     graph.add_edge(START, "plan")
     graph.add_conditional_edges("plan", after_plan, {x: x for x in ("finish", "decide")})
     graph.add_conditional_edges("decide", after_decide, {x: x for x in ("finish", "answer", "act")})
-    graph.add_conditional_edges("act", after_act, {x: x for x in ("answer", "decide")})
+    graph.add_conditional_edges("act", after_act, {x: x for x in ("answer", "decide", "finish")})
     graph.add_conditional_edges("answer", after_answer, {x: x for x in ("finish", "decide")})
     graph.add_edge("finish", END)
     return graph.compile()
@@ -508,7 +573,7 @@ def ask(
     if not 1 <= len(question) <= 2000:
         raise ValueError("Введите вопрос длиной от 1 до 2000 символов.")
     with (
-        request_budget(settings().agent_timeout_seconds),
+        request_budget(settings().agent_timeout_seconds, settings().agent_answer_reserve_seconds),
         request_trace(question, previous) as (trace_id, obs),
     ):
         state = build_graph(client, registry, execute, planner).invoke(
@@ -525,6 +590,8 @@ def ask(
                 "no_progress_steps": 0,
                 "attempts": 0,
                 "answer_attempts": 0,
+                "answer_context_ids": [],
+                "answer_checks": [],
                 "feedback": "",
                 "draft": {"claims": [], "complete": False},
                 "evidence": {},

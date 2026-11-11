@@ -140,6 +140,8 @@ class AgentDiagnostics(StrictModel):
     no_progress_steps: int = 0
     no_progress_limit: int | None = None
     timeout_seconds: float | None = None
+    answer_reserve_seconds: float | None = None
+    answer_checks: list[dict] = Field(default_factory=list)
 
 
 class AgentResponse(StrictModel):
@@ -179,18 +181,23 @@ class NextAction(StrictModel):
 
 
 class CitedClaim(StrictModel):
-    evidence_ids: list[str] = Field(min_length=1, max_length=12)
-    text: str = Field(min_length=1, max_length=1200)
+    evidence_ids: list[str] = Field(
+        min_length=1,
+        max_length=12,
+        description="Only block IDs that support this particular statement.",
+    )
+    text: str = Field(
+        min_length=1,
+        max_length=1200,
+        description="One concise statement answering the question, in Russian. No unrelated facts.",
+    )
 
 
 class CitedAnswer(StrictModel):
-    evidence_summary: list[str] = Field(
-        default_factory=list,
-        max_length=6,
-        description="Краткие проверяемые наблюдения до формулировки ответа: значения и единицы из источника, направление сравнения. Объясни, как единицы связаны с физической величиной. Это не финальный ответ.",
-    )
     claims: list[CitedClaim] = Field(max_length=8)
-    complete: bool
+    complete: bool = Field(
+        description="True when the claims answer every requested part. False only when a requested fact is still missing."
+    )
 
 
 class CitationReview(StrictModel):
