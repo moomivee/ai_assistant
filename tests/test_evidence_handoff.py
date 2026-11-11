@@ -147,3 +147,16 @@ def test_source_handoff_does_not_skip_calculation_in_mixed_request():
     assert response["status"] == "ok" and response["forecast"]["benchmark"] == "WTI"
     assert [t["tool"] for t in response["trace"]] == ["report_search", "price_forecast"]
     assert len(response["diagnostics"]["answer_checks"]) == 1
+
+
+def test_maximum_step_budget_allows_an_answer_check_after_each_tool(monkeypatch):
+    monkeypatch.setenv("AGENT_MAX_STEPS", "12")
+    client = Scripted([action("report_search", f"fact {i}") for i in range(12)], complete=False)
+    response = ask(
+        "Нужно собрать несколько фактов",
+        client=client,
+        planner=lambda *_: plan(),
+        execute=lambda r, n, **kw: ([{**REPORT, "text": kw["query"]}], None, event(n)),
+    )
+    assert response["status"] == "partial" and response["stop_reason"] == "budget_exhausted"
+    assert len(response["trace"]) == len(response["diagnostics"]["answer_checks"]) == 12

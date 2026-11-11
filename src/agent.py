@@ -599,7 +599,8 @@ def ask(
             config={
                 "callbacks": callbacks(),
                 "metadata": {"trace_id": trace_id},
-                "recursion_limit": 2 * settings().agent_max_steps + 12,
+                # Each action can now visit decide -> act -> answer.
+                "recursion_limit": 3 * settings().agent_max_steps + 12,
             },
         )
         response = AgentResponse.model_validate(

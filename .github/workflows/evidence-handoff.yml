@@ -7,18 +7,19 @@ permissions:
   contents: read
 jobs:
   qwen:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[handoff-probe]') || contains(github.event.head_commit.message, '[handoff-eval]') || contains(github.event.head_commit.message, '[handoff-suite]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[handoff-probe]') || contains(github.event.head_commit.message, '[handoff-eval]') || contains(github.event.head_commit.message, '[handoff-suite]') || contains(github.event.head_commit.message, '[handoff-7b]')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       LLM_BASE_URL: http://127.0.0.1:11434/v1
       LLM_API_KEY: local
-      LLM_MODEL: qwen2.5:3b
+      LLM_MODEL: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && 'qwen2.5:7b' || 'qwen2.5:3b' }}
       LLM_HTTP_TIMEOUT: '600'
       HTTP_TIMEOUT: '120'
       OLLAMA_CONTEXT_LENGTH: '8192'
       AGENT_MODE: loop
-      AGENT_TIMEOUT_SECONDS: '180'
+      AGENT_TIMEOUT_SECONDS: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && '300' || '180' }}
+      AGENT_ANSWER_RESERVE_SECONDS: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && '120' || '60' }}
       ANSWER_SELF_REVIEW: 'false'
       PROMPT_SOURCE: local
       LANGFUSE_ENABLED: 'false'
