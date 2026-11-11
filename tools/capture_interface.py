@@ -1,4 +1,4 @@
-"""Capture the unchanged UI with a recorded, real evaluation response.
+"""Capture the archived consumer UI with a recorded, real evaluation response.
 
 This is an interface replay, not a new model run or a latency measurement.
 Run in CI or on a machine with Playwright Chromium installed.
@@ -19,6 +19,7 @@ from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs/assets"
+UI = ROOT / "archive/user-interface-2026-11-11"
 RESULT = ROOT / "eval/results/live-qwen-3b-2026-11-10.json"
 CASE_ID = "regression-brent-explicit-001"
 DATA = json.loads(RESULT.read_text())
@@ -60,7 +61,7 @@ class ReplayHandler(BaseHTTPRequestHandler):
         }
         if self.path in files:
             name, mime = files[self.path]
-            self.send_body((ROOT / "src/static" / name).read_bytes(), mime)
+            self.send_body((UI / name).read_bytes(), mime)
         elif self.path == "/api/status":
             self.send_json(STATUS)
         else:
@@ -147,6 +148,8 @@ async def capture(url):
     ]
     provenance = {
         "kind": "interface_replay",
+        "ui_source_directory": str(UI.relative_to(ROOT)),
+        "archived_ui_commit": json.loads((UI / "manifest.json").read_text())["source_commit"],
         "ui_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip(),
