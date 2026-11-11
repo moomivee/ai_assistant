@@ -24,6 +24,7 @@ class State(TypedDict, total=False):
     plan: dict
     sources: list
     observations: list
+    diagnostic_steps: list
     decisions: list
     trace: list
     calc: dict | None
@@ -186,6 +187,29 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             update["calc"] = data
             observation["result"] = {k: data[k] for k in ("benchmark", "as_of", "last")}
         update["observations"] = state["observations"] + [observation]
+        incoming = (
+            data
+            if name in ("report_search", "read_report")
+            else (data.get("items", []) if name == "web_search" and data else [])
+        )
+        keys = {s.get("chunk_id") or (s["url"], s["text"]) for s in (incoming or [])}
+        found_ids = [
+            s["id"]
+            for s in update.get("sources", [])
+            if (s.get("chunk_id") or (s["url"], s["text"])) in keys
+        ]
+        # Presentation-only diagnostics: do not change the observations supplied
+        # to the LLM, or infer a link by matching tool names after execution.
+        update["diagnostic_steps"] = state.get("diagnostic_steps", []) + [
+            {
+                **observation,
+                "step": state["attempts"],
+                "purpose": d.get("purpose", ""),
+                "status": (event["status"] if event else "rejected"),
+                "ms": event["ms"] if event else None,
+                "source_ids": found_ids,
+            }
+        ]
         return update
 
     def answer(state):
@@ -296,6 +320,21 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "stop_reason": stop,
                 "agent_mode": "loop",
                 "rejected_actions": sum(bool(o.get("error")) for o in state["observations"]),
+                "diagnostics": {
+                    "plan": p,
+                    "steps": state.get("diagnostic_steps", []),
+                    "retrieved_sources": [
+                        {
+                            **s,
+                            "text": s["text"][:4000],
+                            "text_truncated": len(s["text"]) > 4000,
+                            "used_in_answer": s["id"] in {x["id"] for x in sources},
+                        }
+                        for s in state["sources"]
+                    ],
+                    "answer_feedback": state["feedback"],
+                    "failure": state.get("failure", ""),
+                },
             }
         }
 
@@ -377,6 +416,7 @@ def ask(
                 "previous": previous,
                 "sources": [],
                 "observations": [],
+                "diagnostic_steps": [],
                 "decisions": [],
                 "trace": [],
                 "calc": None,

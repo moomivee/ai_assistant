@@ -112,6 +112,28 @@ class ToolEvent(StrictModel):
     ms: int
 
 
+class DiagnosticStep(StrictModel):
+    step: int = Field(ge=1)
+    tool: str
+    purpose: str
+    arguments: dict
+    status: Literal["ok", "error", "rejected"]
+    ms: int | None
+    error: str | None = None
+    result_count: int | None = None
+    source_ids: list[str] = Field(default_factory=list)
+    notices: list[str] = Field(default_factory=list)
+    result: dict | None = None
+
+
+class AgentDiagnostics(StrictModel):
+    plan: Plan | None = None
+    steps: list[DiagnosticStep] = Field(default_factory=list)
+    retrieved_sources: list[Source] = Field(default_factory=list)
+    answer_feedback: str = ""
+    failure: str = ""
+
+
 class AgentResponse(StrictModel):
     question: str
     answer: str
@@ -128,6 +150,7 @@ class AgentResponse(StrictModel):
     stop_reason: str = "completed"
     agent_mode: str = "workflow"
     rejected_actions: int = 0
+    diagnostics: AgentDiagnostics | None = None
 
 
 class NextAction(StrictModel):

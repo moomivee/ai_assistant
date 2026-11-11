@@ -1,0 +1,9 @@
+{
+  "source_commit": "2c5f2b85325f341dfbcf0e2c9837d80e42c869ec",
+  "source_directory": "src/static",
+  "sha256": {
+    "index.html": "e4b221ddf7cb5f38f9929276e125195d45d4ace73fa0a20c9a5f467073486e9e",
+    "site.css": "0a3a38838674cf5a7ada1be51e23037633890efffd0a156e56f2fcf40afa14ac",
+    "site.js": "9f1269e00432afcef7d6e61a681d372811a7f2f36bdb0d302580c5549245919c"
+  }
+}
