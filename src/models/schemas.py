@@ -184,19 +184,19 @@ class CitedClaim(StrictModel):
     evidence_ids: list[str] = Field(
         min_length=1,
         max_length=12,
-        description="Only block IDs that support this particular statement.",
+        description="Идентификаторы блоков, подтверждающих это утверждение.",
     )
     text: str = Field(
         min_length=1,
         max_length=1200,
-        description="One concise statement answering the question, in Russian. No unrelated facts.",
+        description="Короткое утверждение по-русски: запрошенные характеристики объекта или вывод сравнения.",
     )
 
 
 class CitedAnswer(StrictModel):
     claims: list[CitedClaim] = Field(max_length=8)
     complete: bool = Field(
-        description="True when the claims answer every requested part. False only when a requested fact is still missing."
+        description="true, только если claims отвечают на ВСЕ части вопроса, включая вывод сравнения."
     )
 
 
