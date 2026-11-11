@@ -32,6 +32,7 @@ SOURCE = dict(
 )
 DECISIONS = [
     dict(
+        origin="plan_policy",
         action="report_search",
         purpose="Найти характеристики двух образцов в отчёте.",
         query="Orion Vega properties",
@@ -306,6 +307,8 @@ async def check(url):
         await assessment.click()
         assert "Повтор шага 1" in await page.locator(".trace-panel").inner_text()
         assert "Новые данные: да" in await page.locator(".trace-panel").inner_text()
+        assert "отдельного вызова LLM" in await page.locator(".step-origin").inner_text()
+        assert await page.locator(".trace-metrics strong").last.inner_text() == "3"
         handoff = page.locator(".inspector-detail > summary").filter(
             has_text="Как источники переданы в ответ"
         )
@@ -406,6 +409,7 @@ async def check(url):
             "no progress and time budget stops",
             "controller override and unknown references",
             "evidence handoff and answer reserve",
+            "policy step separate from model choices",
             "clarification",
             "unavailable",
             "outside",

@@ -54,6 +54,12 @@ def route_metrics(expected, response, plan):
         "tool_calls": len(actual),
         "rejected_actions": response.get("rejected_actions", 0),
         "decision_count": len(response.get("decisions", [])),
+        "model_decision_count": sum(
+            d.get("origin") != "plan_policy" for d in response.get("decisions", [])
+        ),
+        "policy_decision_count": sum(
+            d.get("origin") == "plan_policy" for d in response.get("decisions", [])
+        ),
         "duplicate_actions": sum(
             bool(step.get("duplicate_of"))
             for step in (response.get("diagnostics") or {}).get("steps", [])

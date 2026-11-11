@@ -76,6 +76,7 @@ window.TraceView = (() => {
     const badgeText = state === "rejected" ? "Отклонён" : state === "error" ? "Ошибка" : state === "ok" ? duration(execution.ms) : decision.action === "finish" ? "Решение" : "Нет результата";
     title.append(node("span", badgeText, "step-state " + (state || "decision")));
     li.append(title);
+    if (decision.origin === "plan_policy") li.append(node("p", "По правилу приоритета отчётов. Поисковый запрос взят из плана; отдельного вызова LLM для выбора этого шага нет.", "small step-origin"));
     if (decision.purpose) li.append(node("p", "Цель по плану: " + decision.purpose, "step-purpose"));
     if (decision.controller_note) li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
     if (decision.missing_facts?.length || decision.evidence_checks?.length) {
@@ -127,9 +128,9 @@ window.TraceView = (() => {
     box.setAttribute("aria-label", "Ход запроса");
     const heading = node("div", undefined, "trace-heading");
     heading.append(node("h3", "Ход запроса"), node("span", "TRACE", "trace-kicker"));
-    box.append(heading, node("p", "Фактические действия и краткие пояснения выбора, переданные моделью.", "small"));
+    box.append(heading, node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"));
     const metrics = node("div", undefined, "trace-metrics");
-    for (const [value, label] of [[duration(elapsed), "запрос в браузере"], [(data.trace || []).length, "вызовов инструментов"], [(data.decisions || []).length, "решений модели"]]) {
+    for (const [value, label] of [[duration(elapsed), "запрос в браузере"], [(data.trace || []).length, "вызовов инструментов"], [(data.decisions || []).filter(d => d.origin !== "plan_policy").length, "выборов LLM"]]) {
       const metric = node("div"); metric.append(node("strong", String(value)), node("span", label)); metrics.append(metric);
     }
     box.append(metrics);

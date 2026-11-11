@@ -15,9 +15,9 @@ from .run import provenance
 FIXTURE = ROOT / "eval/fixtures/handoff-evidence.json"
 
 
-def run(output, probe_only=False, suite=False):
+def run(output, probe_only=False, suite=False, group="all"):
     if suite:
-        return run_suite(output)
+        return run_suite(output, group)
     fixture = json.loads(FIXTURE.read_text())
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -71,22 +71,35 @@ def run(output, probe_only=False, suite=False):
     print("HANDOFF_RESULT=" + json.dumps(result, ensure_ascii=False), flush=True)
 
 
-def run_suite(output):
+def run_suite(output, group="all"):
     from .counterfactual import run as counterfactual
     from .run import load_cases
     from .run import run as evaluate
     from .smoke import check_result
 
-    data = ROOT / "eval/data/handoff.jsonl"
-    result = evaluate("agent", data=data, output=output)
-    result["regression_checks"] = check_result(result, load_cases(data))
-    Path(output).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-    print("HANDOFF_SUITE=" + json.dumps(result, ensure_ascii=False), flush=True)
-    synthetic = Path(output).with_name("handoff-counterfactual.json")
-    counterfactual(synthetic)
-    print("HANDOFF_COUNTERFACTUAL=" + synthetic.read_text().replace("\n", ""), flush=True)
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    passed = True
+    if group != "counterfactual":
+        data = ROOT / "eval/data/handoff.jsonl"
+        if group != "all":
+            comparisons = {"regression-urals-espo-grounding-003", "handoff-paraphrase"}
+            selected = [
+                c for c in load_cases(data) if (c["id"] in comparisons) == (group == "comparison")
+            ]
+            data = output.with_name("selected-cases.jsonl")
+            data.write_text("".join(json.dumps(c, ensure_ascii=False) + "\n" for c in selected))
+        result = evaluate("agent", data=data, output=output)
+        result["regression_checks"] = check_result(result, load_cases(data))
+        output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+        print("HANDOFF_SUITE=" + json.dumps(result, ensure_ascii=False), flush=True)
+        passed = all(check["passed"] for check in result["regression_checks"])
+    if group in {"all", "counterfactual"}:
+        synthetic = output.with_name("handoff-counterfactual.json")
+        counterfactual(synthetic)
+        print("HANDOFF_COUNTERFACTUAL=" + synthetic.read_text().replace("\n", ""), flush=True)
     flush()
-    if not all(check["passed"] for check in result["regression_checks"]):
+    if not passed:
         raise SystemExit("Live checks failed; preserve the results and inspect the answers.")
 
 
@@ -95,4 +108,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--probe-only", action="store_true")
     parser.add_argument("--suite", action="store_true")
+    parser.add_argument(
+        "--group", choices=["all", "comparison", "other", "counterfactual"], default="all"
+    )
     run(**vars(parser.parse_args()))

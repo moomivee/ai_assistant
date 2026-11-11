@@ -153,35 +153,49 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
 
     def decide(state):
         try:
-            decision = client.generate(
-                "decide",
-                {
-                    "question": state["question"],
-                    "previous": state.get("previous"),
-                    "task": state["plan"],
-                    "today": date.today().isoformat(),
-                    "allowed_actions": allowed_actions(state),
-                    "steps_remaining": settings().agent_max_steps - state["attempts"],
-                    "observations": state["observations"],
-                    "sources": decision_sources(state["sources"]),
-                    "calculation_available": bool(state["calc"]),
-                    "answer_feedback": state["feedback"],
-                    "current_answer": state["draft"],
-                    "no_progress_steps": state["no_progress_steps"],
-                    "no_progress_limit": settings().agent_no_progress_limit,
-                    "seconds_remaining": remaining_seconds(),
-                    "previous_assessment": {
-                        k: state.get("decision", {}).get(k)
-                        for k in (
-                            "assessment",
-                            "missing_facts",
-                            "evidence_checks",
-                            "unknown_source_ids",
-                        )
+            actions = allowed_actions(state)
+            if state["attempts"] == 0 and actions == ["report_search"]:
+                # The model already supplied a search query in Plan, and the
+                # report-first policy leaves no action to choose here.
+                decision = NextAction(
+                    action="report_search",
+                    purpose="Первый поиск по запросу из проверенного плана; приоритет отчётов.",
+                    query=state["plan"]["rag_query"] or state["question"],
+                    report="",
+                    page=None,
+                ).model_dump()
+                decision["origin"] = "plan_policy"
+            else:
+                decision = client.generate(
+                    "decide",
+                    {
+                        "question": state["question"],
+                        "previous": state.get("previous"),
+                        "task": state["plan"],
+                        "today": date.today().isoformat(),
+                        "allowed_actions": allowed_actions(state),
+                        "steps_remaining": settings().agent_max_steps - state["attempts"],
+                        "observations": state["observations"],
+                        "sources": decision_sources(state["sources"]),
+                        "calculation_available": bool(state["calc"]),
+                        "answer_feedback": state["feedback"],
+                        "current_answer": state["draft"],
+                        "no_progress_steps": state["no_progress_steps"],
+                        "no_progress_limit": settings().agent_no_progress_limit,
+                        "seconds_remaining": remaining_seconds(),
+                        "previous_assessment": {
+                            k: state.get("decision", {}).get(k)
+                            for k in (
+                                "assessment",
+                                "missing_facts",
+                                "evidence_checks",
+                                "unknown_source_ids",
+                            )
+                        },
                     },
-                },
-                action_schema(tuple(allowed_actions(state))),
-            ).model_dump()
+                    action_schema(tuple(actions)),
+                ).model_dump()
+                decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
             if (
                 decision["assessment"] == "enough"

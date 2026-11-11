@@ -12,7 +12,6 @@ def test_diagnostics_link_decisions_to_actual_results_and_shared_progress():
     other = {**REPORT, "text": "Other evidence. " * 400, "url": "https://eia.gov/other"}
     client = Scripted(
         [
-            action("report_search", "Sokol sulfur"),
             {**action("finish"), "source_ids": ["R1"]},
         ],
         complete=[False, True],
@@ -20,7 +19,7 @@ def test_diagnostics_link_decisions_to_actual_results_and_shared_progress():
     response = ask(
         "Сера Sokol?",
         client=client,
-        planner=lambda *_: plan(report_only=True),
+        planner=lambda *_: plan(report_only=True, rag_query="Sokol sulfur"),
         execute=lambda *a, **kw: ([REPORT, other], None, event("report_search")),
     )
     diag = response["diagnostics"]
@@ -34,19 +33,19 @@ def test_diagnostics_link_decisions_to_actual_results_and_shared_progress():
     assert len(diag["retrieved_sources"][1]["text"]) == 4000
     assert diag["retrieved_sources"][1]["text_truncated"] is True
     payloads = [p for name, p in client.payloads if name == "decide"]
-    observation = payloads[1]["observations"][0]
+    observation = payloads[0]["observations"][0]
     for key in ("source_ids", "new_source_ids", "new_evidence", "no_progress_steps"):
         assert observation[key] == step[key]
     assert observation["new_evidence"] is True
-    assert "diagnostics" not in payloads[1]
+    assert "diagnostics" not in payloads[0]
 
 
 def test_rejected_attempts_have_no_invented_execution_time(monkeypatch):
     monkeypatch.setenv("AGENT_MAX_STEPS", "3")
     response = ask(
         "Найди факт",
-        client=Scripted([action("report_search", "same")] * 3),
-        planner=lambda *_: plan(report_only=True),
+        client=Scripted([action("report_search", "same")] * 2),
+        planner=lambda *_: plan(report_only=True, rag_query="same"),
         execute=lambda *a, **kw: ([], None, event("report_search")),
     )
     steps = response["diagnostics"]["steps"]

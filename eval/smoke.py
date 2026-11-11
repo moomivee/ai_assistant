@@ -51,7 +51,10 @@ def check_result(result, cases):
                 "case_id": row["case_id"],
                 "route_ok": route_ok,
                 "facts": facts,
-                "passed": route_ok and all(f["covered"] for f in facts),
+                "no_claims_ok": not expected.get("no_claims") or not response["claims"],
+                "passed": route_ok
+                and all(f["covered"] for f in facts)
+                and (not expected.get("no_claims") or not response["claims"]),
             }
         )
     return checks

@@ -10,16 +10,21 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[handoff-probe]') || contains(github.event.head_commit.message, '[handoff-eval]') || contains(github.event.head_commit.message, '[handoff-suite]') || contains(github.event.head_commit.message, '[handoff-7b]')
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ contains(github.event.head_commit.message, '[handoff-compare]') && fromJSON('["3b","7b"]') || contains(github.event.head_commit.message, '[handoff-7b]') && fromJSON('["7b"]') || fromJSON('["3b"]') }}
+        group: ${{ contains(github.event.head_commit.message, '[handoff-suite]') && fromJSON('["comparison","other","counterfactual"]') || fromJSON('["probe"]') }}
     env:
       LLM_BASE_URL: http://127.0.0.1:11434/v1
       LLM_API_KEY: local
-      LLM_MODEL: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && 'qwen2.5:7b' || 'qwen2.5:3b' }}
+      LLM_MODEL: qwen2.5:${{ matrix.profile }}
       LLM_HTTP_TIMEOUT: '600'
       HTTP_TIMEOUT: '120'
       OLLAMA_CONTEXT_LENGTH: '8192'
       AGENT_MODE: loop
-      AGENT_TIMEOUT_SECONDS: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && '300' || '180' }}
-      AGENT_ANSWER_RESERVE_SECONDS: ${{ contains(github.event.head_commit.message, '[handoff-7b]') && '120' || '60' }}
+      AGENT_TIMEOUT_SECONDS: ${{ matrix.profile == '7b' && '300' || '180' }}
+      AGENT_ANSWER_RESERVE_SECONDS: ${{ matrix.profile == '7b' && '120' || '60' }}
       ANSWER_SELF_REVIEW: 'false'
       PROMPT_SOURCE: local
       LANGFUSE_ENABLED: 'false'
@@ -46,9 +51,10 @@ jobs:
         env:
           PROBE_ONLY: ${{ contains(github.event.head_commit.message, '[handoff-probe]') }}
           SUITE: ${{ contains(github.event.head_commit.message, '[handoff-suite]') }}
+          GROUP: ${{ matrix.group }}
         run: |
           if [ "$SUITE" = true ]; then
-            uv run python -m eval.handoff --suite --output .cache/eval/handoff-suite.json
+            uv run python -m eval.handoff --suite --group "$GROUP" --output .cache/eval/handoff-suite.json
           elif [ "$PROBE_ONLY" = true ]; then
             uv run python -m eval.handoff --probe-only --output .cache/eval/handoff.json
           else
@@ -62,7 +68,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: evidence-handoff
+          name: evidence-handoff-${{ matrix.profile }}-${{ matrix.group }}
           path: .cache/eval/
       - if: always()
         run: docker rm -f ollama || true

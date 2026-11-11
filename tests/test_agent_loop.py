@@ -65,7 +65,6 @@ def test_replans_after_empty_search_and_reads_full_page():
 
     client = Scripted(
         [
-            action("report_search", "broad"),
             action("report_search", "focused"),
             action("read_report", report="eia", page=6),
             action("finish"),
@@ -73,12 +72,15 @@ def test_replans_after_empty_search_and_reads_full_page():
         complete=[False, True],
     )
     response = ask(
-        "Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan(report_only=True)
+        "Сера Sokol?",
+        client=client,
+        execute=execute,
+        planner=lambda *_: plan(report_only=True, rag_query="broad"),
     )
     assert response["status"] == "ok"
     assert [x[0] for x in calls] == ["report_search", "report_search", "read_report"]
     assert calls[0][1] != calls[1][1]
-    second = [p for n, p in client.payloads if n == "decide"][1]
+    second = [p for n, p in client.payloads if n == "decide"][0]
     assert second["observations"][0]["result_count"] == 0
     assert response["agent_mode"] == "loop" and response["claims"][0]["evidence_ids"]
 
@@ -97,8 +99,6 @@ def test_model_cannot_skip_report_priority():
     client = Scripted(
         [
             action("web_search", "news"),
-            action("report_search", "oil"),
-            action("web_search", "news"),
             action("finish"),
         ]
     )
@@ -106,9 +106,9 @@ def test_model_cannot_skip_report_priority():
         "Новости нефти", client=client, execute=execute, planner=lambda *_: plan(fresh=True)
     )
     assert called == ["report_search", "web_search"]
-    assert [
-        x for n, p in client.payloads if n == "decide" for x in p["observations"] if x.get("error")
-    ]
+    assert response["decisions"][0]["origin"] == "plan_policy"
+    first_choice = next(p for n, p in client.payloads if n == "decide")
+    assert first_choice["observations"][0]["tool"] == "report_search"
     assert response["status"] == "ok"
 
 
@@ -121,9 +121,12 @@ def test_repeated_actions_stop_at_budget(monkeypatch):
         calls.append(name)
         return [], None, event(name)
 
-    client = Scripted([action("report_search", "same")] * 3)
+    client = Scripted([action("report_search", "same")] * 2)
     response = ask(
-        "Найди факт", client=client, execute=execute, planner=lambda *_: plan(report_only=True)
+        "Найди факт",
+        client=client,
+        execute=execute,
+        planner=lambda *_: plan(report_only=True, rag_query="same"),
     )
     assert calls == ["report_search"]
     assert len(response["decisions"]) == 3
@@ -142,8 +145,9 @@ def test_pure_forecast_uses_calculator_without_forced_search():
 def test_report_only_web_attempt_is_not_executed(monkeypatch):
     monkeypatch.setenv("AGENT_MAX_STEPS", "2")
 
-    def execute(*args, **kwargs):
-        pytest.fail("Forbidden tool must not reach executor")
+    def execute(registry, name, **kwargs):
+        assert name == "report_search", "Forbidden tool must not reach executor"
+        return [], None, event(name)
 
     response = ask(
         "Только PDF",
@@ -151,7 +155,8 @@ def test_report_only_web_attempt_is_not_executed(monkeypatch):
         execute=execute,
         planner=lambda *_: plan(report_only=True),
     )
-    assert response["trace"] == [] and response["status"] == "partial"
+    assert [x["tool"] for x in response["trace"]] == ["report_search"]
+    assert response["status"] == "partial" and response["rejected_actions"] == 1
 
 
 def test_source_ids_do_not_collide_between_searches():
@@ -229,7 +234,7 @@ def test_answer_context_uses_model_selected_source_ids():
         "text": "Unrelated refinery fact.",
     }
     client = Scripted(
-        [action("report_search", "Sokol"), {**action("finish"), "source_ids": ["R1"]}],
+        [{**action("finish"), "source_ids": ["R1"]}],
         complete=[False, True],
     )
     result = ask(
@@ -248,7 +253,7 @@ def test_api_returns_new_agent_contract(monkeypatch):
 
     from src import api
 
-    client = Scripted([action("report_search", "Sokol"), action("finish")])
+    client = Scripted([])
     monkeypatch.setattr(
         api,
         "ask",
@@ -328,7 +333,6 @@ def test_failed_repair_does_not_erase_previously_grounded_facts():
 
     client = Client(
         [
-            action("report_search", "Sokol"),
             action("read_report", report="eia", page=6),
             action("finish"),
         ]
@@ -418,13 +422,15 @@ def test_duplicate_empty_search_still_allows_a_different_query():
     client = Scripted(
         [
             action("report_search", "broad"),
-            action("report_search", "broad"),
             action("report_search", "focused"),
             action("finish"),
         ]
     )
     response = ask(
-        "Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan(report_only=True)
+        "Сера Sokol?",
+        client=client,
+        execute=execute,
+        planner=lambda *_: plan(report_only=True, rag_query="broad"),
     )
     assert queries == ["broad", "focused"]
     assert response["status"] == "ok" and response["rejected_actions"] == 1

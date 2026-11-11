@@ -58,7 +58,7 @@ def test_slow_tool_keeps_sources_but_does_not_start_another_generation(clock):
         return [REPORT], None, event(name)
 
     response = ask("Вопрос", client=client, execute=execute, planner=lambda *_: plan())
-    assert len(client.payloads) == 1
+    assert client.payloads == []
     assert response["stop_reason"] == "time_budget_exhausted" and response["status"] == "partial"
     assert response["diagnostics"]["retrieved_sources"][0]["id"] == "R1"
     assert response["claims"] == []

@@ -7,7 +7,7 @@ from openai import OpenAI
 from test_agent import REPORT, plan
 from test_agent_loop import Scripted, action, event
 
-from src.agent import ask
+from src.agent import answer_sources, ask
 from src.integrations.llm import LLMClient
 from src.models.schemas import CitedAnswer
 
@@ -21,18 +21,14 @@ def test_real_sdk_receives_report_text_and_ids_without_a_finish_decision():
         payload = json.loads(body["messages"][-1]["content"])
         name = body["response_format"]["json_schema"]["name"]
         calls.append((name, payload))
-        if name == "AvailableAction":
-            # A spurious source selection on a SEARCH must not discard R1.
-            result = {**action("report_search", "amounts"), "source_ids": ["R999"]}
-        else:
-            assert name == "CitedAnswer"
-            assert payload["question"] == "Сравни количества"
-            assert payload["evidence"]["R1:B1"] == table
-            assert payload["sources"][0]["id"] == "R1"
-            result = {
-                "claims": [{"evidence_ids": ["R1:B1"], "text": "Orion: 42; Vega: 28."}],
-                "complete": True,
-            }
+        assert name == "CitedAnswer"
+        assert payload["question"] == "Сравни количества"
+        assert payload["evidence"]["R1:B1"] == table
+        assert payload["sources"][0]["id"] == "R1"
+        result = {
+            "claims": [{"evidence_ids": ["R1:B1"], "text": "Orion: 42; Vega: 28."}],
+            "complete": True,
+        }
         return httpx.Response(
             200,
             json={
@@ -58,14 +54,22 @@ def test_real_sdk_receives_report_text_and_ids_without_a_finish_decision():
         response = ask(
             "Сравни количества",
             client=LLMClient(sdk),
-            planner=lambda *_: plan(),
+            planner=lambda *_: plan(rag_query="amounts"),
             execute=lambda *a, **kw: ([{**REPORT, "text": table}], None, event("report_search")),
         )
-    assert [name for name, _ in calls] == ["AvailableAction", "CitedAnswer"]
+    assert [name for name, _ in calls] == ["CitedAnswer"]
     assert response["status"] == "ok" and len(response["decisions"]) == 1
+    assert response["decisions"][0]["origin"] == "plan_policy"
+    assert response["diagnostics"]["steps"][0]["arguments"] == {"query": "amounts"}
     assert response["claims"][0]["evidence_ids"] == ["R1:B1"]
     check = response["diagnostics"]["answer_checks"][0]
     assert check["after_step"] == 1 and check["source_ids"] == ["R1"] and check["complete"]
+
+
+def test_search_source_selection_cannot_discard_retrieved_evidence():
+    assert answer_sources(
+        {"sources": [REPORT], "decision": {"action": "report_search", "source_ids": ["R999"]}}
+    ) == [REPORT]
 
 
 def test_partial_answer_is_available_to_next_action_and_can_be_completed():
@@ -84,16 +88,14 @@ def test_partial_answer_is_available_to_next_action_and_can_be_completed():
                 )
             return super().generate(name, payload, schema)
 
-    client = Client(
-        [action("report_search", "first fact"), action("report_search", "missing fact")]
-    )
+    client = Client([action("report_search", "missing fact")])
     response = ask(
         "Два факта",
         client=client,
-        planner=lambda *_: plan(),
+        planner=lambda *_: plan(rag_query="first fact"),
         execute=lambda r, n, **kw: ([{**REPORT, "text": kw["query"]}], None, event(n)),
     )
-    second = [p for n, p in client.payloads if n == "decide"][1]
+    second = [p for n, p in client.payloads if n == "decide"][0]
     assert second["current_answer"]["claims"][0]["text"] == "first fact"
     assert second["current_answer"]["complete"] is False
     assert response["status"] == "ok" and len(response["claims"]) == 2
