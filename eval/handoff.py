@@ -15,7 +15,9 @@ from .run import provenance
 FIXTURE = ROOT / "eval/fixtures/handoff-evidence.json"
 
 
-def run(output, probe_only=False):
+def run(output, probe_only=False, suite=False):
+    if suite:
+        return run_suite(output)
     fixture = json.loads(FIXTURE.read_text())
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -69,8 +71,28 @@ def run(output, probe_only=False):
     print("HANDOFF_RESULT=" + json.dumps(result, ensure_ascii=False), flush=True)
 
 
+def run_suite(output):
+    from .counterfactual import run as counterfactual
+    from .run import load_cases
+    from .run import run as evaluate
+    from .smoke import check_result
+
+    data = ROOT / "eval/data/handoff.jsonl"
+    result = evaluate("agent", data=data, output=output)
+    result["regression_checks"] = check_result(result, load_cases(data))
+    Path(output).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    print("HANDOFF_SUITE=" + json.dumps(result, ensure_ascii=False), flush=True)
+    synthetic = Path(output).with_name("handoff-counterfactual.json")
+    counterfactual(synthetic)
+    print("HANDOFF_COUNTERFACTUAL=" + synthetic.read_text().replace("\n", ""), flush=True)
+    flush()
+    if not all(check["passed"] for check in result["regression_checks"]):
+        raise SystemExit("Live checks failed; preserve the results and inspect the answers.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--probe-only", action="store_true")
+    parser.add_argument("--suite", action="store_true")
     run(**vars(parser.parse_args()))

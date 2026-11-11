@@ -7,9 +7,9 @@ permissions:
   contents: read
 jobs:
   qwen:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[handoff-probe]') || contains(github.event.head_commit.message, '[handoff-eval]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[handoff-probe]') || contains(github.event.head_commit.message, '[handoff-eval]') || contains(github.event.head_commit.message, '[handoff-suite]')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       LLM_BASE_URL: http://127.0.0.1:11434/v1
       LLM_API_KEY: local
@@ -44,8 +44,11 @@ jobs:
       - name: Diagnose actual answer generation
         env:
           PROBE_ONLY: ${{ contains(github.event.head_commit.message, '[handoff-probe]') }}
+          SUITE: ${{ contains(github.event.head_commit.message, '[handoff-suite]') }}
         run: |
-          if [ "$PROBE_ONLY" = true ]; then
+          if [ "$SUITE" = true ]; then
+            uv run python -m eval.handoff --suite --output .cache/eval/handoff-suite.json
+          elif [ "$PROBE_ONLY" = true ]; then
             uv run python -m eval.handoff --probe-only --output .cache/eval/handoff.json
           else
             uv run python -m eval.handoff --output .cache/eval/handoff.json
