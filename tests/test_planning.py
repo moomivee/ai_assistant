@@ -88,6 +88,15 @@ def test_complete_plan_needs_only_one_call():
     assert c.calls == ["plan"]
 
 
+@pytest.mark.parametrize("intent", ["research", "outside"])
+def test_non_forecast_clarification_cannot_block_source_search(intent):
+    question = "Каково содержание серы в Sokol? Только по загруженным отчётам."
+    c = PlannerClient(plan(intent=intent, clarify=question))
+    result = make_plan(c, question)
+    assert result.clarify == ""
+    assert c.calls == ["plan"]
+
+
 def test_spurious_clarification_is_rechecked_and_removed():
     c = PlannerClient(
         plan(

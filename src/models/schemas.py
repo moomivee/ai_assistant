@@ -28,7 +28,10 @@ class Plan(StrictModel):
     cut: FiniteFloat | None
     sensitivity: FiniteFloat | None
     parameters: list[ParameterEvidence] = Field(max_length=4)
-    clarify: str = Field(max_length=500)
+    clarify: str = Field(
+        max_length=500,
+        description="Уточнение только недостающих параметров forecast. Для research и outside всегда пустая строка.",
+    )
 
 
 class ForecastInputs(StrictModel):
