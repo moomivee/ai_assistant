@@ -1,6 +1,5 @@
 """Bounded observe/act loop: the LLM chooses the next tool after every result."""
 
-import json
 from datetime import date
 from functools import lru_cache
 from typing import Literal, TypedDict
@@ -8,12 +7,20 @@ from typing import Literal, TypedDict
 from langgraph.graph import END, START, StateGraph
 from pydantic import create_model
 
+from .budget import (
+    BudgetedClient,
+    RequestBudgetExceeded,
+    check_budget,
+    remaining_seconds,
+    request_budget,
+)
 from .config import settings
 from .evidence import generate_answer, render_claims
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
 from .models.schemas import AgentResponse, CitedAnswer, NextAction
 from .planning import make_plan
+from .progress import action_signature, check_assessment, evidence_key, source_key
 from .tools import make_registry, run_tool
 from .workflow import forecast_answer
 
@@ -29,7 +36,8 @@ class State(TypedDict, total=False):
     trace: list
     calc: dict | None
     decision: dict
-    signatures: list
+    action_results: dict
+    no_progress_steps: int
     attempts: int
     feedback: str
     answer_attempts: int
@@ -81,22 +89,16 @@ def allowed_actions(state):
     )
     if required:
         actions.append("finish")
-    if state["observations"]:
-        last = state["observations"][-1]
-        if str(last.get("error") or "").startswith("Duplicate action rejected"):
-            alternatives = [name for name in actions if name != last["tool"]]
-            # Do not force completion after an empty search: a different query
-            # is still useful when no other evidence-gathering action exists.
-            if any(name != "finish" for name in alternatives):
-                actions = alternatives
+    # Repeated arguments do not disable an entire tool. A changed query must
+    # remain available even when other tools are also allowed.
     return actions
 
 
 def merge_sources(existing, incoming):
     result = [dict(s) for s in existing]
-    known = {s.get("chunk_id") or (s["url"], s["text"]): s for s in result}
+    known = {source_key(s): s for s in result}
     for source in incoming:
-        key = source.get("chunk_id") or (source["url"], source["text"])
+        key = source_key(source)
         if key not in known:
             prefix = "R" if source["kind"] == "report" else "W"
             number = 1 + sum(s["kind"] == source["kind"] for s in result)
@@ -107,7 +109,7 @@ def merge_sources(existing, incoming):
 
 
 def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
-    client, registry = client or llm(), registry or make_registry()
+    client, registry = BudgetedClient(client or llm()), registry or make_registry()
 
     def plan(state):
         try:
@@ -130,9 +132,41 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "sources": decision_sources(state["sources"]),
                     "calculation_available": bool(state["calc"]),
                     "answer_feedback": state["feedback"],
+                    "no_progress_steps": state["no_progress_steps"],
+                    "no_progress_limit": settings().agent_no_progress_limit,
+                    "seconds_remaining": remaining_seconds(),
+                    "previous_assessment": {
+                        k: state.get("decision", {}).get(k)
+                        for k in (
+                            "assessment",
+                            "missing_facts",
+                            "evidence_checks",
+                            "unknown_source_ids",
+                        )
+                    },
                 },
                 action_schema(tuple(allowed_actions(state))),
             ).model_dump()
+            decision.update(check_assessment(decision, state["sources"]))
+            if (
+                decision["assessment"] == "enough"
+                and not decision["missing_facts"]
+                and decision["assessment_references_valid"]
+                and "finish" in allowed_actions(state)
+                and decision["action"] != "finish"
+            ):
+                # Reconcile the model's own explicit, referenced assessment.
+                # Record both actions; answer generation still validates claims.
+                decision["model_action"] = decision["action"]
+                decision["action"] = "finish"
+                decision["source_ids"] = list(
+                    dict.fromkeys(
+                        key for check in decision["evidence_checks"] for key in check["source_ids"]
+                    )
+                )
+                decision["controller_note"] = (
+                    "Referenced assessment says enough; proceeding to answer."
+                )
             return {
                 "decision": decision,
                 "decisions": state["decisions"] + [decision],
@@ -165,14 +199,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             args = {k: p[k] for k in ("benchmark", "months", "discount", "cut", "sensitivity")}
         else:
             args = {}
-        signature = name + ":" + json.dumps(args, sort_keys=True, ensure_ascii=False)
-        if signature in state["signatures"]:
-            error = "Duplicate action rejected. Change the query or read another page; do not retry unchanged."
+        signature = action_signature(name, args)
+        previous = state["action_results"].get(signature) if not error else None
+        if previous:
+            error = "Duplicate action rejected. Reuse the existing result, change the arguments, or finish."
         if not error:
             data, error, event = execute(registry, name, **args)
         observation = {"tool": name, "arguments": args, "error": error}
         update = {
-            "signatures": state["signatures"] + [signature],
             "trace": state["trace"] + ([event] if event else []),
         }
         if name in ("report_search", "read_report") and data is not None:
@@ -186,20 +220,54 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         elif name == "price_forecast" and data:
             update["calc"] = data
             observation["result"] = {k: data[k] for k in ("benchmark", "as_of", "last")}
-        update["observations"] = state["observations"] + [observation]
         incoming = (
             data
             if name in ("report_search", "read_report")
             else (data.get("items", []) if name == "web_search" and data else [])
         )
-        keys = {s.get("chunk_id") or (s["url"], s["text"]) for s in (incoming or [])}
-        found_ids = [
+        keys = {source_key(s) for s in (incoming or [])}
+        found_ids = [s["id"] for s in update.get("sources", []) if source_key(s) in keys]
+        known_evidence = {evidence_key(s) for s in state["sources"]}
+        new_ids = [
             s["id"]
             for s in update.get("sources", [])
-            if (s.get("chunk_id") or (s["url"], s["text"])) in keys
+            if evidence_key(s) not in known_evidence and s["text"].strip()
         ]
-        # Presentation-only diagnostics: do not change the observations supplied
-        # to the LLM, or infer a link by matching tool names after execution.
+        progress = not error and bool(new_ids or (update.get("calc") and not state["calc"]))
+        # First executed attempt establishes a baseline, even if empty. Leave
+        # room for reformulation after an initial empty result and a duplicate.
+        initial_attempt = not state["trace"] and event is not None
+        stagnant = 0 if progress or initial_attempt else state["no_progress_steps"] + 1
+        observation.update(
+            source_ids=found_ids,
+            new_source_ids=new_ids,
+            new_evidence=progress,
+            no_progress_steps=stagnant,
+        )
+        if previous:
+            reused = previous["source_ids"]
+            observation.update(duplicate_of=previous["step"], reused_source_ids=reused)
+            observation["notices"] = [
+                f"Attempt {previous['step']} already returned source IDs {', '.join(reused) or 'none'}. "
+                + (f"That attempt failed: {previous['error']}. " if previous["error"] else "")
+                + "Its result remains available; this duplicate added no evidence."
+            ]
+        elif event is not None:
+            update["action_results"] = {
+                **state["action_results"],
+                signature: {"step": state["attempts"], "source_ids": found_ids, "error": error},
+            }
+        update.update(
+            observations=state["observations"] + [observation], no_progress_steps=stagnant
+        )
+        if stagnant >= settings().agent_no_progress_limit:
+            update["stop_reason"] = "no_progress"
+            update["feedback"] = (
+                state["feedback"]
+                + "\nResearch stopped after repeated attempts without new evidence. "
+                "Use only available sources; do not invent missing facts."
+            ).strip()
+        # Expose the same progress information to the inspector and the model.
         update["diagnostic_steps"] = state.get("diagnostic_steps", []) + [
             {
                 **observation,
@@ -207,7 +275,6 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "purpose": d.get("purpose", ""),
                 "status": (event["status"] if event else "rejected"),
                 "ms": event["ms"] if event else None,
-                "source_ids": found_ids,
             }
         ]
         return update
@@ -286,12 +353,20 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 }
             if p and p["fresh"]:
                 complete = complete and bool(web)
-            if state["attempts"] >= settings().agent_max_steps and not complete:
+            if (
+                state["attempts"] >= settings().agent_max_steps
+                and not complete
+                and stop == "completed"
+            ):
                 stop = "budget_exhausted"
             if state.get("failure"):
                 complete = False
             if not blocks:
-                blocks = ["Подтверждённых данных для ответа недостаточно."]
+                blocks = [
+                    "Не удалось подготовить ответ по найденным источникам."
+                    if state.get("failure") and state["sources"]
+                    else "Подтверждённых данных для ответа недостаточно."
+                ]
             if not complete:
                 blocks.append(
                     "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
@@ -302,8 +377,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 )
             if not complete:
                 for observation in state["observations"]:
-                    blocks.extend(observation.get("notices", []))
+                    if not observation.get("duplicate_of"):
+                        blocks.extend(observation.get("notices", []))
             status = "ok" if complete else "partial"
+        if stop == "no_progress":
+            blocks.append("Поиск остановлен: повторные попытки не добавили новых данных.")
+        elif stop == "time_budget_exhausted":
+            blocks.append("Достигнут общий лимит времени запроса. Обработка остановлена.")
         return {
             "response": {
                 "question": state["question"],
@@ -334,6 +414,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     ],
                     "answer_feedback": state["feedback"],
                     "failure": state.get("failure", ""),
+                    "no_progress_steps": state["no_progress_steps"],
+                    "no_progress_limit": settings().agent_no_progress_limit,
+                    "timeout_seconds": settings().agent_timeout_seconds,
                 },
             }
         }
@@ -357,11 +440,21 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         )
 
     def after_act(state):
-        return "answer" if state["attempts"] >= settings().agent_max_steps else "decide"
+        if state.get("failure"):
+            return "finish"
+        return (
+            "answer"
+            if (
+                state["attempts"] >= settings().agent_max_steps
+                or state.get("stop_reason") == "no_progress"
+            )
+            else "decide"
+        )
 
     def after_answer(state):
         if (
             not state.get("failure")
+            and state.get("stop_reason", "completed") == "completed"
             and state["plan"]["wants_context"]
             and not state["draft"]["complete"]
             and state["answer_attempts"] < 2
@@ -373,7 +466,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def observed(name, fn):
         def call(state):
             with span("agent." + name) as obs:
-                result = fn(state)
+                try:
+                    if name != "finish":
+                        check_budget()
+                    result = fn(state)
+                except RequestBudgetExceeded as exc:
+                    result = {"failure": str(exc), "stop_reason": "time_budget_exhausted"}
                 obs.update(output=result, status="error" if result.get("failure") else "ok")
                 return result
 
@@ -409,7 +507,10 @@ def ask(
     question = question.strip()
     if not 1 <= len(question) <= 2000:
         raise ValueError("Введите вопрос длиной от 1 до 2000 символов.")
-    with request_trace(question, previous) as (trace_id, obs):
+    with (
+        request_budget(settings().agent_timeout_seconds),
+        request_trace(question, previous) as (trace_id, obs),
+    ):
         state = build_graph(client, registry, execute, planner).invoke(
             {
                 "question": question,
@@ -420,7 +521,8 @@ def ask(
                 "decisions": [],
                 "trace": [],
                 "calc": None,
-                "signatures": [],
+                "action_results": {},
+                "no_progress_steps": 0,
                 "attempts": 0,
                 "answer_attempts": 0,
                 "feedback": "",

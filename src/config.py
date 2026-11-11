@@ -33,6 +33,8 @@ class Settings(BaseModel):
     prompt_label: str = "production"
     agent_mode: str = "loop"
     agent_max_steps: int = Field(default=6, ge=2, le=12)
+    agent_no_progress_limit: int = Field(default=2, ge=1, le=12)
+    agent_timeout_seconds: float = Field(default=180, ge=5, le=900)
     answer_review: bool = False
 
 
@@ -68,6 +70,8 @@ def settings() -> Settings:
         prompt_label=os.getenv("PROMPT_LABEL", "production"),
         agent_mode=os.getenv("AGENT_MODE", "loop"),
         agent_max_steps=int(os.getenv("AGENT_MAX_STEPS", "6")),
+        agent_no_progress_limit=int(os.getenv("AGENT_NO_PROGRESS_LIMIT", "2")),
+        agent_timeout_seconds=float(os.getenv("AGENT_TIMEOUT_SECONDS", "180")),
         answer_review=os.getenv("ANSWER_SELF_REVIEW", "false").lower() == "true",
     )
     os.environ.setdefault("OUROBOROS_DATA_DIR", str(s.cache / "ouroboros"))

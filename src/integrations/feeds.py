@@ -9,6 +9,7 @@ from xml.etree import ElementTree
 
 import httpx
 
+from ..budget import bounded_timeout
 from ..config import settings
 from ..logging import log
 
@@ -60,13 +61,15 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
         feeds = {"Банк России": FEEDS["Банк России"]}
     else:
         feeds = FEEDS
+    # Compute before entering worker threads, which do not inherit ContextVars.
+    request_timeout = bounded_timeout(cfg.timeout)
 
     def fetch(entry):
         publisher, feed = entry
         if not trusted(feed, cfg.domains):
             return []
         try:
-            response = httpx.get(feed, timeout=cfg.timeout, follow_redirects=True)
+            response = httpx.get(feed, timeout=request_timeout, follow_redirects=True)
             response.raise_for_status()
             root = ElementTree.fromstring(response.content)
         except (httpx.HTTPError, ElementTree.ParseError) as exc:

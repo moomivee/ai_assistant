@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from ..budget import bounded_timeout
 from ..config import settings
 from ..logging import log
 from .feeds import search_feeds
@@ -42,7 +43,7 @@ def latest_spot(grade: str) -> dict:
     response = httpx.get(
         FRED_CSV,
         params={"id": ticker},
-        timeout=settings().timeout,
+        timeout=bounded_timeout(settings().timeout),
         follow_redirects=True,
     )
     response.raise_for_status()
@@ -97,7 +98,7 @@ def search_web(query: str, fresh: bool) -> list[dict]:
         "https://api.tavily.com/search",
         json=payload,
         headers={"Authorization": "Bearer " + cfg.web_key},
-        timeout=cfg.timeout,
+        timeout=bounded_timeout(cfg.timeout),
     )
     response.raise_for_status()
     hits, seen = [], set()

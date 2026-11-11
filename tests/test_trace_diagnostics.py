@@ -1,4 +1,4 @@
-"""The inspector exposes actual execution data without changing LLM context."""
+"""The inspector exposes the same execution progress as the model receives."""
 
 from test_agent import REPORT, plan
 from test_agent_loop import Scripted, action, event
@@ -8,7 +8,7 @@ from src.integrations.llm import LLMUnavailable
 from src.models.schemas import AgentResponse
 
 
-def test_diagnostics_link_decisions_to_actual_results_and_preserve_llm_context():
+def test_diagnostics_link_decisions_to_actual_results_and_shared_progress():
     other = {**REPORT, "text": "Other evidence. " * 400, "url": "https://eia.gov/other"}
     client = Scripted(
         [
@@ -33,7 +33,10 @@ def test_diagnostics_link_decisions_to_actual_results_and_preserve_llm_context()
     assert len(diag["retrieved_sources"][1]["text"]) == 4000
     assert diag["retrieved_sources"][1]["text_truncated"] is True
     payloads = [p for name, p in client.payloads if name == "decide"]
-    assert set(payloads[1]["observations"][0]) == {"tool", "arguments", "error", "result_count"}
+    observation = payloads[1]["observations"][0]
+    for key in ("source_ids", "new_source_ids", "new_evidence", "no_progress_steps"):
+        assert observation[key] == step[key]
+    assert observation["new_evidence"] is True
     assert "diagnostics" not in payloads[1]
 
 
@@ -50,7 +53,7 @@ def test_rejected_attempts_have_no_invented_execution_time(monkeypatch):
     assert [s["step"] for s in steps] == [1, 2, 3]
     assert [s["status"] for s in steps] == ["ok", "rejected", "rejected"]
     assert all(s["ms"] is None and s["error"] for s in steps[1:])
-    assert response["stop_reason"] == "budget_exhausted"
+    assert response["stop_reason"] == "no_progress"
 
 
 def test_tool_error_is_distinct_from_policy_rejection(monkeypatch):

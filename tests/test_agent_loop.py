@@ -103,6 +103,7 @@ def test_model_cannot_skip_report_priority():
 
 def test_repeated_actions_stop_at_budget(monkeypatch):
     monkeypatch.setenv("AGENT_MAX_STEPS", "3")
+    monkeypatch.setenv("AGENT_NO_PROGRESS_LIMIT", "12")
     calls = []
 
     def execute(registry, name, **args):

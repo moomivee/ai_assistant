@@ -53,6 +53,13 @@ def route_metrics(expected, response, plan):
         "required_tool_success": float(set(required) <= successful),
         "tool_calls": len(actual),
         "rejected_actions": response.get("rejected_actions", 0),
+        "decision_count": len(response.get("decisions", [])),
+        "duplicate_actions": sum(
+            bool(step.get("duplicate_of"))
+            for step in (response.get("diagnostics") or {}).get("steps", [])
+        ),
+        "stopped_no_progress": float(response.get("stop_reason") == "no_progress"),
+        "stopped_time_budget": float(response.get("stop_reason") == "time_budget_exhausted"),
         "tool_sequence_exact": float(actual == wanted),
         "required_tool_recall": len(set(actual) & set(required)) / len(set(required))
         if required

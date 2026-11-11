@@ -124,6 +124,11 @@ class DiagnosticStep(StrictModel):
     source_ids: list[str] = Field(default_factory=list)
     notices: list[str] = Field(default_factory=list)
     result: dict | None = None
+    duplicate_of: int | None = None
+    reused_source_ids: list[str] = Field(default_factory=list)
+    new_source_ids: list[str] = Field(default_factory=list)
+    new_evidence: bool | None = None
+    no_progress_steps: int = 0
 
 
 class AgentDiagnostics(StrictModel):
@@ -132,6 +137,9 @@ class AgentDiagnostics(StrictModel):
     retrieved_sources: list[Source] = Field(default_factory=list)
     answer_feedback: str = ""
     failure: str = ""
+    no_progress_steps: int = 0
+    no_progress_limit: int | None = None
+    timeout_seconds: float | None = None
 
 
 class AgentResponse(StrictModel):
@@ -153,6 +161,11 @@ class AgentResponse(StrictModel):
     diagnostics: AgentDiagnostics | None = None
 
 
+class EvidenceCheck(StrictModel):
+    fact: str = Field(min_length=1, max_length=180)
+    source_ids: list[str] = Field(max_length=4)
+
+
 class NextAction(StrictModel):
     assessment: Literal["need_evidence", "need_detail", "enough", "unavailable"] = "need_evidence"
     purpose: str = Field(max_length=250)
@@ -161,6 +174,8 @@ class NextAction(StrictModel):
     query: str = Field(max_length=1500)
     report: str = Field(max_length=100)
     page: int | None
+    missing_facts: list[str] = Field(default_factory=list, max_length=6)
+    evidence_checks: list[EvidenceCheck] = Field(default_factory=list, max_length=8)
 
 
 class CitedClaim(StrictModel):

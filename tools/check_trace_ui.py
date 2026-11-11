@@ -35,6 +35,7 @@ DECISIONS = [
         action="report_search",
         purpose="Найти характеристики двух образцов в отчёте.",
         query="Orion Vega properties",
+        missing_facts=["Значения API для обоих образцов"],
     ),
     dict(
         action="report_search",
@@ -50,6 +51,9 @@ DECISIONS = [
         action="finish",
         purpose="В найденном фрагменте есть значения для сравнения.",
         source_ids=["R1"],
+        evidence_checks=[dict(fact="Найдены значения API для обоих образцов", source_ids=["R1"])],
+        missing_facts=[],
+        assessment_references_valid=True,
     ),
 ]
 STEPS = [
@@ -62,6 +66,8 @@ STEPS = [
         ms=210,
         result_count=0,
         source_ids=[],
+        new_evidence=False,
+        no_progress_steps=0,
     ),
     dict(
         step=2,
@@ -71,6 +77,10 @@ STEPS = [
         status="rejected",
         ms=None,
         error="Duplicate action rejected. Change the query.",
+        duplicate_of=1,
+        reused_source_ids=[],
+        new_evidence=False,
+        no_progress_steps=1,
     ),
     dict(
         step=3,
@@ -81,6 +91,8 @@ STEPS = [
         ms=180,
         result_count=1,
         source_ids=["R1"],
+        new_evidence=True,
+        no_progress_steps=0,
     ),
 ]
 RESPONSE = dict(
@@ -115,6 +127,9 @@ RESPONSE = dict(
         retrieved_sources=[SOURCE],
         answer_feedback="",
         failure="",
+        no_progress_limit=2,
+        no_progress_steps=0,
+        timeout_seconds=180,
     ),
 )
 LEGACY = next(
@@ -188,12 +203,26 @@ class Handler(BaseHTTPRequestHandler):
                 stop_reason="budget_exhausted",
                 answer="Данных недостаточно. Попытки поиска завершены.",
             )
+        elif question in {"no_progress", "time_budget_exhausted"}:
+            response.update(status="partial", stop_reason=question)
+        elif question == "controller":
+            response["decisions"][-1].update(
+                model_action="report_search", controller_note="Referenced assessment says enough."
+            )
+        elif question == "unknown-reference":
+            response["decisions"][-1].update(
+                unknown_source_ids=["R999"],
+                evidence_checks=[dict(fact="Непроверенная ссылка", source_ids=["R999"])],
+                assessment_references_valid=False,
+            )
         elif question == "http-error":
             return self.send(b"{}", "application/json", 503)
         elif question == "hostile":
             text = '<img src=x onerror="window.injected=true">'
             response["answer"] = text
             response["decisions"][0]["purpose"] = text
+            response["decisions"][0]["missing_facts"] = [text]
+            response["decisions"][0]["evidence_checks"] = [dict(fact=text, source_ids=[text])]
             response["sources"][0].update(
                 title=text, url="javascript:window.injected=true", text=text
             )
@@ -249,9 +278,22 @@ async def check(url):
         await (
             page.locator(".inspector-detail > summary").filter(has_text="Как понят запрос").click()
         )
-        await page.locator(".step-detail > summary").first.click()
-        assert "Orion Vega properties" in await page.locator(".step-detail").first.inner_text()
-        await page.locator(".step-detail > summary").first.click()
+        arguments = (
+            page.locator(".step-detail > summary")
+            .filter(has_text="Аргументы и результат шага")
+            .first
+        )
+        await arguments.click()
+        assert "Orion Vega properties" in await arguments.locator("..").inner_text()
+        await arguments.click()
+        assessment = (
+            page.locator(".step-detail > summary").filter(has_text="Какие сведения найдены").first
+        )
+        await assessment.click()
+        assert "Не хватает: Значения API" in await assessment.locator("..").inner_text()
+        await assessment.click()
+        assert "Повтор шага 1" in await page.locator(".trace-panel").inner_text()
+        assert "Новые данные: да" in await page.locator(".trace-panel").inner_text()
         await page.locator(".text-button").click()
         assert await page.evaluate("navigator.clipboard.readText()") == RESPONSE["trace_id"]
         await page.locator("#result").screenshot(path=str(OUT / "trace-workbench-desktop.png"))
@@ -285,6 +327,23 @@ async def check(url):
         await page.locator("#historychart svg").wait_for()
         await submit("partial")
         assert "Достигнут лимит шагов" in await page.locator(".trace-stop").inner_text()
+        await submit("no_progress")
+        assert (
+            "Повторные попытки не добавили данных" in await page.locator(".trace-stop").inner_text()
+        )
+        await submit("time_budget_exhausted")
+        assert "Достигнут общий лимит времени" in await page.locator(".trace-stop").inner_text()
+        await submit("controller")
+        assert (
+            "Контроллер перевёл запрос к ответу" in await page.locator(".trace-panel").inner_text()
+        )
+        await submit("unknown-reference")
+        await (
+            page.locator(".step-detail > summary")
+            .filter(has_text="Какие сведения найдены")
+            .last.click()
+        )
+        assert "R999" in await page.locator(".trace-panel").inner_text()
         for scenario in ("clarification", "unavailable", "outside"):
             await submit(scenario)
             assert await page.locator(".trace-step").count() == 0
@@ -323,6 +382,9 @@ async def check(url):
             "mobile",
             "chart on demand",
             "partial",
+            "evidence assessment and missing facts",
+            "no progress and time budget stops",
+            "controller override and unknown references",
             "clarification",
             "unavailable",
             "outside",

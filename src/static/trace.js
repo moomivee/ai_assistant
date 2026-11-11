@@ -15,6 +15,8 @@ window.TraceView = (() => {
   const stops = {
     completed: "Завершён", budget_exhausted: "Достигнут лимит шагов",
     llm_unavailable: "LLM недоступна или ответ не прошёл схему",
+    no_progress: "Повторные попытки не добавили данных",
+    time_budget_exhausted: "Достигнут общий лимит времени",
   };
   const intents = { research: "Анализ источников", forecast: "Прогноз", outside: "Вне специализации" };
   const node = (tag, text, cls) => {
@@ -38,7 +40,7 @@ window.TraceView = (() => {
   }
   function errorText(value) {
     if (!value) return "";
-    if (value.startsWith("Duplicate action rejected")) return "Повтор того же вызова отклонён. Агенту предложено изменить запрос или открыть другую страницу.";
+    if (value.startsWith("Duplicate action rejected")) return "Повтор того же вызова отклонён. Предыдущий результат доступен; можно использовать его, изменить параметры или перейти к ответу.";
     if (value.startsWith("Action rejected by policy")) return "Действие отклонено правилами доступа к инструментам.";
     if (value.startsWith("Use a registered report ID")) return "Отчёт не найден среди доступных источников. Вызов отклонён.";
     return value;
@@ -74,8 +76,21 @@ window.TraceView = (() => {
     title.append(node("span", badgeText, "step-state " + (state || "decision")));
     li.append(title);
     if (decision.purpose) li.append(node("p", "Цель по плану: " + decision.purpose, "step-purpose"));
+    if (decision.controller_note) li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
+    if (decision.missing_facts?.length || decision.evidence_checks?.length) {
+      const assessment = node("div");
+      const list = node("ul");
+      for (const check of decision.evidence_checks || []) list.append(node("li", `${check.fact} · ${(check.source_ids || []).join(", ") || "источник не указан"}`));
+      assessment.append(list);
+      if (decision.missing_facts?.length) assessment.append(node("p", "Не хватает: " + decision.missing_facts.join("; ")));
+      if (decision.unknown_source_ids?.length) assessment.append(node("p", "Неизвестные ссылки: " + decision.unknown_source_ids.join(", "), "step-error"));
+      assessment.append(node("p", "Это оценка модели. Наличие ссылки не подтверждает правильность толкования источника.", "small"));
+      li.append(detail("Какие сведения найдены и чего не хватает", assessment, "step-detail"));
+    }
     if (execution) {
       if (execution.error) li.append(node("p", errorText(execution.error), "step-error"));
+      if (execution.duplicate_of) li.append(node("p", `Повтор шага ${execution.duplicate_of}. Ранее получено: ${execution.reused_source_ids?.join(", ") || "фрагментов нет"}.`, "step-result"));
+      if (typeof execution.new_evidence === "boolean") li.append(node("p", `Новые данные: ${execution.new_evidence ? "да" : "нет"}. Попыток без новых данных подряд: ${execution.no_progress_steps ?? 0}.`, "small"));
       if (execution.result_count !== null && execution.result_count !== undefined) {
         li.append(node("p", `Найдено фрагментов: ${execution.result_count}${execution.source_ids?.length ? " · " + execution.source_ids.join(", ") : ""}`, "step-result"));
       }
@@ -136,6 +151,7 @@ window.TraceView = (() => {
     const stop = node("div", undefined, "trace-stop");
     stop.append(node("span", "Состояние: "), node("strong", statuses[data.status] || data.status), node("p", "Завершение: " + (stops[data.stop_reason] || data.stop_reason || "не указано")));
     if (diagnostics?.failure) stop.append(node("p", diagnostics.failure, "step-error"));
+    if (diagnostics?.timeout_seconds) stop.append(node("p", `Бюджет обработки: ${diagnostics.timeout_seconds} с. Порог отсутствия прогресса: ${diagnostics.no_progress_limit} попытки.`, "small"));
     if (diagnostics?.answer_feedback) stop.append(detail("Замечание проверки ответа", node("p", diagnostics.answer_feedback)));
     box.append(stop);
     if (diagnostics) box.append(detail(`Найденные фрагменты · ${diagnostics.retrieved_sources?.length || 0}`, sourcesView(diagnostics.retrieved_sources || [])));

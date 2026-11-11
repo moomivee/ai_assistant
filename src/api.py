@@ -97,6 +97,8 @@ def status():
         "tavily": bool(cfg.web_key),
         "agent_mode": cfg.agent_mode,
         "agent_max_steps": cfg.agent_max_steps,
+        "agent_no_progress_limit": cfg.agent_no_progress_limit,
+        "agent_timeout_seconds": cfg.agent_timeout_seconds,
         "reports": [
             {"title": r["title"], "date": r["date"], "url": "/reports/" + r["file"]}
             for r in manifest()
