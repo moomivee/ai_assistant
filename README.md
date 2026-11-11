@@ -4,6 +4,8 @@
 
 **Стек:** Python 3.12, uv, FastAPI, FAISS, ONNX-эмбеддеры, OpenAI-совместимый LLM-клиент, Langfuse. Локальная Qwen 2.5 3B выбрана как доступная стартовая модель.
 
+**Текущий статус:** учебный прототип агентского цикла в [PR #2](https://github.com/moomivee/ai_assistant/pull/2), ветка `review/agent-eval-20261110`. Реализованные возможности, измерения и известные ограничения собраны [на отдельной странице](docs/Limitations.md).
+
 ## Интерфейс
 
 ![Ввод вопроса, результат прогноза, расчёт по месяцам и раскрытие графика](docs/assets/interface-demo.gif)
@@ -32,7 +34,7 @@
 После установки [uv](https://docs.astral.sh/uv/getting-started/installation/) и [Ollama](https://ollama.com/download):
 
 ```bash
-git clone https://github.com/moomivee/ai_assistant.git
+git clone --branch review/agent-eval-20261110 https://github.com/moomivee/ai_assistant.git
 cd ai_assistant
 cp -n .env.example .env
 uv sync --locked
@@ -54,6 +56,12 @@ docker compose -f compose.yaml -f compose.local.yaml up --build -d
 - «Сравни экспорт нефти в Индию из отчёта EIA со свежими новостями».
 - «Спрогнозируй Brent на 3 месяца. Только расчёт».
 - «Напиши рецепт борща» — проверка границ специализации.
+
+## Текущие ограничения
+
+Qwen иногда неверно интерпретирует найденные числа, повторяет поиск и добавляет лишние действия. Проверка JSON, ссылок и чисел не гарантирует правильность смысла. Корпус пока состоит из двух отчётов; OCR и долговременной памяти нет. Без Tavily веб-доступ ограничен RSS и FRED. Прогноз использует сохранённую историю и сценарные допущения; превосходство над наивным прогнозом не гарантировано.
+
+Полный живой eval на 100 вопросах и независимая экспертная проверка ещё не проведены. Подробности — в [результатах и ограничениях](docs/Limitations.md).
 
 ## Проверки и документация
 
