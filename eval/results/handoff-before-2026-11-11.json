@@ -1,0 +1,134 @@
+{
+  "scope": "live_llm_saved_public_evidence",
+  "provenance": {
+    "time": "2026-11-11T19:41:14.402213+00:00",
+    "git_commit": "1ef2d78d5e5c01a5d353912ea268abd8b221264b",
+    "git_dirty": false,
+    "code_sha256": "d8c3ee88a81ae573b04bb327b543c8d19bd8d2f5360d58a08126e6c824ae91ca",
+    "dataset_sha256": "98c73eda15128b6335b03adf4e4c9f290c4d716a5aeef04ba13580e6a9272d07",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.15",
+    "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+    "configuration": {
+      "model": "qwen2.5:3b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "agent_no_progress_limit": 2,
+      "agent_timeout_seconds": 180.0,
+      "llm_http_timeout": 600.0,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2400
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:b9325b77a3ec7b8f46c5e6a98c747469e6f3086132a3d9bbbc290782d995841d",
+      "cited_answer": "sha256:8e847a3438092fe9b14e39406feb7d8e2770ac2138eb7318d1c3eef0d03ed35f",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "rows": [
+    {
+      "case_id": "first_passage",
+      "model": "qwen2.5:3b",
+      "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+      "trace_id": "9ea7e63382a04045a65718dc4c58e43f",
+      "input_source_ids": [
+        "R1"
+      ],
+      "draft": {
+        "evidence_summary": [],
+        "claims": [
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Urals имеет API градусы 30-32, содержание серы 1.3%-1.5%, а ESPO имеет API градусы 34-37, содержание серы 0.4%-0.6%"
+          }
+        ],
+        "complete": false
+      },
+      "answer": "Urals имеет API градусы 30-32, содержание серы 1.3%-1.5%, а ESPO имеет API градусы 34-37, содержание серы 0.4%-0.6% [R1]",
+      "claims": [
+        {
+          "source": "R1",
+          "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+          "text": "Urals имеет API градусы 30-32, содержание серы 1.3%-1.5%, а ESPO имеет API градусы 34-37, содержание серы 0.4%-0.6%",
+          "evidence_ids": [
+            "R1:B1"
+          ]
+        }
+      ],
+      "used_source_ids": [
+        "R1"
+      ],
+      "feedback": "Some requested facts remain unsupported. Search for the missing evidence or open the relevant page.",
+      "ms": 57981.06
+    },
+    {
+      "case_id": "six_passages",
+      "model": "qwen2.5:3b",
+      "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+      "trace_id": "c1dd304a23504c43b148e856c98c9ea1",
+      "input_source_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6"
+      ],
+      "draft": {
+        "evidence_summary": [],
+        "claims": [
+          {
+            "evidence_ids": [
+              "R1:B1",
+              "R2:B1",
+              "R3:B1",
+              "R5:B1",
+              "R6:B1"
+            ],
+            "text": "Urals и ESPO имеют разные плотности и содержание серы. Urals имеет плотность от 30 до 32 градусов API и содержание серы от 1.3% до 1.5%. ESPO имеет плотность от 34 до 37 градусов API и содержание серы от 0.4% до 0.6%. Также, ESPO транспортируется через ESPO 1 и ESPO 2, которые соединяются с ESPO-1 и ESPO-2, которые соединяются с China National Petroleum Corporation Asia, и транспортируются от Тайшета, России, до Моче, Китай. Урал транспортируется через Балтийский транзитный путь, который соединяет Балтийские порты с западными рынками."
+          }
+        ],
+        "complete": false
+      },
+      "answer": "Urals и ESPO имеют разные плотности и содержание серы. Urals имеет плотность от 30 до 32 градусов API и содержание серы от 1.3% до 1.5%. ESPO имеет плотность от 34 до 37 градусов API и содержание серы от 0.4% до 0.6%. Также, ESPO транспортируется через ESPO 1 и ESPO 2, которые соединяются с ESPO-1 и ESPO-2, которые соединяются с China National Petroleum Corporation Asia, и транспортируются от Тайшета, России, до Моче, Китай. Урал транспортируется через Балтийский транзитный путь, который соединяет Балтийские порты с западными рынками. [R1] [R2] [R3] [R5] [R6]",
+      "claims": [
+        {
+          "source": "R1",
+          "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+          "text": "Urals и ESPO имеют разные плотности и содержание серы. Urals имеет плотность от 30 до 32 градусов API и содержание серы от 1.3% до 1.5%. ESPO имеет плотность от 34 до 37 градусов API и содержание серы от 0.4% до 0.6%. Также, ESPO транспортируется через ESPO 1 и ESPO 2, которые соединяются с ESPO-1 и ESPO-2, которые соединяются с China National Petroleum Corporation Asia, и транспортируются от Тайшета, России, до Моче, Китай. Урал транспортируется через Балтийский транзитный путь, который соединяет Балтийские порты с западными рынками.",
+          "evidence_ids": [
+            "R1:B1",
+            "R2:B1",
+            "R3:B1",
+            "R5:B1",
+            "R6:B1"
+          ]
+        }
+      ],
+      "used_source_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R6"
+      ],
+      "feedback": "Some requested facts remain unsupported. Search for the missing evidence or open the relevant page.",
+      "ms": 91660.49
+    }
+  ]
+}
