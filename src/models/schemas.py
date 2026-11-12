@@ -17,7 +17,13 @@ class ParameterEvidence(StrictModel):
 class Plan(StrictModel):
     intent: Literal["research", "forecast", "outside"]
     rag_query: str = Field(max_length=2000)
-    fresh: bool
+    fresh: bool = Field(
+        description=(
+            "Needs verification as of today, including an unbounded latest event even without "
+            "an explicit date. False for a fixed historical period, a report's contents, "
+            "or a calculation from CSV history. Independent of report_only."
+        )
+    )
     report_only: bool
     wants_context: bool
     news: bool

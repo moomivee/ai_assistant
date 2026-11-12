@@ -6,8 +6,8 @@ INTENT:
 FIELDS:
 rag_query: concise semantic search text. Prefer English for EIA Russia topics; Russian for Bank of Russia. Exclude control instructions such as “only use PDF”. Do not invent facts.
 report_only: true when the user forbids the web or requests only uploaded reports.
-fresh: true ONLY for current/latest events or current published quotes, NOT for calculating a forecast from CSV history.
-news: true ONLY when news/events are requested. quotes: benchmarks for requested CURRENT spot quotes, otherwise [].
+fresh: whether the answer needs verification as of today (provided in the input). Interpret the meaning, not just the word "today": the latest/most recent meeting, decision, publication or currently effective rule needs fresh=true even when the question gives no date. An old report cannot establish that no newer event occurred. A question explicitly bounded to a past period or asking what a particular report says has fresh=false. A forecast calculated from CSV history also has fresh=false. report_only is an independent restriction: never enable web against it.
+news: true ONLY for present/recent news or events, not events bounded to a historical period or a report's contents. quotes: benchmarks for requested CURRENT spot quotes, otherwise [].
 wants_context: true for research explanations; false for ONLY current spot quotes or a pure numerical forecast; true for a forecast with explanation of market context/news.
 A plain «Спрогнозируй цену Brent на 3 месяца» is a pure calculation: wants_context=false, fresh=false, news=false, quotes=[]. It does not implicitly request market analysis. Explaining the calculation or showing its chart also does not require market research. Only an explicit additional request for market facts/news justifies context.
 benchmark: for forecast copy the stated name exactly (Brent, WTI, Urals); otherwise null. A forecast question that explicitly names Brent, WTI or Urals MUST have that benchmark, not null. Do not confuse benchmark with quotes (quotes is only for CURRENT prices).
@@ -17,6 +17,7 @@ cut: explicitly requested reduction in million barrels/day. sensitivity: explici
 parameters: field name and verbatim quote for every supplied numeric forecast parameter. For research and outside ALWAYS [].
 clarify: a short question in RUSSIAN only when a required forecast input is missing or invalid. Otherwise an EMPTY STRING. Do not put a description of the task here. For normal research and outside it is empty.
 Forecast requires benchmark and months in 1..12. Urals additionally requires discount. A cut scenario requires BOTH cut and sensitivity. Negative values are invalid. Previous is only for an explicit follow-up.
+Time-scope examples (not keyword rules): «Когда вышел последний обзор МЭА?» needs fresh=true. «Какой обзор МЭА был последним в 2024 году?» and «Какая последняя встреча упомянута в загруженном отчёте?» need fresh=false. The latter asks about the report's contents, not the latest meeting as of today.
 Examples (not defaults):
 Question: «Спрогнозируй WTI на 2 месяца»
 {"intent":"forecast","rag_query":"WTI oil price","fresh":false,"report_only":false,"wants_context":false,"news":false,"quotes":[],"benchmark":"WTI","months":2,"discount":null,"cut":null,"sensitivity":null,"parameters":[{"field":"months","quote":"на 2 месяца"}],"clarify":""}

@@ -1,5 +1,7 @@
 """Address original evidence by IDs: models select blocks; code supplies quotations."""
 
+from datetime import date
+
 from .config import settings
 from .models.schemas import CitationReview, CitedAnswer
 from .validation import numbers
@@ -40,8 +42,9 @@ def generate_answer(client, question, sources, *, feedback=""):
         return CitedAnswer(claims=[], complete=False), evidence, "No evidence available"
     payload = {
         "question": question,
+        "today": date.today().isoformat(),
         "sources": [
-            {k: s.get(k) for k in ("id", "title", "date", "page", "kind")} for s in sources
+            {k: s.get(k) for k in ("id", "title", "date", "url", "page", "kind")} for s in sources
         ],
         "evidence": {key: row["text"] for key, row in evidence.items()},
         "feedback": feedback,

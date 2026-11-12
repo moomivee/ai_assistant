@@ -69,7 +69,10 @@ def decision_sources(sources):
             continue
         if remaining <= 0:
             break
-        row = {k: source.get(k) for k in ("id", "report", "page", "title", "kind", "full_page")}
+        row = {
+            k: source.get(k)
+            for k in ("id", "report", "page", "title", "kind", "date", "url", "full_page")
+        }
         row["text"] = source["text"][:remaining]
         remaining -= len(row["text"])
         result.append(row)
