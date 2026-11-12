@@ -76,6 +76,11 @@ def test_stale_context_leaves_next_tool_to_model_even_if_plan_missed_freshness(c
     assert payload["sources"][0]["date"] == old["date"]
     assert payload["sources"][0]["url"] == old["url"]
     assert payload["task"]["fresh"] is False
+    assert payload["research_status"]["completed_actions"] == [
+        {"tool": "report_search", "arguments": {"query": "meeting"}}
+    ]
+    assert payload["research_status"]["report_dates"] == [old["date"]]
+    assert payload["research_status"]["web_source_count"] == 0
     assert {"web_search", "report_search", "read_report", "finish"} <= set(
         payload["allowed_actions"]
     )

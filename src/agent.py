@@ -79,6 +79,22 @@ def decision_sources(sources):
     return result
 
 
+def research_status(state):
+    """Expose completed work without making the model reconstruct it from source text."""
+    return {
+        "completed_actions": [
+            {"tool": row["tool"], "arguments": row["arguments"]}
+            for row in state["observations"]
+            if not row.get("error")
+        ],
+        "report_dates": sorted(
+            {s["date"] for s in state["sources"] if s["kind"] == "report" and s.get("date")}
+        ),
+        "web_source_count": sum(s["kind"] == "web" for s in state["sources"]),
+        "accepted_claim_count": len(state["draft"]["claims"]),
+    }
+
+
 def allowed_actions(state):
     p = state["plan"]
     called = [event["tool"] for event in state["trace"]]
@@ -177,6 +193,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "task": state["plan"],
                         "today": date.today().isoformat(),
                         "allowed_actions": allowed_actions(state),
+                        "research_status": research_status(state),
                         "steps_remaining": settings().agent_max_steps - state["attempts"],
                         "observations": state["observations"],
                         "sources": decision_sources(state["sources"]),

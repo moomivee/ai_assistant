@@ -1,0 +1,207 @@
+{
+  "scope": "isolated_decision_replay",
+  "provenance": {
+    "time": "2026-11-12T13:05:26.548907+00:00",
+    "git_commit": "612478d6f2d1ab9e2b004981e3c5dd2b14c18df7",
+    "git_dirty": false,
+    "code_sha256": "0635d42c92e6737b79f2f79ced0ca8255bfc7654884bf372449cc91fdab62bd6",
+    "dataset_sha256": "2813651088e0c6c82a9a357cb6459ca40825c37a480cf5d6c24ef213e8b235a4",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.15",
+    "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+    "configuration": {
+      "model": "qwen2.5:3b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "agent_no_progress_limit": 2,
+      "agent_timeout_seconds": 180.0,
+      "agent_answer_reserve_seconds": 60.0,
+      "llm_http_timeout": 600.0,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2400
+    },
+    "prompts": {
+      "plan": "sha256:14bb33e9b0cc1ef790e4d6e789377cf5ed10e33753501becad259aef3204c15b",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:47d3550c03927a1777fdf17b97bce2f56ae4f53260178b44a622ad2353486d24",
+      "cited_answer": "sha256:93321d3d6a850f32bfab80dc4a3f9d5bf4718c8854afc45f8f13e6deb7a0c3f4",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "fixture_provenance": {
+    "kind": "user_supplied_trace",
+    "trace_id": "d646f1557f6f4dbf9beb716a4e6d6f27",
+    "note": "State after the first report search and the observed empty answer. Decision timing is reset for an isolated probe."
+  },
+  "model": "qwen2.5:3b",
+  "expected_action": "web_search",
+  "answer_quality_measured": false,
+  "live_web_measured": false,
+  "input": {
+    "question": "когда была последняя встреча опек+?",
+    "previous": null,
+    "task": {
+      "intent": "research",
+      "rag_query": "last meeting OPEC+",
+      "fresh": false,
+      "report_only": false,
+      "wants_context": true,
+      "news": false,
+      "quotes": [],
+      "benchmark": null,
+      "months": null,
+      "discount": null,
+      "cut": null,
+      "sensitivity": null,
+      "parameters": [],
+      "clarify": ""
+    },
+    "today": "2026-11-12",
+    "allowed_actions": [
+      "report_search",
+      "read_report",
+      "web_search",
+      "finish"
+    ],
+    "steps_remaining": 5,
+    "observations": [
+      {
+        "tool": "report_search",
+        "arguments": {
+          "query": "last meeting OPEC+"
+        },
+        "error": null,
+        "result_count": 6,
+        "source_ids": [
+          "R1",
+          "R2",
+          "R3",
+          "R4",
+          "R5",
+          "R6"
+        ],
+        "new_source_ids": [
+          "R1",
+          "R2",
+          "R3",
+          "R4",
+          "R5",
+          "R6"
+        ],
+        "new_evidence": true,
+        "no_progress_steps": 0
+      }
+    ],
+    "sources": [
+      {
+        "id": "R1",
+        "report": "eia-russia-2025",
+        "page": 24,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=24",
+        "full_page": null,
+        "text": "the Yenisey River for the Vostok Oil project ,” \nDecember 12, 2023; Kirsten Donovan, Insights Global, “Russia’s Rosneft Starts Construction of Huge Arctic Oil \nTerminal,” August 5, 2022; Reuters, “Russia's Rosneft appoints new boss of flagship Vostok Oil project,” July 1, \n2024. \n17 Russian National Committee of the World Petroleum Council, PJSC Transneft (accessed February 2025);  \n18 Energy Intelligence, “Russia Expects Flat Refining Runs in 2024,” November 6, 2024; Reuters, “Exclusive: Russian \noil refining rises as US sanctions target crude exports - sources,” January 27, 2025."
+      },
+      {
+        "id": "R2",
+        "report": "eia-russia-2025",
+        "page": 24,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=24",
+        "full_page": null,
+        "text": "Kuwait, Kazakhstan, Algeria, and Oman reaffirm commitment to market \nstability on healthier oil market outlook and adjust production upward,” April 3, 2025; Pipeline Technology \nConference, Companies, Transneft (accessed February 2025). \n13 U.S. Energy Information Administration, Short-Term Energy Outlook Data Browser (accessed March 2025). \n14 Rystad Energy Cube Browser (accessed February 2025). \n15 Malte Humpert, gCaptain, “Russia’s Rosneft Delays Arctic Mega Oil Project Due to Sanctions, Shortage of Oil \nTankers,” December 12, 2024. \n16 Rosneft, “RN-Vankor starts construction of a pipeline crossing over the Yenisey River for the Vostok Oil project ,” \nDecember 12, 2023; Kirsten Donovan, Insights Global, “Russia’s Rosneft Starts Construction of Huge Arctic Oil \nTerminal,” August 5, 2022;"
+      },
+      {
+        "id": "R3",
+        "report": "eia-russia-2025",
+        "page": 1,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=1",
+        "full_page": null,
+        "text": "Country Analysis Brief: \nRussia \nLast Updated: July 24, 2025 \nwww.eia.gov \nU.S. Department of Energy \nWashington, DC 20585"
+      },
+      {
+        "id": "R4",
+        "report": "eia-russia-2025",
+        "page": 25,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=25",
+        "full_page": null,
+        "text": "as sanctions and drones \nhit,” February 13, 2025; Guy Faulconbridge and Lidia Kelly, Reuters, “Ukrainian drone strikes trigger fires at major \noil and gas facilities in Russia,” February 3, 2025; Reuters, “Exclusive: Russian oil refining rises as US sanctions \ntarget crude exports - sources,” January 27, 2025. \n22 Reuters, “Russia and Ukraine trade new accusations on breaches of energy truce,” April 2, 2025. \n23 Energy Information Administration, International Energy Statistics (accessed February 2025).  \n24 OPEC Annual Statistical Bulletin, Chapters, Natural Gas Data (accessed February 2025). \n25 Russia’s preliminary dry natural gas production for 2024 is estimated by internal subject matter experts using \nmultiple data sources and methodologies consistent with published"
+      },
+      {
+        "id": "R5",
+        "report": "eia-russia-2025",
+        "page": 24,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=24",
+        "full_page": null,
+        "text": "to Dubai benchmark in Indian oil deal –  sources,” April 3, \n2023; James Gooder, Argus Media, “Urals flows changing Asian benchmark dynamics,” August 2023. \n11 Reuters, “Russia says to depend oil output cuts while easing export limits,” March 3, 2024; Reuters, “OPEC+ \ngrants Russia higher production baseline,” June 13, 2023; OPEC, “Several OPEC+ countries announce extension of \nadditional voluntary cuts of 2.2 million barrels per day for the second quarter of 2024,” March 3, 2024.  \n12 OPEC, “Saudi Arabia, Russia, Iraq, UAE, Kuwait, Kazakhstan, Algeria, and Oman reaffirm commitment to market \nstability on healthier oil market outlook and adjust production upward,” April 3, 2025; Pipeline Technology \nConference, Companies, Transneft (accessed"
+      },
+      {
+        "id": "R6",
+        "report": "eia-russia-2025",
+        "page": 25,
+        "title": "EIA · Country Analysis Brief: Russia",
+        "kind": "report",
+        "date": "2025-07-24",
+        "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=25",
+        "full_page": null,
+        "text": "February 2025). \n32 Luiza Brodt, Arctic Yearbook, “The development of Arctic offshore oil and gas resources in Russia: Energy policy \nupdates and new activities by companies,” 2021. \n33 Global Energy Monitor, Global Oil and Gas Extraction Tracker (accessed February 2025); Offshore Technology, \n“Russia natural gas production: data and insights,” July 11, 2024; Atle Staalesen, The Barents Observer, “Gazprom \nscrapped Shtokman, but does not want to abandon projected terminal site on Barents coast ,” March 19, 2021. \n34 World Bank, Global Gas Flaring Data (accessed February 2025). \n35 U.S. Energy Information Administration, International Energy Statistics (accessed February 202 5). \n36 U.S. Energy Information Administration, International Energy Statistics (accessed February 2025).  \n37"
+      }
+    ],
+    "calculation_available": false,
+    "answer_feedback": "No claims passed citation and numeric checks.",
+    "current_answer": {
+      "claims": [],
+      "complete": false
+    },
+    "no_progress_steps": 0,
+    "no_progress_limit": 2,
+    "seconds_remaining": 119.99993837699996,
+    "previous_assessment": {
+      "assessment": "need_evidence",
+      "missing_facts": [],
+      "evidence_checks": [],
+      "unknown_source_ids": []
+    }
+  },
+  "decision": {
+    "assessment": "need_evidence",
+    "purpose": "",
+    "action": "report_search",
+    "source_ids": [],
+    "query": "last meeting OPEC+",
+    "report": "",
+    "page": null,
+    "missing_facts": [
+      "Дата последней встречи ОПЕК+"
+    ],
+    "evidence_checks": []
+  },
+  "passed": false,
+  "ms": 56042.02,
+  "run_url": "https://github.com/moomivee/ai_assistant/actions/runs/43223727131",
+  "artifact_id": 13947870159
+}

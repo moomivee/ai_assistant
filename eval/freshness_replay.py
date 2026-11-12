@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from time import perf_counter
 
-from src.agent import action_schema, allowed_actions, decision_sources
+from src.agent import action_schema, allowed_actions, decision_sources, research_status
 from src.budget import remaining_seconds, request_budget, research_phase
 from src.config import ROOT, settings
 from src.integrations.llm import LLMClient
@@ -47,6 +47,7 @@ def run(output):
                 "task": fixture["plan"],
                 "today": date.today().isoformat(),
                 "allowed_actions": actions,
+                "research_status": research_status(state),
                 "steps_remaining": cfg.agent_max_steps - 1,
                 "observations": fixture["observations"],
                 "sources": decision_sources(fixture["sources"]),
