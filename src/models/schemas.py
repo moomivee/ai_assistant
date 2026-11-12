@@ -20,7 +20,8 @@ class Plan(StrictModel):
     fresh: bool = Field(
         description=(
             "Needs verification as of today, including an unbounded latest event even without "
-            "an explicit date. False for a fixed historical period, a report's contents, "
+            "an explicit date. The latest completed event also requires this check. "
+            "False for a fixed historical period, a report's contents, "
             "or a calculation from CSV history. Independent of report_only."
         )
     )
