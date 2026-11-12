@@ -33,10 +33,46 @@ def route_metrics(expected, response, plan):
     wanted = expected["tools"]
     forbidden = expected.get("forbidden", [])
     web_i = actual.index("web_search") if "web_search" in actual else None
+    required = expected.get("required_tools", wanted)
+    # A pure numerical forecast needs no report lookup. Retain the historical
+    # exact sequence only as a diagnostic, not a quality gate for an agent loop.
+    if (
+        response.get("agent_mode") == "loop"
+        and expected.get("intent") == "forecast"
+        and expected.get("plan_checks", {}).get("wants_context") is False
+        and not expected.get("plan_checks", {}).get("quotes")
+    ):
+        required = [tool for tool in required if tool != "report_search"]
+    required_ok = set(required) <= set(actual) if required else not actual
+    policy_ok = not set(actual) & set(forbidden) and (
+        web_i is None or ("report_search" in actual and actual.index("report_search") < web_i)
+    )
+    successful = {t["tool"] for t in response["trace"] if t.get("status", "ok") == "ok"}
     return {
+        "tool_policy_pass": float(required_ok and policy_ok),
+        "required_tool_success": float(set(required) <= successful),
+        "tool_calls": len(actual),
+        "rejected_actions": response.get("rejected_actions", 0),
+        "decision_count": len(response.get("decisions", [])),
+        "model_decision_count": sum(
+            d.get("origin") != "plan_policy" for d in response.get("decisions", [])
+        ),
+        "policy_decision_count": sum(
+            d.get("origin") == "plan_policy" for d in response.get("decisions", [])
+        ),
+        "duplicate_actions": sum(
+            bool(step.get("duplicate_of"))
+            for step in (response.get("diagnostics") or {}).get("steps", [])
+        ),
+        "stopped_no_progress": float(response.get("stop_reason") == "no_progress"),
+        "stopped_time_budget": float(response.get("stop_reason") == "time_budget_exhausted"),
+        "stopped_research_budget": float(
+            response.get("stop_reason") == "research_budget_exhausted"
+        ),
+        "answer_attempts": len((response.get("diagnostics") or {}).get("answer_checks", [])),
         "tool_sequence_exact": float(actual == wanted),
-        "required_tool_recall": len(set(actual) & set(wanted)) / len(set(wanted))
-        if wanted
+        "required_tool_recall": len(set(actual) & set(required)) / len(set(required))
+        if required
         else float(not actual),
         "forbidden_tool_violation": float(bool(set(actual) & set(forbidden))),
         "rag_before_web": float(

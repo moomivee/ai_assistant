@@ -3,8 +3,13 @@
 import subprocess
 import sys
 
+import pytest
 
-def test_native_langgraph_and_tools_share_exported_trace(tmp_path):
+
+@pytest.mark.parametrize(
+    "module,node", [("src.workflow", "workflow.plan"), ("src.agent", "agent.plan")]
+)
+def test_native_langgraph_and_tools_share_exported_trace(tmp_path, module, node):
     script = r"""
 import gzip,json,os,threading
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
@@ -23,12 +28,14 @@ threading.Thread(target=server.serve_forever,daemon=True).start()
 os.environ.update(LANGFUSE_ENABLED='true',LANGFUSE_PUBLIC_KEY='pk-lf-test-export',LANGFUSE_SECRET_KEY='sk-lf-test-export',
  LANGFUSE_BASE_URL=f'http://127.0.0.1:{server.server_port}',TRACE_CONTENT='false',OTEL_BSP_SCHEDULE_DELAY='100')
 from src.config import settings
-from src.agent import ask
+from MODULE_PLACEHOLDER import ask
 from src.models.schemas import Plan
 from src.integrations.telemetry import flush,langfuse_client
 from src.tools import run_tool
 class Client:
  def generate(self,name,payload,schema):
+  if name=='decide':
+   return schema.model_validate(dict(assessment='enough',purpose='Calculate or finish',action='finish' if payload['calculation_available'] else 'price_forecast',source_ids=[],query='',report='',page=None))
   return Plan(intent='forecast',rag_query='oil',fresh=False,report_only=False,wants_context=False,news=False,quotes=[],
     benchmark='Brent',months=3,discount=None,cut=None,sensitivity=None,parameters=[],clarify='')
 def execute(registry,name,**args):
@@ -40,7 +47,7 @@ client=langfuse_client();client.shutdown()
 server.shutdown()
 spans=[s for b in batches for r in b.resource_spans for scope in r.scope_spans for s in scope.spans]
 names={s.name for s in spans}
-assert {'agent.request','LangGraph','price_forecast','workflow.plan'} <= names,names
+assert {'agent.request','LangGraph','price_forecast','NODE_PLACEHOLDER'} <= names,names
 assert {s.trace_id.hex() for s in spans}=={result['trace_id']}
 root=next(s for s in spans if s.name=='agent.request')
 graph=next(s for s in spans if s.name=='LangGraph')
@@ -48,5 +55,6 @@ assert graph.parent_span_id==root.span_id
 assert 'PRIVATE-MARKER' not in str(batches)
 print(json.dumps({'spans':len(spans),'names':sorted(names),'status':result['status']}))
 """
+    script = script.replace("MODULE_PLACEHOLDER", module).replace("NODE_PLACEHOLDER", node)
     r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=45)
     assert r.returncode == 0, r.stdout + "\n" + r.stderr

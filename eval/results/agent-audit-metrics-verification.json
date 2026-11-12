@@ -1,0 +1,87 @@
+{
+  "scope": "recomputed route metrics from unchanged saved responses; no LLM rerun",
+  "metric_code_sha256": "64b89f513b4cd88f76077ea86df7c69ce0ad3a763d989d5fb5d2aaf3e7bd04aa",
+  "all_unchanged": true,
+  "rows": [
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-brent-explicit-001",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-brent-context-002",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-dev.json",
+      "case_id": "regression-urals-espo-grounding-003",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-wti-quarter",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-urals-discount",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-missing-discount",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-sokol-values",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-new-comparison",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-false-premise",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-production",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-unanswerable",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-quote",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-7b-audit.json",
+      "case_id": "audit-outside",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-brent-explicit-001",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-brent-context-002",
+      "unchanged": true
+    },
+    {
+      "file": "agent-audit-3b-dev.json",
+      "case_id": "regression-urals-espo-grounding-003",
+      "unchanged": true
+    }
+  ]
+}

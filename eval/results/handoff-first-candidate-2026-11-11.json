@@ -1,0 +1,388 @@
+{
+  "scope": "live_llm_saved_public_evidence",
+  "provenance": {
+    "time": "2026-11-11T19:48:32.932994+00:00",
+    "git_commit": "ee543c5b84b93bdf13866e441aae8ac05e73b12e",
+    "git_dirty": false,
+    "code_sha256": "27a06f961dfd5092dce625a02b705d5895e954549101f7fa0050a989acf14533",
+    "dataset_sha256": "98c73eda15128b6335b03adf4e4c9f290c4d716a5aeef04ba13580e6a9272d07",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.15",
+    "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+    "configuration": {
+      "model": "qwen2.5:3b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "agent_no_progress_limit": 2,
+      "agent_timeout_seconds": 180.0,
+      "agent_answer_reserve_seconds": 60.0,
+      "llm_http_timeout": 600.0,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2400
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:22ffc86c0c9b349f60a32e57183066cc7887f930ef65e1381d272abf5f18b4a9",
+      "cited_answer": "sha256:72ae4fc507155827856988058ce5e1be6f2fbf9f968a0faaad351fbb98dce93d",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "rows": [
+    {
+      "case_id": "first_passage",
+      "model": "qwen2.5:3b",
+      "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+      "trace_id": "2a9b2bb1e10f4cba8e10ecb2e1050646",
+      "input_source_ids": [
+        "R1"
+      ],
+      "draft": {
+        "claims": [
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Плотность Urals и ESPO различается, Urals имеет API градиент от 30 до 32, а ESPO — от 34 до 37"
+          },
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Содержание серы в Urals составляет от 1,3% до 1,5%, а в ESPO — от 0,4% до 0,6%"
+          }
+        ],
+        "complete": true
+      },
+      "answer": "Плотность Urals и ESPO различается, Urals имеет API градиент от 30 до 32, а ESPO — от 34 до 37 [R1]\n\nСодержание серы в Urals составляет от 1,3% до 1,5%, а в ESPO — от 0,4% до 0,6% [R1]",
+      "claims": [
+        {
+          "source": "R1",
+          "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+          "text": "Плотность Urals и ESPO различается, Urals имеет API градиент от 30 до 32, а ESPO — от 34 до 37",
+          "evidence_ids": [
+            "R1:B1"
+          ]
+        },
+        {
+          "source": "R1",
+          "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+          "text": "Содержание серы в Urals составляет от 1,3% до 1,5%, а в ESPO — от 0,4% до 0,6%",
+          "evidence_ids": [
+            "R1:B1"
+          ]
+        }
+      ],
+      "used_source_ids": [
+        "R1"
+      ],
+      "feedback": "",
+      "ms": 47769.94
+    },
+    {
+      "case_id": "six_passages",
+      "model": "qwen2.5:3b",
+      "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+      "trace_id": "dcc968ff80ea4d189fa39f7348ac1487",
+      "input_source_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6"
+      ],
+      "draft": {
+        "claims": [
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Уралс и ESPO имеют разную плотность: Уралс имеет API градусы 30-32, а ESPO — 34-37"
+          }
+        ],
+        "complete": true
+      },
+      "answer": "Уралс и ESPO имеют разную плотность: Уралс имеет API градусы 30-32, а ESPO — 34-37 [R1]",
+      "claims": [
+        {
+          "source": "R1",
+          "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+          "text": "Уралс и ESPO имеют разную плотность: Уралс имеет API градусы 30-32, а ESPO — 34-37",
+          "evidence_ids": [
+            "R1:B1"
+          ]
+        }
+      ],
+      "used_source_ids": [
+        "R1"
+      ],
+      "feedback": "",
+      "ms": 60124.65
+    },
+    {
+      "case_id": "end_to_end",
+      "response": {
+        "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+        "answer": "Уралс и ESPO имеют разную плотность: Уралс имеет API градусы от 30 до 32, а ESPO — от 34 до 37 [R1]\n\nУралс содержит соль в количестве от 1,3% до 1,5%, а ESPO — от 0,4% до 0,6% [R1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "EIA · Country Analysis Brief: Russia",
+            "date": "2025-07-24",
+            "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+            "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "page": 6,
+            "chunk_id": "eia-russia-2025:p6:w0",
+            "report": "eia-russia-2025",
+            "start_word": 0,
+            "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+            "score": 0.5333,
+            "evidence": {
+              "R1:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Уралс и ESPO имеют разную плотность: Уралс имеет API градусы от 30 до 32, а ESPO — от 34 до 37",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+            "text": "Уралс содержит соль в количестве от 1,3% до 1,5%, а ESPO — от 0,4% до 0,6%",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 1541
+          }
+        ],
+        "trace_id": "07f8b660b8d14e68a6a72beec974fa45",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "difference between Urals and ESPO density and sulfur content",
+            "report": "",
+            "page": null,
+            "missing_facts": [],
+            "evidence_checks": [],
+            "unknown_source_ids": [],
+            "assessment_references_valid": false
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0,
+        "diagnostics": {
+          "plan": {
+            "intent": "research",
+            "rag_query": "difference between Urals and ESPO density and sulfur content",
+            "fresh": false,
+            "report_only": false,
+            "wants_context": true,
+            "news": false,
+            "quotes": [],
+            "benchmark": null,
+            "months": null,
+            "discount": null,
+            "cut": null,
+            "sensitivity": null,
+            "parameters": [],
+            "clarify": ""
+          },
+          "steps": [
+            {
+              "step": 1,
+              "tool": "report_search",
+              "purpose": "",
+              "arguments": {
+                "query": "difference between Urals and ESPO density and sulfur content"
+              },
+              "status": "ok",
+              "ms": 1541,
+              "error": null,
+              "result_count": 6,
+              "source_ids": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "notices": [],
+              "result": null,
+              "duplicate_of": null,
+              "reused_source_ids": [],
+              "new_source_ids": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "new_evidence": true,
+              "no_progress_steps": 0
+            }
+          ],
+          "retrieved_sources": [
+            {
+              "id": "R1",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+              "text": "July 2025 \nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4 \n \n \nTable 2. Major crude oil grades from Russia  \n  API gravity Sulfur content Regions \nUrals 30 to 32 1.3% to 1.5% \nWestern Siberia and  \nVolga Urals \nESPO 34 to 37 0.4% to 0.6% Eastern Siberia \nSokol 35 to 37 0.2% to 0.3% Far East \nVarandey 25 to 37 0.2% to 0.5% Northern \nARCO 23 to 24 2.2% to 2.4% Northern \nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia \nSakhalin 37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading",
+              "page": 6,
+              "chunk_id": "eia-russia-2025:p6:w0",
+              "report": "eia-russia-2025",
+              "start_word": 0,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+              "score": 0.5333,
+              "text_truncated": false,
+              "used_in_answer": true
+            },
+            {
+              "id": "R2",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=5",
+              "text": "primarily been onshore fields in northern areas of the region since \nthe early 2000s.8 \n• Russia produces eight main grades of crude oil. Its major crude oil export is Urals, a medium-sour \ncrude oil produced mainly in Western Siberia and Russia’s Volga-Urals region (Table 2).9 Historically, \nUrals was the main crude oil grade exported via pipelines from Baltic and Black Sea ports to Western \nmarkets, but Ukraine-related sanctions have shifted the trade and pricing of Urals eastward.10 \n• As an OPEC+ participant, Russia announced additional voluntary production cuts for the second \nquarter of 2024 to 8.978 million b/d.\n11 Russia, along with other OPEC+ countries, extended these \nvoluntary cuts through",
+              "page": 5,
+              "chunk_id": "eia-russia-2025:p5:w82",
+              "report": "eia-russia-2025",
+              "start_word": 82,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=5",
+              "score": 0.3799,
+              "text_truncated": false,
+              "used_in_answer": false
+            },
+            {
+              "id": "R3",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=6",
+              "text": "37 to 45 0.1% to 0.3% Far East \nNovy Port 30 to 35 0.1% to 0.3% Western Siberia \nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading \nEconomics, Hydrocarbons Technology, Pipeline and Gas Journal, Reuters, Nasdaq, NS Energy, and \nMitsubishi Corporation \n \n \n \n \n \n \n \n \n \n0\n2\n4\n6\n8\n10\n12\ntotal liquid \nfuels \nproduction\nData source: U.S. Energy Information Administration, Short-Term Energy Outlook Data Browser\nFigure 3. Total annual petroleum and other liquids production and consumption in Russia, \n2014–2024\nmillion barrels per day\ntotal liquid \nfuels \nconsumption\ntotal crude oil \nproduction",
+              "page": 6,
+              "chunk_id": "eia-russia-2025:p6:w82",
+              "report": "eia-russia-2025",
+              "start_word": 82,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=6",
+              "score": 0.3523,
+              "text_truncated": false,
+              "used_in_answer": false
+            },
+            {
+              "id": "R4",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=2",
+              "text": "U.S. Energy Information Administration   |   Country Analysis Brief: Russia i \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \nThe U.S. Energy Information Administration (EIA), the statistical and analytical agency within the  \nU.S. Department of Energy (DOE), prepared this report. By law, our data, analyses, and forecasts are \nindependent of approval by any other officer or employee of the U.S. Government. The views in this \nreport do not represent those of DOE or any other federal agencies.",
+              "page": 2,
+              "chunk_id": "eia-russia-2025:p2:w0",
+              "report": "eia-russia-2025",
+              "start_word": 0,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=2",
+              "score": 0.3281,
+              "text_truncated": false,
+              "used_in_answer": false
+            },
+            {
+              "id": "R5",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=16",
+              "text": "border) to Daqing \nCity, China Active \nChina \nNational \nPetroleum \nCorporation Asia \nConnects to ESPO-1 and \nESPO-2, running parallel to \nRussia-China 2. \nRussia-China 2 300 590 \nMohe County, China, \n(near Russian \nborder) to Daqing \nCity, China Active \nChina \nNational \nPetroleum \nCorporation Asia \nConnects to ESPO-1 and \nESPO-2, running parallel to \nRussia-China 1. \nData source: Reuters, Interfax, Centre for Research on Energy and Clean Air, Kazakhstan-China Pipeline LLC, Kursiv, Hillhouse Analytics, Global \nEnergy Monitor, and Upstream \nNote: Ranges in capacity represent the minimum and maximum values of the referenced pipeline branches and segments in each row. The \nlength of the Baltic Pipeline System 1 (BPS-1) excludes the Palkino-Primorsk pipeline (440 miles). Capacity",
+              "page": 16,
+              "chunk_id": "eia-russia-2025:p16:w328",
+              "report": "eia-russia-2025",
+              "start_word": 328,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=16",
+              "score": 0.3042,
+              "text_truncated": false,
+              "used_in_answer": false
+            },
+            {
+              "id": "R6",
+              "kind": "report",
+              "title": "EIA · Country Analysis Brief: Russia",
+              "date": "2025-07-24",
+              "url": "https://www.eia.gov/international/content/analysis/countries_long/Russia/pdf/Russia%20CAB_2025.pdf#page=16",
+              "text": "oil \ntransported via the pipeline. \nEastern Siberia–\nPacific Ocean 1 \nand 2 (ESPO 1 \nand ESPO 2) \n600–\n1,610 2,990 \nTayshet, Russia, (in \nEastern Siberia) to \nMohe County, China, \nand Kozmino, Russia, \n(on the Pacific Coast) Active Transneft Asia \nIncludes Skovorodino-Mohe \nbranch, connecting to \nRussia-China 1 and 2 in \nMohe County, China \nDruzhba \n120–\n1,490 3,170 \nCentral Russia to \nCentral Europe via \nnorthern and \nsouthern branches \nthat split in Belarus. \nPartially \nactive \nTransneft and  \nothers Europe \nThroughput declined in \n2022 because of Ukraine-\nrelated sanctions. The \nnorthern branch has only \ntransported small volumes \nof crude oil from \nKazakhstan since 2022. \nBaltic Pipeline \nSystem 2 (BPS-2) 720 620 \nBryansk Oblast, \nRussia,",
+              "page": 16,
+              "chunk_id": "eia-russia-2025:p16:w82",
+              "report": "eia-russia-2025",
+              "start_word": 82,
+              "local_url": "/reports/EIA_Russia_2025-07.pdf#page=16",
+              "score": 0.304,
+              "text_truncated": false,
+              "used_in_answer": false
+            }
+          ],
+          "answer_feedback": "",
+          "failure": "",
+          "no_progress_steps": 0,
+          "no_progress_limit": 2,
+          "timeout_seconds": 180.0,
+          "answer_reserve_seconds": 60.0,
+          "answer_checks": [
+            {
+              "after_step": 1,
+              "source_ids": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "status": "ok",
+              "complete": true,
+              "claims": 2,
+              "feedback": "",
+              "ms": 34804.03
+            }
+          ]
+        }
+      },
+      "ms": 153401.97
+    }
+  ]
+}

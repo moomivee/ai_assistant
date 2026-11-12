@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 from test_agent import FakeLLM, executor
 
-from src.agent import ask
 from src.answering import checked_review, verified_answer
 from src.integrations.llm import LLMUnavailable
 from src.models.schemas import AnswerReview, EvidenceAnswer, Plan
 from src.validation import validate_claims
+from src.workflow import ask
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/urals_espo_trace.json").read_text())
 URALS = "Urals 30 to 32 1.3% to 1.5% Western Siberia and Volga Urals"
@@ -272,6 +272,26 @@ def test_live_smoke_checks_answer_facts_not_only_success_status():
     assert check_result({"rows": [row]}, cases)[0]["passed"]
     row["response"]["claims"] = FIXTURE["draft"]["claims"]
     assert not check_result({"rows": [row]}, cases)[0]["passed"]
+
+
+def test_missing_data_smoke_rejects_invented_claims_even_with_partial_status():
+    from eval.smoke import check_result
+
+    case = {"id": "missing", "expected": {"no_claims": True}}
+    row = {
+        "case_id": "missing",
+        "metrics": dict(
+            tool_policy_pass=1,
+            intent_correct=1,
+            status_correct=1,
+            plan_fields_correct=1,
+            forbidden_tool_violation=0,
+        ),
+        "response": {"claims": [{"text": "Unseen grade has 42 API."}]},
+    }
+    assert not check_result({"rows": [row]}, [case])[0]["passed"]
+    row["response"]["claims"] = []
+    assert check_result({"rows": [row]}, [case])[0]["passed"]
 
 
 def test_repair_budget_is_shared_with_web_assessment():

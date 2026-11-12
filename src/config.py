@@ -24,12 +24,19 @@ class Settings(BaseModel):
     news_days: int = Field(ge=1, le=365)
     forecast_windows: int = Field(ge=24, le=96)
     embedding: str = "minilm-multi"
+    rag_search: str = "dense"
     llm_max_tokens: int = Field(default=2400, ge=256, le=8192)
     trace_file: Path | None = None
     trace_content: bool = False
     langfuse_enabled: bool = False
     prompt_source: str = "local"
     prompt_label: str = "production"
+    agent_mode: str = "loop"
+    agent_max_steps: int = Field(default=6, ge=2, le=12)
+    agent_no_progress_limit: int = Field(default=2, ge=1, le=12)
+    agent_timeout_seconds: float = Field(default=180, ge=5, le=900)
+    agent_answer_reserve_seconds: float = Field(default=60, ge=0, le=300)
+    answer_review: bool = False
 
 
 @lru_cache
@@ -55,12 +62,19 @@ def settings() -> Settings:
         news_days=int(os.getenv("NEWS_MAX_DAYS", "30")),
         forecast_windows=int(os.getenv("BACKTEST_ORIGINS", "48")),
         embedding=os.getenv("RAG_EMBEDDING", "minilm-multi"),
+        rag_search=os.getenv("RAG_SEARCH_MODE", "dense"),
         llm_max_tokens=int(os.getenv("LLM_MAX_TOKENS", "2400")),
         trace_file=Path(os.environ["TRACE_FILE"]) if os.getenv("TRACE_FILE") else None,
         trace_content=os.getenv("TRACE_CONTENT", "false").lower() == "true",
         langfuse_enabled=os.getenv("LANGFUSE_ENABLED", "false").lower() == "true",
         prompt_source=os.getenv("PROMPT_SOURCE", "local"),
         prompt_label=os.getenv("PROMPT_LABEL", "production"),
+        agent_mode=os.getenv("AGENT_MODE", "loop"),
+        agent_max_steps=int(os.getenv("AGENT_MAX_STEPS", "6")),
+        agent_no_progress_limit=int(os.getenv("AGENT_NO_PROGRESS_LIMIT", "2")),
+        agent_timeout_seconds=float(os.getenv("AGENT_TIMEOUT_SECONDS", "180")),
+        agent_answer_reserve_seconds=float(os.getenv("AGENT_ANSWER_RESERVE_SECONDS", "60")),
+        answer_review=os.getenv("ANSWER_SELF_REVIEW", "false").lower() == "true",
     )
     os.environ.setdefault("OUROBOROS_DATA_DIR", str(s.cache / "ouroboros"))
     return s

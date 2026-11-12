@@ -22,7 +22,8 @@ function element(tag, text, cls) {
 }
 function link(label, url) {
   const a = element("a", label);
-  a.href = url;
+  const safe = TraceView.safeURL(url);
+  if (safe) a.href = safe;
   a.target = "_blank";
   a.rel = "noreferrer";
   return a;
@@ -156,32 +157,26 @@ function forecastTable(calc) {
   box.append(table);
   return box;
 }
-function render(q, data) {
+function render(q, data, elapsed) {
   const out = $("result");
-  out.replaceChildren(element("h2", "Ответ аналитика"), element("div", q, "answer-q"));
-  for (const p of data.answer.split("\n\n")) out.append(element("p", p));
+  const heading = element("div", undefined, "result-heading");
+  heading.append(element("h2", "Результат проверки"), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
+  const answer = element("section", undefined, "answer-panel");
+  answer.setAttribute("aria-label", "Ответ аналитика");
+  answer.append(element("h3", "Ответ аналитика"), element("div", q, "answer-q"));
+  for (const p of (data.answer || "").split("\n\n")) answer.append(element("p", p));
   if (data.forecast) {
     const detail = element("details", undefined, "forecast-details");
     detail.append(element("summary", "Посмотреть расчёт по месяцам"), forecastTable(data.forecast));
-    out.append(detail);
+    answer.append(detail);
   }
-  if (data.sources.length) {
-    out.append(element("h3", "Источники", "sectiontitle"));
-    for (const row of data.sources) out.append(source(row));
+  if (data.sources?.length) {
+    answer.append(element("h3", "Источники ответа", "sectiontitle"));
+    for (const row of data.sources) answer.append(source(row));
   }
-  const details = element("details", undefined, "trace");
-  details.append(element("summary", "Как подготовлен ответ"));
-  details.append(
-    element(
-      "p",
-      data.trace
-        .map((e) => e.engine + " · " + e.tool + " · " + e.status + " · " + e.ms + " мс")
-        .join("\n") || "Вызовы инструментов не потребовались.",
-    ),
-  );
-  details.lastChild.style.whiteSpace = "pre-line";
-  if (data.trace_id) details.append(element("p", "Идентификатор запроса: " + data.trace_id));
-  out.append(details);
+  const grid = element("div", undefined, "result-grid");
+  grid.append(answer, TraceView.render(data, elapsed));
+  out.replaceChildren(heading, grid);
 }
 $("ask").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -195,7 +190,8 @@ $("ask").addEventListener("submit", async (e) => {
   $("result").setAttribute("aria-busy", "true");
   const target = $("result");
   target.hidden = false;
-  target.replaceChildren(element("p", "Проверяю источники…", "busy"));
+  target.replaceChildren(element("p", "Выполняется запрос. Ответ и шаги появятся после завершения.", "busy"));
+  const started = performance.now();
   try {
     const r = await fetch("/api/ask", {
       method: "POST",
@@ -204,7 +200,7 @@ $("ask").addEventListener("submit", async (e) => {
     });
     if (!r.ok) throw new Error("Сервис вернул ошибку " + r.status + ".");
     const data = await r.json();
-    render(q, data);
+    render(q, data, Math.round(performance.now() - started));
     previous = data.clarification ? data.question.slice(0, 2000) : null;
     $("newquestion").hidden = !previous;
     if (previous) {
@@ -226,7 +222,8 @@ $("ask").addEventListener("submit", async (e) => {
 fetch("/api/status")
   .then((r) => { if (!r.ok) throw new Error("status"); return r.json(); })
   .then((s) => {
-    $("mode").textContent = s.model ? "Анализ с AI" : "LLM не настроена";
+    $("mode").textContent = s.model || "LLM не настроена";
+    $("environment").textContent = [s.agent_mode === "loop" ? "Агентский цикл" : s.agent_mode === "workflow" ? "Фиксированный workflow" : "Режим не указан", s.agent_max_steps ? `до ${s.agent_max_steps} решений` : null, s.tavily ? "Веб: Tavily + FRED" : "Веб: RSS + FRED"].filter(Boolean).join(" · ");
     $("library").replaceChildren();
     if (!s.reports.length) $("library").textContent = "Отчёты пока не добавлены.";
     for (const r of s.reports) $("library").append(link(r.title, r.url));
@@ -240,6 +237,7 @@ fetch("/api/status")
   })
   .catch(() => {
     $("mode").textContent = "Нет соединения";
+    $("environment").textContent = "Не удалось получить конфигурацию сервера.";
     $("library").textContent = "Не удалось загрузить список. Попробуйте обновить страницу.";
   });
 

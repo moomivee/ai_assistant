@@ -1,0 +1,74 @@
+name: freshness-routing
+on:
+  workflow_dispatch:
+  push:
+    branches: [review/agent-eval-20261110]
+permissions:
+  contents: read
+jobs:
+  qwen:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[freshness-eval]') || contains(github.event.head_commit.message, '[freshness-replay]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LLM_BASE_URL: http://127.0.0.1:11434/v1
+      LLM_API_KEY: local
+      LLM_MODEL: qwen2.5:3b
+      LLM_HTTP_TIMEOUT: '600'
+      OLLAMA_CONTEXT_LENGTH: '8192'
+      AGENT_MODE: loop
+      AGENT_TIMEOUT_SECONDS: '180'
+      AGENT_ANSWER_RESERVE_SECONDS: '60'
+      ANSWER_SELF_REVIEW: 'false'
+      PROMPT_SOURCE: local
+      LANGFUSE_ENABLED: 'false'
+      TRACE_CONTENT: 'true'
+      TRACE_FILE: .cache/eval/freshness-traces.jsonl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.13.5'
+      - run: uv sync --locked
+      - name: Start real Qwen on CPU
+        run: |
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 -e OLLAMA_CONTEXT_LENGTH ollama/ollama:latest
+          for attempt in $(seq 1 30); do
+            if docker exec ollama ollama list; then break; fi
+            sleep 2
+          done
+          docker exec ollama ollama pull "$LLM_MODEL"
+          docker exec ollama ollama list
+      - name: Evaluate model routing with controlled tools
+        env:
+          REPLAY_ONLY: ${{ contains(github.event.head_commit.message, '[freshness-replay]') }}
+        run: |
+          if [ "$REPLAY_ONLY" = true ]; then
+            uv run python -m eval.freshness_replay --output .cache/eval/freshness-replay.json
+          else
+            uv run python -m eval.run routing --data eval/data/freshness.jsonl --output .cache/eval/freshness-routing.json
+          fi
+      - name: Check plans and routing policy
+        if: ${{ !contains(github.event.head_commit.message, '[freshness-replay]') }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('.cache/eval/freshness-routing.json').read_text())
+          failed = []
+          for row in result['rows']:
+              metrics = row['metrics']
+              ok = metrics['plan_fields_correct'] == 1 and metrics['tool_policy_pass'] == 1
+              print(row['case_id'], 'PASS' if ok else 'FAIL', json.dumps(metrics))
+              if not ok:
+                  failed.append(row['case_id'])
+          if failed:
+              raise SystemExit('Failed: ' + ', '.join(failed))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: freshness-routing-qwen3b
+          path: .cache/eval/
+      - if: always()
+        run: docker rm -f ollama || true

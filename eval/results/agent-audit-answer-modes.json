@@ -1,0 +1,66 @@
+{
+  "scope": "diagnostic_not_benchmark",
+  "model": "qwen2.5:7b",
+  "payload": {
+    "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+    "sources": [
+      {
+        "id": "R1",
+        "title": "EIA · Country Analysis Brief: Russia",
+        "date": "2025-07-24",
+        "page": 6,
+        "kind": "report"
+      }
+    ],
+    "evidence": {
+      "R1:B1": "July 2025\nU.S. Energy Information Administration   |   Country Analysis Brief: Russia 4\nTable 2. Major crude oil grades from Russia\nAPI gravity Sulfur content Regions\nUrals 30 to 32 1.3% to 1.5%\nWestern Siberia and\nVolga Urals\nESPO 34 to 37 0.4% to 0.6% Eastern Siberia\nSokol 35 to 37 0.2% to 0.3% Far East\nVarandey 25 to 37 0.2% to 0.5% Northern\nARCO 23 to 24 2.2% to 2.4% Northern\nSiberian Light 34 to 36 0.2% to 0.6% Western Siberia\nSakhalin 37 to 45 0.1% to 0.3% Far East\nNovy Port 30 to 35 0.1% to 0.3% Western Siberia\nData source: McKinsey & Company, Independent Commodity Intelligence Services, Trading"
+    },
+    "feedback": ""
+  },
+  "rows": [
+    {
+      "mode": "evidence_summary_before_claims",
+      "answer": {
+        "evidence_summary": [
+          "Urals нефть имеет плотность от 30 до 32 °API, содержание серы от 1.3% до 1.5%.",
+          "ESPO нефть имеет плотность от 34 до 37 °API, содержание серы от 0.4% до 0.6%.",
+          "Urals нефть тяжелее ESPO по плотности.",
+          "Urals нефть содержит больше серы, чем ESPO."
+        ],
+        "claims": [
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Urals нефть имеет плотность от 30 до 32 °API, содержание серы от 1.3% до 1.5%."
+          },
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "ESPO нефть имеет плотность от 34 до 37 °API, содержание серы от 0.4% до 0.6%."
+          },
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Urals нефть тяжелее ESPO по плотности."
+          },
+          {
+            "evidence_ids": [
+              "R1:B1"
+            ],
+            "text": "Urals нефть содержит больше серы, чем ESPO."
+          }
+        ],
+        "complete": true
+      },
+      "seconds": 50.66419577598572
+    },
+    {
+      "mode": "plain_text",
+      "answer": "По данным из источника R1 (Evidence ID: R1:B1), Urals и ESPO отличаются по плотности и содержанию серы следующим образом:\n\n1. API gravity:\n   - Urals: 30 до 32\n   - ESPO: 34 до 37\n\n2. Содержание серы:\n   - Urals: 1.3% до 1.5%\n   - ESPO: 0.4% до 0.6%\n\nИз этих данных можно сделать вывод, что ESPO нефть легче по плотности (выше API), чем Urals, и содержит меньше серы.",
+      "seconds": 17.103174209594727
+    }
+  ]
+}

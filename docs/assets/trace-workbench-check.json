@@ -1,0 +1,28 @@
+{
+  "kind": "browser_fixture_check",
+  "new_llm_run": false,
+  "scenarios": [
+    "steps and duplicate rejection",
+    "plan and arguments",
+    "retrieved evidence",
+    "copy and download",
+    "mobile",
+    "chart on demand",
+    "partial",
+    "clarification",
+    "unavailable",
+    "outside",
+    "legacy forecast",
+    "untrusted text and URLs",
+    "HTTP error"
+  ],
+  "page_errors": [],
+  "archive_hashes_valid": true,
+  "source_commit": "97f74913661ca7ff2097ac8705bd7537a558c0b7",
+  "workflow_url": "https://github.com/moomivee/ai_assistant/actions/runs/43051421646",
+  "captured_at": "2026-11-11T15:45:14.6923233Z",
+  "screenshots": [
+    "trace-workbench-desktop.png",
+    "trace-workbench-mobile.png"
+  ]
+}

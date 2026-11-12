@@ -6,10 +6,10 @@ from openai import OpenAI
 from test_agent import executor, plan
 
 from eval.run import RecordingPlanner
-from src.agent import ask
 from src.integrations.llm import LLMClient, LLMUnavailable
 from src.models.schemas import ForecastInputs
 from src.planning import make_plan
+from src.workflow import ask
 
 QUESTION = "Спрогнозируй Brent на 3 месяца. Только расчёт"
 
@@ -85,6 +85,15 @@ def test_exact_user_failure_repairs_schema_then_runs_real_forecast():
 def test_complete_plan_needs_only_one_call():
     c = PlannerClient(plan(intent="forecast", benchmark="Brent", months=3, wants_context=False))
     assert make_plan(c, QUESTION).clarify == ""
+    assert c.calls == ["plan"]
+
+
+@pytest.mark.parametrize("intent", ["research", "outside"])
+def test_non_forecast_clarification_cannot_block_source_search(intent):
+    question = "Каково содержание серы в Sokol? Только по загруженным отчётам."
+    c = PlannerClient(plan(intent=intent, clarify=question))
+    result = make_plan(c, question)
+    assert result.clarify == ""
     assert c.calls == ["plan"]
 
 

@@ -4,9 +4,9 @@ from test_agent import FakeLLM, executor
 from eval.metrics import retrieval_metrics, route_metrics
 from eval.run import validate_data
 from eval.traces import candidates, link_cases
-from src.agent import ask
 from src.api import app
 from src.config import settings
+from src.workflow import ask
 
 
 def test_gold_dataset():

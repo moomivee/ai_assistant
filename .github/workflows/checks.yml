@@ -3,6 +3,31 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.5"
+      - name: Select browser
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            uv run --with playwright==1.62.0 python -m playwright install --with-deps --only-shell chromium
+          fi
+      - name: Test trace workbench
+        env:
+          TRACE_UI_PREVIEW: "true"
+        run: uv run --with playwright==1.62.0 python tools/check_trace_ui.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trace-workbench-browser-check
+          path: docs/assets/trace-workbench-*
+          if-no-files-found: ignore
   contracts:
     runs-on: ubuntu-latest
     steps:

@@ -23,7 +23,9 @@ def check_result(result, cases):
             all(
                 row["metrics"][key] == 1
                 for key in (
-                    "tool_sequence_exact",
+                    "tool_policy_pass"
+                    if "tool_policy_pass" in row["metrics"]
+                    else "tool_sequence_exact",
                     "intent_correct",
                     "status_correct",
                     "plan_fields_correct",
@@ -49,7 +51,10 @@ def check_result(result, cases):
                 "case_id": row["case_id"],
                 "route_ok": route_ok,
                 "facts": facts,
-                "passed": route_ok and all(f["covered"] for f in facts),
+                "no_claims_ok": not expected.get("no_claims") or not response["claims"],
+                "passed": route_ok
+                and all(f["covered"] for f in facts)
+                and (not expected.get("no_claims") or not response["claims"]),
             }
         )
     return checks

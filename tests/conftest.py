@@ -14,6 +14,12 @@ def isolated(monkeypatch, tmp_path):
         "TRACE_FILE": str(tmp_path / "trace.jsonl"),
         "CACHE_DIR": str(tmp_path / "cache"),
         "PROMPT_SOURCE": "local",
+        "AGENT_MODE": "loop",
+        "AGENT_MAX_STEPS": "6",
+        "AGENT_NO_PROGRESS_LIMIT": "2",
+        "AGENT_TIMEOUT_SECONDS": "180",
+        "AGENT_ANSWER_RESERVE_SECONDS": "60",
+        "ANSWER_SELF_REVIEW": "false",
     }.items():
         monkeypatch.setenv(name, value)
     settings.cache_clear()

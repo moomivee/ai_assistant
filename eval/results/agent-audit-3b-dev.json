@@ -1,0 +1,563 @@
+{
+  "mode": "agent",
+  "scope": "agent",
+  "provenance": {
+    "time": "2026-11-10T20:47:45.194263+00:00",
+    "git_commit": "9f90a0c2585e40e9e0304e11a61e415aaf04ce28",
+    "git_dirty": true,
+    "code_sha256": "806e279606a3800ba78ae2f4cd4a238ef894a2ff6a0fb2a14e0ab665889e3f78",
+    "dataset_sha256": "df57ff373e55744998918bbd30897dc95ccaeca4a38b3d6fb34cf454b8e8a490",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "configuration": {
+      "model": "qwen2.5:3b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2000
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:3d30aaa1bec345edcde8137777f996158295d3d2562b42eb847734f66cb88dec",
+      "cited_answer": "sha256:8e847a3438092fe9b14e39406feb7d8e2770ac2138eb7318d1c3eef0d03ed35f",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "split": "all",
+  "rows": [
+    {
+      "case_id": "regression-brent-explicit-001",
+      "split": "dev",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Brent price forecast 3 months",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "Brent price forecast 3 months",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Спрогнозируй Brent на 3 месяца. Только расчёт",
+        "answer": "Прогноз Brent на 3 мес. В 2027-01 модель ожидает 125.93 USD/барр. Ориентировочный 90%-й прогнозный интервал — 84.83–186.94 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена Brent составила 123.93 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 10.86 USD/барр. Для прогноза «цена останется последней» — 10.59. [M1]\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · Brent",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILBRENTEU",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 126
+          }
+        ],
+        "trace_id": "6ba4035792d046a28aa8e7b26c3d433c",
+        "forecast": {
+          "benchmark": "Brent",
+          "base": "Brent",
+          "as_of": "2026-10",
+          "last": 123.93,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 126.85,
+              "ses": 123.93,
+              "point": 125.39,
+              "lower": 111.3,
+              "upper": 141.26,
+              "mae": 5.24,
+              "naive_mae": 5.29
+            },
+            {
+              "month": "2026-12",
+              "arima": 127.69,
+              "ses": 123.93,
+              "point": 125.81,
+              "lower": 92.02,
+              "upper": 172.01,
+              "mae": 8.67,
+              "naive_mae": 8.49
+            },
+            {
+              "month": "2027-01",
+              "arima": 127.94,
+              "ses": 123.93,
+              "point": 125.93,
+              "lower": 84.83,
+              "upper": 186.94,
+              "mae": 10.86,
+              "naive_mae": 10.59
+            }
+          ],
+          "discount": null,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILBRENTEU"
+        },
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Спрогнозируй Brent на 3 месяца. Только расчёт",
+            "action": "price_forecast",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Спрогнозируй Brent на 3 месяца. Только расчёт",
+            "action": "finish",
+            "source_ids": [],
+            "query": "",
+            "report": "Brent",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 3,
+      "ms": 31611.45,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": []
+    },
+    {
+      "case_id": "regression-brent-context-002",
+      "split": "dev",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 1,
+        "rejected_actions": 0,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 1.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "forecast",
+        "rag_query": "Brent oil price forecast",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": false,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "forecast",
+        "rag_query": "Brent oil price forecast",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": "Brent",
+        "months": 3,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Спрогнозируй цену Brent на 3 месяца.",
+        "answer": "Прогноз Brent на 3 мес. В 2027-01 модель ожидает 125.93 USD/барр. Ориентировочный 90%-й прогнозный интервал — 84.83–186.94 USD/барр. [M1]\n\nРасчёт начинается после 2026-10. Последняя среднемесячная цена Brent составила 123.93 USD/барр. [M1]\n\nСредняя абсолютная ошибка ансамбля для этого горизонта на 48 исторических точках старта составила 10.86 USD/барр. Для прогноза «цена останется последней» — 10.59. [M1]\n\nНа этом горизонте ансамбль не превосходит наивный прогноз по исторической MAE.\n\nПрогнозный интервал не гарантирует будущую цену; сценарные допущения считаются фиксированными.",
+        "status": "ok",
+        "clarification": false,
+        "intent": "forecast",
+        "mode": "qwen2.5:3b",
+        "sources": [
+          {
+            "id": "M1",
+            "kind": "model",
+            "title": "Расчёт · EIA/FRED · Brent",
+            "date": "2026-10",
+            "url": "https://fred.stlouisfed.org/series/MCOILBRENTEU",
+            "text": "ARIMA(1,1,0), экспоненциальное сглаживание; интервал по историческим ошибкам.",
+            "page": null,
+            "chunk_id": null
+          }
+        ],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "price_forecast",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 15
+          }
+        ],
+        "trace_id": "82da55c62b524ab2b62a7bb52be39df3",
+        "forecast": {
+          "benchmark": "Brent",
+          "base": "Brent",
+          "as_of": "2026-10",
+          "last": 123.93,
+          "unit": "USD/барр.",
+          "level": 0.9,
+          "origins": 48,
+          "rows": [
+            {
+              "month": "2026-11",
+              "arima": 126.85,
+              "ses": 123.93,
+              "point": 125.39,
+              "lower": 111.3,
+              "upper": 141.26,
+              "mae": 5.24,
+              "naive_mae": 5.29
+            },
+            {
+              "month": "2026-12",
+              "arima": 127.69,
+              "ses": 123.93,
+              "point": 125.81,
+              "lower": 92.02,
+              "upper": 172.01,
+              "mae": 8.67,
+              "naive_mae": 8.49
+            },
+            {
+              "month": "2027-01",
+              "arima": 127.94,
+              "ses": 123.93,
+              "point": 125.93,
+              "lower": 84.83,
+              "upper": 186.94,
+              "mae": 10.86,
+              "naive_mae": 10.59
+            }
+          ],
+          "discount": null,
+          "cut": null,
+          "sensitivity": null,
+          "source_url": "https://fred.stlouisfed.org/series/MCOILBRENTEU"
+        },
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Спрогнозируй цену Brent на 3 месяца.",
+            "action": "price_forecast",
+            "source_ids": [],
+            "query": "",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Спрогнозируй цену Brent на 3 месяца.",
+            "action": "finish",
+            "source_ids": [
+              "price_forecast_2026-10"
+            ],
+            "query": "",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "llm_calls": 4,
+      "ms": 17836.81,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": []
+    },
+    {
+      "case_id": "regression-urals-espo-grounding-003",
+      "split": "dev",
+      "metrics": {
+        "tool_policy_pass": 1.0,
+        "required_tool_success": 1.0,
+        "tool_calls": 2,
+        "rejected_actions": 4,
+        "tool_sequence_exact": 0.0,
+        "required_tool_recall": 1.0,
+        "forbidden_tool_violation": 0.0,
+        "rag_before_web": 1.0,
+        "intent_correct": 1.0,
+        "status_correct": 0.0,
+        "plan_fields_correct": 1.0
+      },
+      "plan": {
+        "intent": "research",
+        "rag_query": "difference between Urals and ESPO density and sulfur content",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "initial_plan": {
+        "intent": "research",
+        "rag_query": "difference between Urals and ESPO density and sulfur content",
+        "fresh": false,
+        "report_only": false,
+        "wants_context": true,
+        "news": false,
+        "quotes": [],
+        "benchmark": null,
+        "months": null,
+        "discount": null,
+        "cut": null,
+        "sensitivity": null,
+        "parameters": [],
+        "clarify": ""
+      },
+      "response": {
+        "question": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+        "answer": "Подтверждённых данных для ответа недостаточно.\n\nЗапрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа.",
+        "status": "partial",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:3b",
+        "sources": [],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 642
+          },
+          {
+            "tool": "read_report",
+            "engine": "ouroboros.ToolRegistry",
+            "status": "ok",
+            "ms": 41
+          }
+        ],
+        "trace_id": "66c48a7575cf41e4984e8bc3ad4ce0b3",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_detail",
+            "purpose": "Чем отличаются Urals и ESPO по плотности и содержанию серы?",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "difference between Urals and ESPO density and sulfur content",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "To gather detailed information about the density and sulfur content differences between Urals and ESPO crude oil grades.",
+            "action": "read_report",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 6
+          },
+          {
+            "assessment": "enough",
+            "purpose": "To gather information about the density and sulfur content differences between Urals and ESPO crude oil grades in Russia.",
+            "action": "read_report",
+            "source_ids": [
+              "R2",
+              "R7"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 6
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "To research and provide detailed information on the density and sulfur content differences between Urals and ESPO crude oil grades in Russia.",
+            "action": "report_search",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "difference between Urals and ESPO density and sulfur content",
+            "report": "eia-russia-2025",
+            "page": 6
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "To gather detailed information about the density and sulfur content differences between Urals and ESPO crude oil grades in Russia.",
+            "action": "read_report",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "",
+            "report": "eia-russia-2025",
+            "page": 6
+          },
+          {
+            "assessment": "need_detail",
+            "purpose": "To gather detailed information about the density and sulfur content differences between Urals and ESPO crude oil grades in Russia.",
+            "action": "report_search",
+            "source_ids": [
+              "R7"
+            ],
+            "query": "difference between Urals and ESPO density and sulfur content",
+            "report": "eia-russia-2025",
+            "page": 6
+          }
+        ],
+        "stop_reason": "budget_exhausted",
+        "agent_mode": "loop",
+        "rejected_actions": 4
+      },
+      "llm_calls": 8,
+      "ms": 138320.24,
+      "answer_quality_measured": false,
+      "execution_error": null,
+      "contract_valid": true,
+      "retrieval_steps": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "difference between Urals and ESPO density and sulfur content"
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p6:w0",
+            "eia-russia-2025:p5:w82",
+            "eia-russia-2025:p6:w82",
+            "eia-russia-2025:p2:w0",
+            "eia-russia-2025:p16:w328",
+            "eia-russia-2025:p16:w82"
+          ],
+          "metrics": {
+            "hit@1": 1.0,
+            "hit@5": 1.0,
+            "mrr@10": 1.0,
+            "evidence_recall@5": 1.0
+          }
+        },
+        {
+          "tool": "read_report",
+          "arguments": {
+            "report": "eia-russia-2025",
+            "page": 6
+          },
+          "chunk_ids": [
+            "eia-russia-2025:p6:full"
+          ],
+          "metrics": {
+            "hit@1": 1.0,
+            "hit@5": 1.0,
+            "mrr@10": 1.0,
+            "evidence_recall@5": 0.5
+          }
+        }
+      ]
+    }
+  ],
+  "model": "qwen2.5:3b",
+  "agent_mode": "loop",
+  "judge_model": null,
+  "judge_same_model": false,
+  "summary": {
+    "n": 3,
+    "forbidden_tool_violation": 0.0,
+    "intent_correct": 1.0,
+    "plan_fields_correct": 1.0,
+    "rag_before_web": 1.0,
+    "rejected_actions": 1.3333333333333333,
+    "required_tool_recall": 1.0,
+    "required_tool_success": 1.0,
+    "status_correct": 0.6666666666666666,
+    "tool_calls": 1.3333333333333333,
+    "tool_policy_pass": 1.0,
+    "tool_sequence_exact": 0.0,
+    "response_contract_valid_rate": 1.0,
+    "llm_plan_valid_rate": 1.0,
+    "judge_coverage": 0.0,
+    "task_success_rate": null,
+    "judge_calibrated": false,
+    "judge_assisted_success_rate": null
+  },
+  "judge_summary": {}
+}

@@ -1,0 +1,104 @@
+{
+  "judge_model": "qwen2.5:3b",
+  "calibration_passed": false,
+  "calibration": [
+    {
+      "id": "correct",
+      "expected_acceptable": true,
+      "passed": true,
+      "grade": {
+        "groundedness": 4,
+        "relevance": 4,
+        "tone": 4,
+        "completeness": 4,
+        "explanation": ""
+      }
+    },
+    {
+      "id": "swapped-values",
+      "expected_acceptable": false,
+      "passed": false,
+      "grade": {
+        "groundedness": 4,
+        "relevance": 4,
+        "tone": 4,
+        "completeness": 4,
+        "explanation": ""
+      }
+    },
+    {
+      "id": "wrong-density-direction",
+      "expected_acceptable": false,
+      "passed": false,
+      "grade": {
+        "groundedness": 4,
+        "relevance": 4,
+        "tone": 4,
+        "completeness": 4,
+        "explanation": ""
+      }
+    },
+    {
+      "id": "empty-description",
+      "expected_acceptable": false,
+      "passed": false,
+      "grade": {
+        "groundedness": 4,
+        "relevance": 4,
+        "tone": 4,
+        "completeness": 4,
+        "explanation": ""
+      }
+    },
+    {
+      "id": "irrelevant",
+      "expected_acceptable": false,
+      "passed": true,
+      "grade": {
+        "groundedness": 0,
+        "relevance": 1,
+        "tone": 3,
+        "completeness": 0,
+        "explanation": "Ответ полностью не соответствует вопросу. Вопрос требовал сравнения Orion и Vega по API и содержанию серы, но ответ вместо этого предоставил информацию о добыче в ОПЕК+. Tone и groundedness оценки не подлежат, так как ответ не соответствует ни одному из требуемых пунктов. Completeness также не подлежит, так как ответ не покрывает ни одного из требуемых пунктов в вопросе."
+      }
+    }
+  ],
+  "rows": [],
+  "task_success_rate": null,
+  "warning": "Scoring skipped: the judge failed calibration controls.",
+  "provenance": {
+    "time": "2026-11-10T20:51:18.399012+00:00",
+    "git_commit": "9f90a0c2585e40e9e0304e11a61e415aaf04ce28",
+    "git_dirty": true,
+    "code_sha256": "806e279606a3800ba78ae2f4cd4a238ef894a2ff6a0fb2a14e0ab665889e3f78",
+    "dataset_sha256": "2e076bdeb85c3a373c929570b53183d4280259c5860782d0124b962235d2e65b",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "configuration": {
+      "model": "qwen2.5:3b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2000
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:3d30aaa1bec345edcde8137777f996158295d3d2562b42eb847734f66cb88dec",
+      "cited_answer": "sha256:8e847a3438092fe9b14e39406feb7d8e2770ac2138eb7318d1c3eef0d03ed35f",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  }
+}

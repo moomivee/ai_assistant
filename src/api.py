@@ -95,6 +95,13 @@ def status():
     return {
         "model": cfg.llm_model if cfg.llm_key else None,
         "tavily": bool(cfg.web_key),
+        "agent_mode": cfg.agent_mode,
+        "agent_max_steps": cfg.agent_max_steps,
+        "agent_no_progress_limit": cfg.agent_no_progress_limit,
+        "agent_timeout_seconds": cfg.agent_timeout_seconds,
+        "agent_answer_reserve_seconds": min(
+            cfg.agent_answer_reserve_seconds, cfg.agent_timeout_seconds / 2
+        ),
         "reports": [
             {"title": r["title"], "date": r["date"], "url": "/reports/" + r["file"]}
             for r in manifest()

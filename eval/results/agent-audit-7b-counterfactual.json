@@ -1,0 +1,433 @@
+{
+  "model": "qwen2.5:7b",
+  "scope": "actual_llm_controlled_synthetic_evidence",
+  "provenance": {
+    "time": "2026-11-10T20:43:59.280595+00:00",
+    "git_commit": "9f90a0c2585e40e9e0304e11a61e415aaf04ce28",
+    "git_dirty": true,
+    "code_sha256": "f075b8803bcf0ac67c1fab92f91ba088ba1fd3ee2d82348274d8560818e90cdf",
+    "dataset_sha256": "2e076bdeb85c3a373c929570b53183d4280259c5860782d0124b962235d2e65b",
+    "lock_sha256": "7577716e67fb7546a9a4096fef89030c6bbbfea9f4a65e285bcab453ae0d2e2d",
+    "corpus": {
+      "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+      "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+    },
+    "python": "3.12.14",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "configuration": {
+      "model": "qwen2.5:7b",
+      "agent_mode": "loop",
+      "agent_max_steps": 6,
+      "answer_self_review": false,
+      "embedding": "minilm-multi",
+      "retrieval_mode": "dense",
+      "top_k": 6,
+      "max_output_tokens": 2000
+    },
+    "prompts": {
+      "plan": "sha256:9f878cc3072d0c06b5ad0b8f23390c7e73bcb311447b9282897aed3d5cab43fd",
+      "forecast": "sha256:808d62e6b43e200968678491bc5d6999a6e18cb6a0832ad088a5386e4fc1a674",
+      "forecast_scope": "sha256:f280ca3927ce61beeccd7c04c9b9a6259d11f380089193753909f3e025411097",
+      "answer": "sha256:5334d1c3c7c943d323687f8f77cb0826287cc617c53ad1b7b026b90f3ae2deb4",
+      "answer_review": "sha256:79ec537d13566dde67ee0c85ae21dcbd828071fee0e3cfd6d4d7496b44cb6054",
+      "judge": "sha256:97bf0f539387afcff3cd658696084b8e83398d7acec82d8fec927518f73c8d8a",
+      "decide": "sha256:3d30aaa1bec345edcde8137777f996158295d3d2562b42eb847734f66cb88dec",
+      "cited_answer": "sha256:8e847a3438092fe9b14e39406feb7d8e2770ac2138eb7318d1c3eef0d03ed35f",
+      "citation_review": "sha256:b2fd87c0f4fe842a789ba2a2358396a2734d6ce08c4004e3ce6fb373174d4f84"
+    }
+  },
+  "rows": [
+    {
+      "case_id": "counterfactual-original",
+      "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+      "expected_lighter_and_less_sulfur": "Orion",
+      "empty_first_search": false,
+      "tool_calls": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "API and sulfur content for Orion and Vega crude oil"
+          }
+        }
+      ],
+      "source": {
+        "id": "R1",
+        "report": "synthetic-evaluation",
+        "kind": "report",
+        "title": "Synthetic evaluation fixture, not real market data",
+        "date": "2026-11-10",
+        "page": 1,
+        "url": "https://example.invalid/synthetic",
+        "chunk_id": "synthetic:page1",
+        "text": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property."
+      },
+      "response": {
+        "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+        "answer": "API Orion составляет 42-44°API, а API Vega — 27-29°API. [R1]\n\nAPI Orion выше, чем API Vega, следовательно, нефть Orion легче. [R1]\n\nСернистость Orion составляет 0.1%-0.2%, а сернистость Vega — 1.5%-1.7%. [R1]\n\nСернистость не связана с API, поэтому нельзя сделать вывод о сравнении легкости нефти по этому показателю. [R1]\n\nНефть Orion менее сернистая, чем нефть Vega. [R1]\n\nНефть Orion легче, чем нефть Vega. [R1]\n\nНефть Orion легче и менее сернистая, чем нефть Vega. [R1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "Synthetic evaluation fixture, not real market data",
+            "date": "2026-11-10",
+            "url": "https://example.invalid/synthetic",
+            "text": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "page": 1,
+            "chunk_id": "synthetic:page1",
+            "report": "synthetic-evaluation",
+            "full_page": false,
+            "evidence": {
+              "R1:B1": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property."
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Orion составляет 42-44°API, а API Vega — 27-29°API.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Orion выше, чем API Vega, следовательно, нефть Orion легче.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Сернистость Orion составляет 0.1%-0.2%, а сернистость Vega — 1.5%-1.7%.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Сернистость не связана с API, поэтому нельзя сделать вывод о сравнении легкости нефти по этому показателю.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Нефть Orion менее сернистая, чем нефть Vega.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Нефть Orion легче, чем нефть Vega.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Нефть Orion менее сернистая, чем нефть Vega.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Нефть Orion легче и менее сернистая, чем нефть Vega.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "eval.synthetic_evidence",
+            "status": "ok",
+            "ms": 0
+          }
+        ],
+        "trace_id": "91287cfa3a2e4e12aabc17bbfd14dcc8",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find API and sulfur content for Orion and Vega crude oil to compare their density and sulfur content.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Compare API gravity and sulfur content of Orion and Vega crude oils to determine which is lighter and less sulfuric.",
+            "action": "finish",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "synthetic-evaluation",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "ms": 93770.53
+    },
+    {
+      "case_id": "counterfactual-swapped",
+      "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+      "expected_lighter_and_less_sulfur": "Vega",
+      "empty_first_search": false,
+      "tool_calls": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "API and sulfur content for Orion and Vega crude oil"
+          }
+        }
+      ],
+      "source": {
+        "id": "R1",
+        "report": "synthetic-evaluation",
+        "kind": "report",
+        "title": "Synthetic evaluation fixture, not real market data",
+        "date": "2026-11-10",
+        "page": 1,
+        "url": "https://example.invalid/synthetic",
+        "chunk_id": "synthetic:page1",
+        "text": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property."
+      },
+      "response": {
+        "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+        "answer": "API Orion составляет от 27 до 29 °API, а API Vega — от 42 до 44 °API. [R1]\n\nAPI Vega выше, чем Orion, следовательно, нефть Vega легче. [R1]\n\nСодержание серы в нефти Orion составляет от 1.5% до 1.7%, а в нефти Vega — от 0.1% до 0.2%. [R1]\n\nСодержание серы в нефти Vega ниже, чем в нефти Orion. [R1]\n\nСодержание серы — это отдельная характеристика, не связанная с API. [R1]\n\nСодержание серы в нефти Vega (0.1% to 0.2%) ниже, чем в нефти Orion (1.5% to 1.7%). [R1]",
+        "status": "ok",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [
+          {
+            "id": "R1",
+            "kind": "report",
+            "title": "Synthetic evaluation fixture, not real market data",
+            "date": "2026-11-10",
+            "url": "https://example.invalid/synthetic",
+            "text": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "page": 1,
+            "chunk_id": "synthetic:page1",
+            "report": "synthetic-evaluation",
+            "full_page": false,
+            "evidence": {
+              "R1:B1": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property."
+            }
+          }
+        ],
+        "claims": [
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Orion составляет от 27 до 29 °API, а API Vega — от 42 до 44 °API.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Vega выше, чем Orion, следовательно, нефть Vega легче.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Содержание серы в нефти Orion составляет от 1.5% до 1.7%, а в нефти Vega — от 0.1% до 0.2%.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Содержание серы в нефти Vega ниже, чем в нефти Orion.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Содержание серы — это отдельная характеристика, не связанная с API.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Orion составляет от 27 до 29 °API, а API Vega — от 42 до 44 °API.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "API Vega выше, чем Orion, следовательно, нефть Vega легче.",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          },
+          {
+            "source": "R1",
+            "quote": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 27 to 29 | 1.5% to 1.7%\nVega | 42 to 44 | 0.1% to 0.2%\nHigher API gravity means lower physical density. Sulfur content is a separate property.",
+            "text": "Содержание серы в нефти Vega (0.1% to 0.2%) ниже, чем в нефти Orion (1.5% to 1.7%).",
+            "evidence_ids": [
+              "R1:B1"
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "eval.synthetic_evidence",
+            "status": "ok",
+            "ms": 0
+          }
+        ],
+        "trace_id": "3231fb71cc074bcea80a7bd9d862df54",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find API and sulfur content for Orion and Vega crude oil to compare their densities and sulfur levels.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "enough",
+            "purpose": "Compare API gravity and sulfur content of Orion and Vega crude oils to determine which is lighter and less sulfuric.",
+            "action": "finish",
+            "source_ids": [
+              "R1"
+            ],
+            "query": "",
+            "report": "synthetic-evaluation",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 0
+      },
+      "ms": 73237.22
+    },
+    {
+      "case_id": "counterfactual-empty-first",
+      "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+      "expected_lighter_and_less_sulfur": "Orion",
+      "empty_first_search": true,
+      "tool_calls": [
+        {
+          "tool": "report_search",
+          "arguments": {
+            "query": "API and sulfur content for Orion and Vega crude oil"
+          }
+        }
+      ],
+      "source": {
+        "id": "R1",
+        "report": "synthetic-evaluation",
+        "kind": "report",
+        "title": "Synthetic evaluation fixture, not real market data",
+        "date": "2026-11-10",
+        "page": 1,
+        "url": "https://example.invalid/synthetic",
+        "chunk_id": "synthetic:page1",
+        "text": "Test crude oil samples.\nGrade | API gravity (degrees API) | Sulfur content (wt%)\nOrion | 42 to 44 | 0.1% to 0.2%\nVega | 27 to 29 | 1.5% to 1.7%\nHigher API gravity means lower physical density. Sulfur content is a separate property."
+      },
+      "response": {
+        "question": "Сравни тестовые сорта нефти Orion и Vega по API и сере. Какой легче и менее сернистый? Используй только загруженный тестовый отчёт.",
+        "answer": "Подтверждённых данных для ответа недостаточно.\n\nЗапрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа.",
+        "status": "partial",
+        "clarification": false,
+        "intent": "research",
+        "mode": "qwen2.5:7b",
+        "sources": [],
+        "claims": [],
+        "trace": [
+          {
+            "tool": "report_search",
+            "engine": "eval.synthetic_evidence",
+            "status": "ok",
+            "ms": 0
+          }
+        ],
+        "trace_id": "02bb51d924bd4613a41e88fc672c5d1e",
+        "forecast": null,
+        "decisions": [
+          {
+            "assessment": "need_evidence",
+            "purpose": "Find API and sulfur content for Orion and Vega crude oil to compare their densities and sulfur levels.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for the API and sulfur content of Orion and Vega crude oils in the uploaded reports.",
+            "action": "report_search",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for API and sulfur content for Orion and Vega crude oil in the available reports.",
+            "action": "finish",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          },
+          {
+            "assessment": "need_evidence",
+            "purpose": "Search for API and sulfur content for Orion and Vega crude oil in the uploaded reports.",
+            "action": "finish",
+            "source_ids": [],
+            "query": "API and sulfur content for Orion and Vega crude oil",
+            "report": "",
+            "page": null
+          }
+        ],
+        "stop_reason": "completed",
+        "agent_mode": "loop",
+        "rejected_actions": 1
+      },
+      "ms": 56242.45
+    }
+  ],
+  "note": "Outputs must follow the supplied values; changed output alone is not a semantic accuracy metric."
+}

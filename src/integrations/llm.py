@@ -7,6 +7,7 @@ from functools import lru_cache
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, ValidationError
 
+from ..budget import bounded_timeout, check_budget
 from ..config import settings
 from ..logging import log
 from .prompts import get_prompt
@@ -45,7 +46,9 @@ class LLMClient:
             metadata={"prompt_version": prompt.version, "schema": schema.__name__},
         ) as obs:
             try:
-                response = self.client.chat.completions.parse(
+                response = self.client.with_options(
+                    timeout=bounded_timeout(settings().llm_timeout), max_retries=0
+                ).chat.completions.parse(
                     model=self.model,
                     temperature=0,
                     max_tokens=settings().llm_max_tokens,
@@ -82,6 +85,7 @@ class LLMClient:
                 )
                 return result
             except (OpenAIError, ValidationError, ValueError, IndexError) as exc:
+                check_budget()
                 log(
                     "llm.failed",
                     logging.ERROR,

@@ -25,6 +25,11 @@ def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Pla
     if p.intent == "research" and (not p.quotes or p.news):
         p.wants_context = True
     if p.intent != "forecast":
+        # Plan.clarify is reserved for missing calculation inputs. A model
+        # restating a research question must not prevent searching for it.
+        if p.clarify:
+            log("plan.unexpected_clarification_ignored", intent=p.intent)
+        p.clarify = ""
         p.parameters = []
         p.benchmark = p.months = p.discount = p.cut = p.sensitivity = None
         return p
