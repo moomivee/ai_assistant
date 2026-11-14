@@ -1,0 +1,253 @@
+{
+  "scope": "synthetic_managed_rag_infrastructure_smoke",
+  "quality_benchmark": false,
+  "runs": [
+    {
+      "time": "2026-11-14T20:42:21.253624+00:00",
+      "scope": "real_encoder_managed_corpus_infrastructure_smoke",
+      "quality_benchmark": false,
+      "model": "minilm-multi",
+      "model_spec": {
+        "repo": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+        "revision": "2c4055b12046f11709e9df2c122e59ffbdc2f900",
+        "query_prefix": "",
+        "passage_prefix": "",
+        "max_length": 128,
+        "files": {
+          "tokenizer.json": {
+            "path": "tokenizer.json",
+            "sha256": "b60b6b43406a48bf3638526314f3d232d97058bc93472ff2de930d43686fa441"
+          },
+          "model.onnx": {
+            "path": "onnx/model_quantized.onnx",
+            "sha256": "66fc00f5f29afcaff34092e1bdd20008ca3918265a82fb9695a551e510cc4ebc"
+          }
+        }
+      },
+      "fixture_sha256": "27fd10044a1a7a0f6507067e9bb7747570653e08aecad60a0dcff3bdd9c5b0fb",
+      "fixture_note": "Synthetic table; not oil-market data or a labeled evaluation set.",
+      "baseline_corpus": {
+        "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+        "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+      },
+      "question": "SYNTHETIC-MANAGED-SMOKE oil API gravity and sulfur content",
+      "checks": {
+        "scoped_retrieval_returns_only_upload": true,
+        "scope_preserves_version": true,
+        "quotes_are_exact_source_substrings": true,
+        "global_top10_contains_upload": true,
+        "archive_excluded_from_global_retrieval": true,
+        "archived_explicit_scope_rejected": true,
+        "archived_original_still_available_for_citation": true,
+        "frozen_snapshot_evaluates_after_live_document_archive": true
+      },
+      "passed": true,
+      "index": {
+        "model": "minilm-multi",
+        "model_repo": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+        "model_revision": "2c4055b12046f11709e9df2c122e59ffbdc2f900",
+        "max_tokens": 128,
+        "search_mode": "dense",
+        "revision": "6f7288c8eed4af5bc38d1ede7edc913d33abb606ef26249975776c19c67be79a",
+        "indexed_revision": "6f7288c8eed4af5bc38d1ede7edc913d33abb606ef26249975776c19c67be79a",
+        "status": "ready",
+        "fingerprint": "d98a913e0f7d3d76a923b4a9e5c84a2e8ebee2093aceeabea1ab12e3aa51a419",
+        "dimensions": 384,
+        "chunks": 116,
+        "documents": 3,
+        "chunking_version": "managed-token-windows-v3",
+        "baseline_chunking": "legacy evaluation chunks retained"
+      },
+      "global_ranking": [
+        {
+          "report": "dda677ecc310430f8472ed4f98f2f590",
+          "version_id": "33fb7af7328f4d15844b3326e4190b8f",
+          "chunk_id": "dda677ecc310430f8472ed4f98f2f590:33fb7af7328f4d15844b3326e4190b8f:673777c90c00c5fc38d1d0fe:t0-32",
+          "score": 0.7038
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p6:w0",
+          "score": 0.58
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p16:w0",
+          "score": 0.4546
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p26:w164",
+          "score": 0.4497
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p7:w0",
+          "score": 0.4366
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p24:w574",
+          "score": 0.43
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p5:w82",
+          "score": 0.4275
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p5:w246",
+          "score": 0.4234
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p5:w0",
+          "score": 0.4084
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "2c5c814b3e8946e9af3cc5dabf6d589a",
+          "chunk_id": "eia-russia-2025:p3:w246",
+          "score": 0.3943
+        }
+      ],
+      "scoped_quotes": [
+        "Grade | API gravity | Sulfur pct\nSYNTHETIC-MANAGED-SMOKE | 42.3 | 0.17"
+      ],
+      "seconds": 19.939
+    },
+    {
+      "time": "2026-11-14T20:42:20.994970+00:00",
+      "scope": "real_encoder_managed_corpus_infrastructure_smoke",
+      "quality_benchmark": false,
+      "model": "e5-small",
+      "model_spec": {
+        "repo": "Xenova/multilingual-e5-small",
+        "revision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
+        "max_length": 512,
+        "files": {
+          "tokenizer.json": {
+            "path": "tokenizer.json",
+            "sha256": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"
+          },
+          "model.onnx": {
+            "path": "onnx/model_quantized.onnx",
+            "sha256": "f80102d3f2a1229f387d3c81909990d8945513e347b0eab049f7de3c6f98c193"
+          }
+        }
+      },
+      "fixture_sha256": "27fd10044a1a7a0f6507067e9bb7747570653e08aecad60a0dcff3bdd9c5b0fb",
+      "fixture_note": "Synthetic table; not oil-market data or a labeled evaluation set.",
+      "baseline_corpus": {
+        "eia-russia-2025": "d45ae6c1f4e9eb84c9836801efbbde30baf5ab9b3d5fde25ddbc3a7af168941e",
+        "cbr-oct-2025": "6c73ba888f5dcf372a6093e026f84b54c4a579051f99b213527ec8476a415589"
+      },
+      "question": "SYNTHETIC-MANAGED-SMOKE oil API gravity and sulfur content",
+      "checks": {
+        "scoped_retrieval_returns_only_upload": true,
+        "scope_preserves_version": true,
+        "quotes_are_exact_source_substrings": true,
+        "global_top10_contains_upload": true,
+        "archive_excluded_from_global_retrieval": true,
+        "archived_explicit_scope_rejected": true,
+        "archived_original_still_available_for_citation": true,
+        "frozen_snapshot_evaluates_after_live_document_archive": true
+      },
+      "passed": true,
+      "index": {
+        "model": "e5-small",
+        "model_repo": "Xenova/multilingual-e5-small",
+        "model_revision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
+        "max_tokens": 512,
+        "search_mode": "dense",
+        "revision": "7f6ad13c2517410fe3cdbe95c022a9f40f1f5bb5dcdc52c17b354d0718a58a24",
+        "indexed_revision": "7f6ad13c2517410fe3cdbe95c022a9f40f1f5bb5dcdc52c17b354d0718a58a24",
+        "status": "ready",
+        "fingerprint": "7007ffa366a51d650c9804e23908ff9c9d196c07699dd98550283c479c4649e7",
+        "dimensions": 384,
+        "chunks": 116,
+        "documents": 3,
+        "chunking_version": "managed-token-windows-v3",
+        "baseline_chunking": "legacy evaluation chunks retained"
+      },
+      "global_ranking": [
+        {
+          "report": "76afd4cc7eac4529a369189e429665ea",
+          "version_id": "e03fecef8b0f437b8c3b4a70c40004d2",
+          "chunk_id": "76afd4cc7eac4529a369189e429665ea:e03fecef8b0f437b8c3b4a70c40004d2:673777c90c00c5fc38d1d0fe:t0-32",
+          "score": 0.9232
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p6:w0",
+          "score": 0.8548
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p24:w328",
+          "score": 0.8335
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p24:w410",
+          "score": 0.8283
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p7:w0",
+          "score": 0.8204
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p25:w328",
+          "score": 0.8171
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p25:w246",
+          "score": 0.8166
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p26:w246",
+          "score": 0.8155
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p16:w328",
+          "score": 0.8151
+        },
+        {
+          "report": "eia-russia-2025",
+          "version_id": "4ff52e4d9e1a48718028eeb052005900",
+          "chunk_id": "eia-russia-2025:p6:w82",
+          "score": 0.8144
+        }
+      ],
+      "scoped_quotes": [
+        "Grade | API gravity | Sulfur pct\nSYNTHETIC-MANAGED-SMOKE | 42.3 | 0.17"
+      ],
+      "seconds": 19.663
+    }
+  ],
+  "passed": true
+}

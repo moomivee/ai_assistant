@@ -15,6 +15,7 @@ class ParameterEvidence(StrictModel):
 
 
 class Plan(StrictModel):
+    skill: Literal["report_analysis", "web_research", "price_forecast"] | None = None
     intent: Literal["research", "forecast", "outside"]
     rag_query: str = Field(max_length=2000)
     fresh: bool = Field(
@@ -63,6 +64,7 @@ class Claim(StrictModel):
     quote: str = Field(min_length=1, max_length=1800)
     text: str = Field(min_length=1, max_length=1200)
     evidence_ids: list[str] = Field(default_factory=list)
+    citations: list[dict] = Field(default_factory=list)
 
 
 class EvidenceAnswer(StrictModel):
@@ -180,11 +182,21 @@ class EvidenceCheck(StrictModel):
 class NextAction(StrictModel):
     assessment: Literal["need_evidence", "need_detail", "enough", "unavailable"] = "need_evidence"
     purpose: str = Field(max_length=250)
-    action: Literal["report_search", "read_report", "web_search", "price_forecast", "finish"]
+    action: Literal[
+        "report_search", "read_report", "web_search", "read_web", "price_forecast", "finish"
+    ]
     source_ids: list[str] = Field(default_factory=list, max_length=4)
     query: str = Field(max_length=1500)
     report: str = Field(max_length=100)
     page: int | None
+    block_id: str = Field(default="", max_length=160)
+    version_id: str = Field(default="", max_length=100)
+    url: str = Field(default="", max_length=2048)
+    topic: Literal["general", "news"] = "general"
+    days: int | None = Field(default=None, ge=1, le=3650)
+    start_date: str | None = Field(default=None, max_length=10)
+    end_date: str | None = Field(default=None, max_length=10)
+    search_depth: Literal["basic", "advanced"] = "basic"
     missing_facts: list[str] = Field(default_factory=list, max_length=6)
     evidence_checks: list[EvidenceCheck] = Field(default_factory=list, max_length=8)
 
@@ -218,3 +230,6 @@ class CitationReview(StrictModel):
 class Question(StrictModel):
     question: str = Field(min_length=1, max_length=2000)
     previous: str | None = Field(default=None, max_length=2000)
+    document_ids: list[str] = Field(default_factory=list, max_length=30)
+    report_only: bool = False
+    note_id: str | None = Field(default=None, max_length=100)

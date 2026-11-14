@@ -2,8 +2,10 @@
 
 from datetime import date
 
+from .integrations.agent_skills import get_skill_catalog
 from .logging import log
 from .models.schemas import ForecastInputs, ForecastScope, Plan
+from .request_context import current_scope, scope_payload
 from .validation import normalized, validate_plan
 
 FORECAST_FIELDS = ("benchmark", "months", "discount", "cut", "sensitivity")
@@ -89,9 +91,19 @@ def merge_forecast_inputs(plan: Plan, extracted: ForecastInputs, question, previ
 
 
 def make_plan(client, question, previous=None) -> Plan:
-    payload = {"question": question, "previous": previous, "today": date.today().isoformat()}
+    payload = {
+        "question": question,
+        "previous": previous,
+        "today": date.today().isoformat(),
+        "user_scope": scope_payload(),
+        "available_skills": [
+            s for s in get_skill_catalog() if s.get("enabled") and s.get("available", True)
+        ],
+    }
     raw = client.generate("plan", payload, Plan)
     plan = validate_plan(raw, question, previous)
+    if current_scope().report_only:
+        plan = plan.model_copy(update={"report_only": True})
     log(
         "plan.validated",
         intent=plan.intent,

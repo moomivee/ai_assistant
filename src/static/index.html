@@ -1,9 +1,75 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Тестовый стенд · Нефтегазовый аналитик</title><link rel="stylesheet" href="/static/site.css"><script defer src="/static/trace.js"></script><script defer src="/static/site.js"></script></head>
-<body><header class="shell"><a class="brand" href="/">Нефтегазовый аналитик</a><span class="connection" id="mode">Подключение…</span></header>
-<main class="shell"><section class="intro"><span class="eyebrow test-label">ТЕСТОВЫЙ СТЕНД</span><h1>Ответ и путь к нему.</h1><p>Задайте вопрос. Сопоставьте ответ с источниками<br class="desktop"> и проверьте действия агента.</p><p id="environment" class="environment">Загружаем конфигурацию…</p></section>
-<form id="ask"><label for="question">Что вы хотите узнать?</label><textarea id="question" maxlength="2000" placeholder="Например, чем отличаются Urals и ESPO?" required aria-describedby="inputhint"></textarea><div class="actions"><span id="inputhint">⌘ / Ctrl + Enter <span id="counter">0 / 2000</span></span><button class="submit" type="submit">Получить ответ <span aria-hidden="true">↗</span></button></div><button id="newquestion" type="button" hidden>Начать новый вопрос</button></form>
-<section class="examples" aria-label="Примеры вопросов"><p class="small">Можно начать с примера</p><div id="samples"></div></section>
-<section id="result" hidden aria-live="polite" aria-busy="false"></section>
-<section class="resources" aria-label="Дополнительные материалы"><details class="library"><summary>Отчёты в базе</summary><div id="library">Загружаем список отчётов…</div></details><details id="market" hidden><summary>Посмотреть график цен Brent и WTI</summary><div class="market-body"><div class="charthead"><div><h2>История цен</h2><p id="chartdates"></p></div><span class="unit">USD / барр.</span></div><div class="legend"><span><i></i>Brent</span><span><i class="wti"></i>WTI</span></div><div id="historychart" class="chart"></div><p class="small">Среднемесячные цены, не текущие биржевые котировки.</p><a href="https://fred.stlouisfed.org/series/MCOILBRENTEU" target="_blank" rel="noreferrer">Источник: EIA / FRED ↗</a></div></details></section><footer>Стенд показывает шаги после завершения запроса. Статус выполнения не является оценкой правильности ответа.</footer></main></body></html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Нефтегазовый аналитик · тестовый стенд</title>
+  <link rel="stylesheet" href="/static/site.css">
+  <script defer src="/static/trace.js"></script>
+  <script defer src="/static/site.js"></script>
+  <script defer src="/static/knowledge.js"></script>
+</head>
+<body>
+<header class="shell"><a class="brand" href="/">Нефтегазовый аналитик<span class="brand-note">AI-агент · версия 3</span></a><span class="connection" id="mode">Подключение…</span></header>
+<main class="shell">
+  <section class="intro"><span class="eyebrow test-label">ТЕСТОВЫЙ СТЕНД</span><h1>Ответ, который можно проверить.</h1><p>Отраслевые документы, открытые источники и расчёты.<br class="desktop"> Рядом с ответом — подтверждения и действия агента.</p><p id="environment" class="environment">Загружаем конфигурацию…</p></section>
+  <nav class="workspace-tabs" role="tablist" aria-label="Разделы стенда">
+    <button id="tab-test" role="tab" aria-selected="true" aria-controls="panel-test" type="button">Тестирование</button>
+    <button id="tab-capabilities" role="tab" aria-selected="false" aria-controls="panel-capabilities" tabindex="-1" type="button">Возможности</button>
+    <button id="tab-knowledge" role="tab" aria-selected="false" aria-controls="panel-knowledge" tabindex="-1" type="button">База знаний <span id="knowledge-count"></span></button>
+  </nav>
+  <section id="panel-test" role="tabpanel" aria-labelledby="tab-test">
+    <form id="ask">
+      <label for="question">Что вы хотите узнать?</label>
+      <textarea id="question" maxlength="2000" placeholder="Например, чем отличаются Urals и ESPO?" required aria-describedby="inputhint scope-hint"></textarea>
+      <div id="note-context" class="note-context" hidden><span id="note-context-title"></span><button id="clear-note-context" class="plain-button" type="button">Убрать контекст</button></div>
+      <div class="question-scope">
+        <label class="check-label" for="report-only"><input id="report-only" type="checkbox"> Только база знаний</label>
+        <button id="choose-documents" type="button" class="plain-button">Выбрать документы</button>
+        <span id="scope-summary" class="small">Все активные документы</span>
+      </div>
+      <p id="scope-hint" class="small scope-hint">Агент сначала ищет в документах. Если сведений недостаточно, может обратиться к веб-источникам.</p>
+      <div class="actions"><span id="inputhint">⌘ / Ctrl + Enter <span id="counter">0 / 2000</span></span><button class="submit" type="submit">Получить ответ <span aria-hidden="true">↗</span></button></div>
+      <button id="newquestion" type="button" hidden>Начать новый вопрос</button>
+    </form>
+    <section class="examples" aria-label="Примеры вопросов"><p class="small">Можно начать с примера</p><div id="samples"></div></section>
+    <section id="result" hidden aria-live="polite" aria-busy="false"></section>
+    <section class="resources" aria-label="Дополнительные материалы">
+      <details id="notes-panel"><summary>Заметки исследования</summary><p class="small">Сохранённые ответы, не проверенные первоисточники. Добавляются только по вашему действию и не попадают в базу знаний автоматически.</p><button id="refresh-notes" class="plain-button" type="button">Обновить заметки</button><p id="notes-feedback" class="small" role="status"></p><div id="notes-list"></div></details>
+      <details class="library"><summary>Исходные отчёты проекта</summary><div id="library">Загружаем список отчётов…</div></details>
+      <details id="market" hidden><summary>Посмотреть график цен Brent и WTI</summary><div class="market-body"><div class="charthead"><div><h2>История цен</h2><p id="chartdates"></p></div><span class="unit">USD / барр.</span></div><div class="legend"><span><i></i>Brent</span><span><i class="wti"></i>WTI</span></div><div id="historychart" class="chart"></div><p class="small">Среднемесячные цены, не текущие биржевые котировки.</p><a href="https://fred.stlouisfed.org/series/MCOILBRENTEU" target="_blank" rel="noreferrer">Источник: EIA / FRED ↗</a></div></details>
+    </section>
+  </section>
+  <section id="panel-capabilities" role="tabpanel" aria-labelledby="tab-capabilities" hidden>
+    <div class="section-intro"><div><h2>С чем поможет агент</h2><p>Выберите задачу, уточните вопрос и запустите проверку.</p></div></div>
+    <div id="capabilities" class="capability-grid"></div>
+    <div class="note"><strong>Что важно знать</strong><p>Прогноз — расчёт по историческим данным, а не обещание будущей цены. Агент сообщает о пробелах в источниках. Кнопка примера только подставляет вопрос — запрос запускаете вы.</p></div>
+    <details class="rag-info"><summary>Как устроен поиск в базе знаний (RAG)</summary><p>Документы разбиваются на фрагменты с указанием страницы или другого места в файле. Эмбеддер превращает вопрос и фрагменты в числовые векторы. Поиск находит близкие фрагменты, а агент проверяет, есть ли в них сведения для ответа.</p><div id="rag-settings" class="small">Загружаем настройки…</div><dl class="rag-metrics"><dt>Hit@1</dt><dd>Доля вопросов, где нужный контекст оказался первым.</dd><dt>Hit@5</dt><dd>Доля вопросов, где нужный контекст попал в первые пять результатов.</dd><dt>MRR</dt><dd>Учитывает позицию первого правильного результата: чем он выше, тем лучше.</dd></dl><p class="small">Эти метрики измеряют поиск на размеченном наборе вопросов. Они не доказывают правильность итогового ответа; её проверяют отдельно по источникам и расчётам. Загруженные новые документы меняют базу и требуют повторной оценки.</p></details>
+  </section>
+  <section id="panel-knowledge" role="tabpanel" aria-labelledby="tab-knowledge" hidden>
+    <div class="section-intro"><div><h2>Документы, на которые можно опереться</h2><p>Добавьте файл, проверьте распознанный текст и задайте вопрос.</p></div><button id="refresh-knowledge" class="secondary-button" type="button">Обновить список</button></div>
+    <div class="knowledge-layout">
+      <form id="upload-document" class="upload-panel">
+        <h3 id="upload-title">Добавить документ</h3>
+        <p id="version-notice" class="small" hidden></p>
+        <label for="document-file">Файл</label><input id="document-file" name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.csv" required aria-describedby="formats-hint">
+        <p id="formats-hint" class="small">PDF, JPG, PNG, DOCX, XLSX, CSV. Сканированные страницы и изображения распознаются через OCR. Качество таблиц зависит от исходного файла.</p>
+        <label for="document-title">Название <span class="optional">необязательно</span></label><input id="document-title" name="title" type="text" maxlength="300" placeholder="Например, обзор нефтяного рынка">
+        <details class="upload-metadata"><summary>Источник и дата документа</summary><label for="document-publisher">Издатель</label><input id="document-publisher" name="publisher" type="text" maxlength="200" placeholder="OPEC, EIA или другой издатель"><label for="document-url">Ссылка на оригинал</label><input id="document-url" name="source_url" type="url" placeholder="https://…"><label for="document-date">Дата публикации</label><input id="document-date" name="published_date" type="date"></details>
+        <p class="privacy-note">Распознавание локальное; выбранные фрагменты передаются GigaChat.</p>
+        <button id="upload-button" class="primary-button" type="submit">Добавить в базу</button><button id="cancel-version" class="plain-button" type="button" hidden>Отменить новую версию</button>
+        <p id="upload-feedback" class="feedback" role="status" aria-live="polite"></p>
+      </form>
+      <div class="catalog-panel">
+        <div class="catalog-toolbar"><label for="document-filter" class="visually-hidden">Поиск по названию документа</label><input id="document-filter" type="search" placeholder="Найти документ по названию"><label class="check-label small"><input id="show-archived" type="checkbox"> Архив</label></div>
+        <p id="knowledge-feedback" class="small" role="status" aria-live="polite">Загружаем документы. При первом запуске также обрабатываются исходные отчёты.</p>
+        <div class="catalog-selection"><span id="selection-label" class="small">Документы для вопроса не выбраны</span><button id="clear-selection" class="plain-button" type="button" hidden>Сбросить</button><button id="ask-selected" class="secondary-button" type="button" hidden>Вопрос по выбранным</button></div>
+        <div id="document-list" class="document-list"></div>
+        <p class="small catalog-footnote">Новая версия сохраняет историю. Пока она обрабатывается, поиск использует последнюю готовую версию. Архивные документы исключаются из новых запросов.</p>
+      </div>
+    </div>
+  </section>
+  <footer>Стенд показывает действия и источники после завершения запроса, а не внутренний ход мыслей модели. Успешный вызов инструмента не гарантирует правильности ответа.</footer>
+</main>
+<dialog id="document-preview" aria-labelledby="preview-title"><div class="preview-head"><div><span class="eyebrow">ДОКУМЕНТ</span><h2 id="preview-title">Просмотр документа</h2></div><button id="close-preview" type="button" class="secondary-button">Закрыть</button></div><p id="preview-meta" class="small"></p><div class="preview-controls"><label for="preview-version">Версия</label><select id="preview-version"></select><div id="preview-links" class="links"></div></div><p id="preview-feedback" class="small" role="status"></p><div id="preview-blocks"></div></dialog>
+</body>
+</html>

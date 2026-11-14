@@ -20,11 +20,14 @@ from .budget import (
 )
 from .config import settings
 from .evidence import generate_answer, render_claims
+from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
+from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction
 from .planning import make_plan
-from .progress import action_signature, check_assessment, evidence_key, source_key
+from .progress import action_signature, check_assessment, context_sources, evidence_key, source_key
+from .request_context import current_scope, scope_payload
 from .tools import make_registry, run_tool
 from .workflow import forecast_answer
 
@@ -62,16 +65,32 @@ def action_schema(allowed):
 
 def decision_sources(sources):
     """Bound context and replace fragmented pages with their opened full page."""
-    full = {(s.get("report"), s.get("page")) for s in sources if s.get("full_page")}
     result, remaining = [], 14000
-    for source in sorted(sources, key=lambda s: not s.get("full_page", False)):
-        if not source.get("full_page") and (source.get("report"), source.get("page")) in full:
-            continue
+    for source in context_sources(sources):
         if remaining <= 0:
             break
         row = {
             k: source.get(k)
-            for k in ("id", "report", "page", "title", "kind", "date", "url", "full_page")
+            for k in (
+                "id",
+                "report",
+                "page",
+                "title",
+                "kind",
+                "date",
+                "url",
+                "full_page",
+                "document_id",
+                "version_id",
+                "block_id",
+                "locator",
+                "method",
+                "content_type",
+                "content_scope",
+                "date_basis",
+                "retrieved_at",
+                "local_url",
+            )
         }
         row["text"] = source["text"][:remaining]
         remaining -= len(row["text"])
@@ -105,6 +124,8 @@ def allowed_actions(state):
             actions.append("read_report")
         if not p["report_only"] and "report_search" in called:
             actions.append("web_search")
+            if any(s["kind"] == "web" and "price" not in s for s in state["sources"]):
+                actions.append("read_web")
     if p["intent"] == "forecast" and not state["calc"]:
         actions.append("price_forecast")
     # Finishing without a required attempt cannot silently skip the user's task.
@@ -156,7 +177,7 @@ def task_complete(state):
     if p["intent"] == "forecast" and not state["calc"]:
         return False
     web = [s for s in state["sources"] if s["kind"] == "web"]
-    return (not p["fresh"] or bool(web)) and set(p["quotes"]) <= {
+    return (not p["fresh"] or p["report_only"] or bool(web)) and set(p["quotes"]) <= {
         s.get("grade") for s in web if "price" in s
     }
 
@@ -166,7 +187,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
 
     def plan(state):
         try:
-            return {"plan": planner(client, state["question"], state.get("previous")).model_dump()}
+            value = planner(client, state["question"], state.get("previous"))
+            if current_scope().report_only:
+                value = value.model_copy(update={"report_only": True})
+            return {"plan": value.model_dump()}
         except LLMUnavailable as exc:
             return {"failure": str(exc), "stop_reason": "llm_unavailable"}
 
@@ -191,6 +215,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "question": state["question"],
                         "previous": state.get("previous"),
                         "task": state["plan"],
+                        "user_scope": scope_payload(),
                         "today": date.today().isoformat(),
                         "allowed_actions": allowed_actions(state),
                         "research_status": research_status(state),
@@ -255,8 +280,17 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             args = {"query": d["query"]}
         elif name == "read_report":
             args = {"report": d["report"], "page": d["page"]}
+            if d.get("block_id"):
+                args["block_id"] = d["block_id"]
+            if d.get("version_id"):
+                args["version_id"] = d["version_id"]
             if d["report"] not in {s.get("report") for s in state["sources"]}:
                 error = "Use a registered report ID from retrieved sources."
+            elif d.get("version_id") and not any(
+                s.get("report") == d["report"] and s.get("version_id") == d["version_id"]
+                for s in state["sources"]
+            ):
+                error = "Use a version returned by report_search."
         elif name == "web_search":
             args = {
                 "query": d["query"],
@@ -264,6 +298,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "quotes": p["quotes"],
                 "search": p["news"] or p["wants_context"] or not p["quotes"],
             }
+            for key in ("topic", "days", "start_date", "end_date", "search_depth"):
+                if d.get(key) not in (None, "general", "basic"):
+                    args[key] = d[key]
+        elif name == "read_web":
+            args = {"url": d["url"], "query": d["query"]}
+            if d["url"] not in {s["url"] for s in state["sources"] if s["kind"] == "web"}:
+                error = "Read only a URL returned by web_search in this request."
         elif name == "price_forecast":
             args = {k: p[k] for k in ("benchmark", "months", "discount", "cut", "sensitivity")}
         else:
@@ -281,7 +322,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if name in ("report_search", "read_report") and data is not None:
             update["sources"] = merge_sources(state["sources"], data)
             observation["result_count"] = len(data)
-        elif name == "web_search" and data:
+        elif name in ("web_search", "read_web") and data:
             update["sources"] = merge_sources(state["sources"], data.get("items", []))
             observation.update(
                 result_count=len(data.get("items", [])), notices=data.get("notices", [])
@@ -292,7 +333,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         incoming = (
             data
             if name in ("report_search", "read_report")
-            else (data.get("items", []) if name == "web_search" and data else [])
+            else (data.get("items", []) if name in ("web_search", "read_web") and data else [])
         )
         keys = {source_key(s) for s in (incoming or [])}
         found_ids = [s["id"] for s in update.get("sources", []) if source_key(s) in keys]
@@ -561,10 +602,23 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         def call(state):
             with span("agent." + name) as obs:
                 try:
-                    with research_phase() if name in {"plan", "decide", "act"} else nullcontext():
-                        if name != "finish":
-                            check_budget()
-                        result = fn(state)
+                    selected = state.get("plan", {}).get("skill")
+                    try:
+                        skill_cm = skill_context(selected)
+                        skill_cm.__enter__()
+                    except SkillUnavailable:
+                        log("skill.unavailable", skill=selected)
+                        skill_cm = nullcontext()
+                        skill_cm.__enter__()
+                    try:
+                        with (
+                            research_phase() if name in {"plan", "decide", "act"} else nullcontext()
+                        ):
+                            if name != "finish":
+                                check_budget()
+                            result = fn(state)
+                    finally:
+                        skill_cm.__exit__(None, None, None)
                 except ResearchBudgetExceeded as exc:
                     result = {"research_stopped": True, "stop_reason": "research_budget_exhausted"}
                     if not state.get("plan"):

@@ -22,6 +22,14 @@ jobs:
         env:
           TRACE_UI_PREVIEW: "true"
         run: uv run --with playwright==1.62.0 python tools/check_trace_ui.py
+      - name: Test knowledge interface
+        run: uv run --with playwright==1.62.0 python tools/check_knowledge_ui.py --out /tmp/knowledge-ui-check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: knowledge-interface-browser-check
+          path: /tmp/knowledge-ui-check
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -36,6 +44,8 @@ jobs:
         with:
           version: "0.13.5"
       - run: uv sync --locked
+      - name: Install OCR fixture runtime
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-rus fonts-dejavu-core
       - run: uv run ruff format --check src eval tests
       - run: uv run ruff check src eval tests
       - run: uv run python -m pytest -q
@@ -54,5 +64,10 @@ jobs:
           done
           docker logs analyst
           exit 1
+      - name: Knowledge API smoke
+        run: |
+          curl --fail http://localhost:8000/api/knowledge/documents
+          curl --fail http://localhost:8000/api/rag/status
+          curl --fail http://localhost:8000/api/skills
       - if: always()
         run: docker rm -f analyst || true

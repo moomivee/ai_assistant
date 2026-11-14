@@ -33,3 +33,7 @@ node_modules/
 
 # Local trust configuration for the optional GigaChat CA mount.
 certs/
+
+# Uploaded originals, catalog and explicit research notes are runtime data.
+/data/knowledge/
+/data/ouroboros/

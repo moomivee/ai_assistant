@@ -31,8 +31,10 @@ def retrieval_metrics(ranked, golds):
 def route_metrics(expected, response, plan):
     actual = [t["tool"] for t in response["trace"]]
     wanted = expected["tools"]
-    forbidden = expected.get("forbidden", [])
-    web_i = actual.index("web_search") if "web_search" in actual else None
+    forbidden = set(expected.get("forbidden", []))
+    if "web_search" in forbidden or expected.get("plan_checks", {}).get("report_only"):
+        forbidden.update({"web_search", "read_web"})
+    web_i = next((i for i, tool in enumerate(actual) if tool in {"web_search", "read_web"}), None)
     required = expected.get("required_tools", wanted)
     # A pure numerical forecast needs no report lookup. Retain the historical
     # exact sequence only as a diagnostic, not a quality gate for an agent loop.
@@ -47,6 +49,12 @@ def route_metrics(expected, response, plan):
     policy_ok = not set(actual) & set(forbidden) and (
         web_i is None or ("report_search" in actual and actual.index("report_search") < web_i)
     )
+    if "read_web" in actual:
+        policy_ok = (
+            policy_ok
+            and "web_search" in actual
+            and actual.index("web_search") < actual.index("read_web")
+        )
     successful = {t["tool"] for t in response["trace"] if t.get("status", "ok") == "ok"}
     return {
         "tool_policy_pass": float(required_ok and policy_ok),

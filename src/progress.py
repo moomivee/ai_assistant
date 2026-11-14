@@ -14,7 +14,49 @@ def action_signature(name, arguments):
 
 
 def source_key(source):
-    return source.get("chunk_id") or (source["url"], source["text"])
+    return (
+        source.get("document_id", source.get("report")),
+        source.get("version_id"),
+        source.get("chunk_id") or (source["url"], source["text"]),
+    )
+
+
+def page_key(source):
+    """Only real pages can replace smaller fragments of the same version."""
+    if source.get("kind") != "report" or source.get("page") is None:
+        return None
+    return (
+        source.get("document_id", source.get("report")),
+        source.get("version_id"),
+        source["page"],
+    )
+
+
+def context_sources(sources):
+    """Opening a long page must never hide an already retrieved relevant excerpt."""
+    short_pages = [
+        s
+        for s in sources
+        if s.get("full_page") and page_key(s) and not s.get("truncated") and len(s["text"]) <= 6000
+    ]
+    selected = []
+    for source in sources:
+        covered = not source.get("full_page") and any(
+            page_key(source) == page_key(page)
+            and " ".join(source["text"].split()) in " ".join(page["text"].split())
+            for page in short_pages
+        )
+        if not covered:
+            selected.append(source)
+    # Short opened pages keep table headers together. Long pages come after
+    # retrieved excerpts so their prefix cannot exhaust the context budget.
+    return sorted(
+        selected,
+        key=lambda s: (
+            bool(s.get("full_page") and (s.get("truncated") or len(s["text"]) > 6000)),
+            not s.get("full_page", False),
+        ),
+    )
 
 
 def evidence_key(source):

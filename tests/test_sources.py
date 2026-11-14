@@ -42,7 +42,7 @@ def test_web_domain_and_date_filters(monkeypatch):
         return httpx.Response(200, request=httpx.Request("POST", a[0]), json={"results": rows})
 
     monkeypatch.setattr("src.integrations.web.httpx.post", post)
-    result = search_web("Oil", True)
+    result = search_web("Oil", True, days=30)
     assert len(result) == 1 and result[0]["url"] == "https://eia.gov/0"
 
 

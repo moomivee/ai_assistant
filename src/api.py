@@ -13,8 +13,14 @@ from .agent import ask
 from .config import manifest, settings
 from .integrations.llm import LLMUnavailable
 from .integrations.telemetry import flush
+from .knowledge.api import router as knowledge_router
+from .knowledge.jobs import shutdown_jobs
+from .knowledge.notes_api import router as notes_router
+from .knowledge.updates_api import router as updates_router
 from .logging import configure_logging, log, request_id
 from .models.schemas import AgentResponse, Question
+from .request_context import request_scope
+from .upload_limits import UploadLimitMiddleware
 
 STATIC = Path(__file__).parent / "static"
 
@@ -31,12 +37,17 @@ async def lifespan(app):
     try:
         yield
     finally:
+        shutdown_jobs(wait=False)
         flush()
         log("service.stopped")
 
 
-app = FastAPI(title="AI-агент «Нефтегазовый аналитик»", version="2.0", lifespan=lifespan)
+app = FastAPI(title="AI-агент «Нефтегазовый аналитик»", version="3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.include_router(knowledge_router)
+app.include_router(notes_router)
+app.include_router(updates_router)
+app.add_middleware(UploadLimitMiddleware)
 
 
 @app.middleware("http")
@@ -97,6 +108,10 @@ def status():
         "provider": cfg.llm_provider,
         "llm_configured": cfg.llm_configured,
         "tavily": bool(cfg.web_key),
+        "knowledge_base": True,
+        "ocr": {"engine": "tesseract", "configured_languages": ["rus", "eng"]},
+        "web_extract": bool(cfg.web_key),
+        "research_notes": True,
         "agent_mode": cfg.agent_mode,
         "agent_max_steps": cfg.agent_max_steps,
         "agent_no_progress_limit": cfg.agent_no_progress_limit,
@@ -115,6 +130,29 @@ def status():
     }
 
 
+@app.get("/api/rag/status")
+def rag_status():
+    from .rag.managed import managed_status
+
+    return {
+        **managed_status(),
+        "top_k": settings().top_k,
+        "metrics_explanation": {
+            "hit@1": "Доля размеченных вопросов, где первый фрагмент релевантен.",
+            "hit@5": "Доля вопросов с хотя бы одним релевантным фрагментом в первых пяти.",
+            "MRR": "Среднее обратное место первого релевантного фрагмента. Чем выше, тем лучше.",
+            "limits": "Метрики зависят от размеченного корпуса и не измеряют правильность ответа LLM. Новые загрузки требуют отдельной разметки.",
+        },
+    }
+
+
+@app.get("/api/skills")
+def skills():
+    from .integrations.agent_skills import get_skill_catalog
+
+    return {"skills": get_skill_catalog()}
+
+
 @app.get("/reports/{filename}", include_in_schema=False)
 def pdf(filename: str):
     if filename not in {row["file"] for row in manifest()}:
@@ -125,8 +163,23 @@ def pdf(filename: str):
 @app.post("/api/ask", response_model=AgentResponse)
 def query(body: Question):
     try:
-        return ask(body.question, body.previous)
+        from .integrations.research_notes import load_note_context
+        from .knowledge.store import get_store
+
+        if body.document_ids:
+            store = get_store()
+            for identifier in body.document_ids:
+                document = store.document(identifier)
+                if not document or document["archived"] or not document["active_version_id"]:
+                    raise ValueError(
+                        "Один из выбранных документов отсутствует или ещё не обработан."
+                    )
+        note = load_note_context(body.note_id) if body.note_id else None
+        with request_scope(body.document_ids, body.report_only, note):
+            return ask(body.question, body.previous)
     except LLMUnavailable as exc:
         raise HTTPException(503, str(exc)) from None
+    except FileNotFoundError:
+        raise HTTPException(404, "Выбранная заметка не найдена.") from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

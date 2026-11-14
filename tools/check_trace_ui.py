@@ -282,7 +282,7 @@ async def check(url):
         assert await page.locator(".trace-metrics strong").all_text_contents() == [
             await page.locator(".trace-metrics strong").first.inner_text(),
             "2",
-            "4",
+            "3",
         ]
         await (
             page.locator(".inspector-detail > summary").filter(has_text="Как понят запрос").click()

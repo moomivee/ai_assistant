@@ -4,34 +4,56 @@ from datetime import date
 
 from .config import settings
 from .models.schemas import CitationReview, CitedAnswer
+from .progress import context_sources
+from .request_context import scope_payload
 from .validation import numbers
 
 
 def catalog(sources, limit=18000):
-    full = {(s.get("report"), s.get("page")) for s in sources if s.get("full_page")}
-    selected = sorted(sources, key=lambda s: not s.get("full_page", False))
+    selected = context_sources(sources)
     evidence, size = {}, 0
     for source in selected:
-        if not source.get("full_page") and (source.get("report"), source.get("page")) in full:
-            continue
-        # Blocks, rather than isolated lines, retain headers and rows together
-        # and avoid forcing the model to copy brittle line indexes.
-        chunks, block = [], ""
-        for line in source["text"].splitlines():
-            line = line.strip()
-            for start in range(0, len(line), 1600):
-                part = line[start : start + 1600]
-                if block and len(block) + len(part) + 1 > 1600:
-                    chunks.append(block)
-                    block = ""
-                block += ("\n" if block else "") + part
-        if block:
-            chunks.append(block)
-        for i, block in enumerate(chunks, 1):
+        # Cut exact substrings, preferably on a line boundary. No whitespace
+        # rewriting: quotes and offsets stay auditable against extracted text.
+        text, start, chunks = source["text"], 0, []
+        while start < len(text):
+            end = min(start + 1600, len(text))
+            if end < len(text):
+                boundary = text.rfind("\n", start + 800, end)
+                if boundary > start:
+                    end = boundary + 1
+            block = text[start:end]
+            if block.strip():
+                chunks.append((start, end, block))
+            start = end
+        for i, (start, end, block) in enumerate(chunks, 1):
             if size + len(block) > limit:
                 break
             key = f"{source['id']}:B{i}"
-            evidence[key] = {"source": source["id"], "text": block, "date": source.get("date")}
+            evidence[key] = {
+                "source": source["id"],
+                "text": block,
+                "date": source.get("date"),
+                "source_text_start": start,
+                "source_text_end": end,
+                **{
+                    k: source.get(k)
+                    for k in (
+                        "locator",
+                        "page",
+                        "url",
+                        "local_url",
+                        "document_id",
+                        "version_id",
+                        "block_id",
+                        "method",
+                        "content_type",
+                        "content_scope",
+                        "date_basis",
+                        "retrieved_at",
+                    )
+                },
+            }
             size += len(block)
     return evidence
 
@@ -43,8 +65,26 @@ def generate_answer(client, question, sources, *, feedback=""):
     payload = {
         "question": question,
         "today": date.today().isoformat(),
+        "user_scope": scope_payload(),
         "sources": [
-            {k: s.get(k) for k in ("id", "title", "date", "url", "page", "kind")} for s in sources
+            {
+                k: s.get(k)
+                for k in (
+                    "id",
+                    "title",
+                    "date",
+                    "url",
+                    "page",
+                    "kind",
+                    "locator",
+                    "version_id",
+                    "method",
+                    "content_type",
+                    "content_scope",
+                    "date_basis",
+                )
+            }
+            for s in sources
         ],
         "evidence": {key: row["text"] for key, row in evidence.items()},
         "feedback": feedback,
@@ -92,7 +132,9 @@ def generate_answer(client, question, sources, *, feedback=""):
     return (
         CitedAnswer(
             claims=supported,
-            complete=review.complete and bool(supported) and len(valid) == len(raw.claims),
+            complete=review.complete
+            and bool(supported)
+            and len(supported) == len(valid) == len(raw.claims),
         ),
         evidence,
         review.feedback,
@@ -114,13 +156,24 @@ def render_claims(draft, evidence, sources):
                 "quote": first["text"][:1800],
                 "text": claim.text,
                 "evidence_ids": claim.evidence_ids,
+                "citations": [
+                    {
+                        "evidence_id": eid,
+                        "quote": evidence[eid]["text"],
+                        **{k: v for k, v in evidence[eid].items() if k not in {"text", "date"}},
+                    }
+                    for eid in claim.evidence_ids
+                ],
             }
         )
         for key in ids:
-            used[key] = {
-                **lookup[key],
-                "evidence": {
-                    eid: item["text"] for eid, item in evidence.items() if item["source"] == key
-                },
-            }
+            if key not in used:
+                used[key] = {**lookup[key], "evidence": {}}
+            used[key]["evidence"].update(
+                {
+                    eid: evidence[eid]["text"]
+                    for eid in claim.evidence_ids
+                    if evidence[eid]["source"] == key
+                }
+            )
     return blocks, claims, list(used.values())

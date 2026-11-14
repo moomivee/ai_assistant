@@ -27,3 +27,7 @@ Question: «Напиши рецепт супа»
 {"intent":"outside","rag_query":"","fresh":false,"report_only":false,"wants_context":false,"news":false,"quotes":[],"benchmark":null,"months":null,"discount":null,"cut":null,"sensitivity":null,"parameters":[],"clarify":""}
 Question: «Какая последняя опубликованная цена Brent?»
 {"intent":"research","rag_query":"Brent spot price","fresh":true,"report_only":false,"wants_context":false,"news":false,"quotes":["Brent"],"benchmark":null,"months":null,"discount":null,"cut":null,"sensitivity":null,"parameters":[],"clarify":""}
+
+V3 scope and skills:
+user_scope.document_ids limits report_search/read_report to the user's chosen documents. user_scope.report_only=true is binding even when external sources would help. Any user_scope.research_note is unverified prior context: its answer and source IDs are not evidence for this request. Re-check original sources with tools.
+Select skill from available_skills if its when_to_use fits the task: report_analysis, web_research, or price_forecast; otherwise null. This selects instructions, not the answer or a fixed action sequence. A web_research skill still follows report-first and report_only policy.

@@ -76,6 +76,15 @@ docker compose -f compose.yaml -f compose.gigachat.yaml exec analyst python -m s
 
 ## Без Docker
 
+Установка соответствует [формуле Homebrew](https://formulae.brew.sh/formula/tesseract). Для OCR без Docker установить Tesseract и языки локально (при установленном Homebrew):
+
+```bash
+brew install tesseract tesseract-lang
+tesseract --list-langs
+```
+
+В списке нужны `eng` и `rus`. Без OCR текстовые документы остаются доступными, а сканы получат ошибку или предупреждение. Dockerfile устанавливает OCR самостоятельно.
+
 В той же папке с заполненным `.env`, при установленном uv:
 
 ```bash
@@ -131,3 +140,12 @@ curl -sS http://127.0.0.1:8003/api/ask \
 - [Обмен ключа на access token](https://developers.sber.ru/docs/ru/gigachat/api/reference/rest/post-token).
 - [Структурированные ответы](https://developers.sber.ru/docs/ru/gigachat/guides/structured-output).
 - [Квоты и ограничения](https://developers.sber.ru/docs/ru/gigachat/limitations).
+
+
+## Документы и заметки
+
+База знаний хранится в `data/knowledge`, заметки и состояние навыков — в `data/ouroboros`. Compose монтирует `./data`, поэтому пересоздание контейнера их сохраняет. Эти каталоги исключены из Git и Docker build context; резервную копию делают отдельно. Удаление локальной папки `data` удалит и пользовательские данные.
+
+Распознавание и векторизация выполняются локально. При вопросе облачная модель получает запрос, отобранные фрагменты и явно выбранную исследовательскую заметку. Полный оригинал файла автоматически в GigaChat не отправляется. Передача выбранных фрагментов всё равно является передачей данных внешнему API.
+
+Локальный стенд рассчитан на одного пользователя и один процесс сервера. Встроенной авторизации и очереди для нескольких серверов нет. [База знаний и ограничения](KnowledgeBase.md).

@@ -65,7 +65,7 @@ def validate_data(path=DEFAULT_DATA):
     }
 
 
-def provenance(path):
+def provenance(path, *, include_knowledge=False):
     def git(*args):
         try:
             return subprocess.check_output(
@@ -79,13 +79,15 @@ def provenance(path):
             *ROOT.glob("src/**/*.py"),
             *ROOT.glob("eval/**/*.py"),
             *ROOT.glob("prompts/*.txt"),
+            *ROOT.glob("agent_skills/**/*.md"),
+            *ROOT.glob("agent_skills/*.json"),
         ]
     )
     code = hashlib.sha256()
     for p in files:
         code.update(str(p.relative_to(ROOT)).encode())
         code.update(p.read_bytes())
-    return {
+    result = {
         "time": datetime.now(timezone.utc).isoformat(),
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": bool(git("status", "--porcelain")),
@@ -112,6 +114,25 @@ def provenance(path):
         },
         "prompts": {name: get_prompt(name).version for name in PROMPT_NAMES},
     }
+    if include_knowledge:
+        from src.knowledge.store import get_store
+
+        store = get_store()
+        snapshot = store.corpus_snapshot()
+        documents = []
+        for document in store.list_documents():
+            if document["active_version_id"]:
+                version = store.version(document["id"], document["active_version_id"])
+                documents.append(
+                    {
+                        k: version.get(k)
+                        for k in ("document_id", "version_id", "sha256", "parser_version", "status")
+                    }
+                )
+        if store.corpus_revision() != snapshot["revision"]:
+            raise ValueError("База знаний изменилась при фиксации eval. Повторите запуск.")
+        result["knowledge"] = {"revision": snapshot["revision"], "documents": documents}
+    return result
 
 
 class RecordingClient:
@@ -201,7 +222,7 @@ def controlled_executor(case):
                             "text": g["quote"],
                         }
                     )
-            elif name == "web_search":
+            elif name in ("web_search", "read_web"):
                 data = {
                     "items": [],
                     "notices": [
@@ -296,7 +317,7 @@ def run(
     result = {
         "mode": mode,
         "scope": "controlled_routing" if mode == "routing" else mode,
-        "provenance": provenance(data),
+        "provenance": provenance(data, include_knowledge=mode == "agent"),
         "split": split,
         "rows": [],
     }
@@ -357,6 +378,13 @@ def run(
         )
         run_client = LLMClient()
         for case in cases:
+            if mode == "agent":
+                from src.knowledge.store import get_store
+
+                if get_store().corpus_revision() != result["provenance"]["knowledge"]["revision"]:
+                    raise ValueError(
+                        "База знаний изменилась во время eval; частичные строки сохранены без сводной оценки."
+                    )
             client, start = (
                 RecordingClient(run_client, controlled=mode == "routing"),
                 perf_counter(),
@@ -442,6 +470,13 @@ def run(
                     row["judge_error"] = type(exc).__name__
             score_trace(response["trace_id"], row["metrics"])
             save(row)
+        if (
+            mode == "agent"
+            and get_store().corpus_revision() != result["provenance"]["knowledge"]["revision"]
+        ):
+            raise ValueError(
+                "База знаний изменилась во время eval; частичные строки сохранены без сводной оценки."
+            )
         result["summary"] = {
             "n": len(result["rows"]),
             **mean_metrics([r["metrics"] for r in result["rows"]]),

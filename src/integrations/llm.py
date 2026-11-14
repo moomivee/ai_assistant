@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 from ..budget import bounded_timeout, check_budget
 from ..config import settings
 from ..logging import log
+from .agent_skills import current_skill_context
 from .gigachat import GigaChatClient, GigaChatError
 from .prompts import get_prompt
 from .telemetry import span
@@ -94,6 +95,7 @@ class LLMClient:
     def generate(self, prompt_name: str, payload: dict, schema: type[BaseModel]):
         self._check_configured()
         prompt = get_prompt(prompt_name)
+        skill = current_skill_context()
         with span(
             "llm." + prompt_name,
             "generation",
@@ -105,6 +107,7 @@ class LLMClient:
                 "schema": schema.__name__,
                 "provider": self.provider,
                 "model": self.model,
+                "skill": skill["metadata"],
             },
         ) as obs:
             try:
@@ -112,6 +115,7 @@ class LLMClient:
                     {
                         "role": "system",
                         "content": prompt.text
+                        + ("\n\n" + skill["text"] if skill["text"] else "")
                         + "\nOutput JSON Schema:\n"
                         + json.dumps(schema.model_json_schema(), ensure_ascii=False),
                     },

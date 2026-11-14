@@ -8,3 +8,6 @@ __pycache__
 .pytest_cache
 *.zip
 *.bundle
+data/knowledge
+data/ouroboros
+certs

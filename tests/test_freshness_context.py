@@ -16,7 +16,7 @@ def test_opened_page_keeps_dates_and_urls_in_decision_context():
         **fragment,
         "id": "R2",
         "full_page": True,
-        "text": "References: a meeting held in 2024.",
+        "text": REPORT["text"] + "\nReferences: a meeting held in 2024.",
     }
     web = {**WEB, "date": None}
     context = decision_sources([fragment, page, web])

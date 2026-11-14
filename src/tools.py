@@ -4,15 +4,14 @@ from time import monotonic
 from ouroboros.tools.registry import ToolEntry, ToolRegistry
 from ouroboros.tools.tool_catalog import ToolCatalog
 from pydantic import BaseModel, Field
-from pypdf import PdfReader
 
 from .calculations.forecast import forecast
-from .config import ROOT, manifest, settings
+from .config import ROOT, settings
 from .integrations.telemetry import span
-from .integrations.web import web_lookup
+from .integrations.web import read_web, web_lookup
 from .logging import log
 from .models.schemas import Grade
-from .rag import index
+from .request_context import current_scope
 
 
 class ReportArgs(BaseModel):
@@ -23,6 +22,16 @@ class WebArgs(ReportArgs):
     fresh: bool
     quotes: list[Grade]
     search: bool
+    topic: str = "general"
+    days: int | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    search_depth: str = "basic"
+
+
+class ReadWebArgs(BaseModel):
+    url: str = Field(max_length=2048)
+    query: str = Field(default="", max_length=1500)
 
 
 class ForecastArgs(BaseModel):
@@ -35,54 +44,93 @@ class ForecastArgs(BaseModel):
 
 class ReadReportArgs(BaseModel):
     report: str = Field(min_length=1, max_length=100)
-    page: int = Field(ge=1)
+    page: int | None = Field(default=None, ge=1)
+    block_id: str = Field(default="", max_length=160)
+    version_id: str = Field(default="", max_length=100)
 
 
-def read_report(report: str, page: int):
-    """Read a registered PDF page, preserving table layout and provenance."""
-    meta = next((r for r in manifest() if r["id"] == report), None)
-    if meta is None:
+def read_report(report: str, page: int | None = None, block_id="", version_id=""):
+    """Open a known immutable page or document block, including OCR and tables."""
+    from .knowledge.store import get_store
+
+    scope, store = current_scope(), get_store()
+    if scope.document_ids and report not in scope.document_ids:
+        raise ValueError("Document is outside the user-selected scope.")
+    document = store.document(report)
+    if not document or document["archived"]:
         raise ValueError("Unknown report ID. Use an ID returned by report_search.")
-    reader = PdfReader(settings().data / "reports" / meta["file"])
-    if page > len(reader.pages):
-        raise ValueError(f"The report has {len(reader.pages)} pages.")
-    text = reader.pages[page - 1].extract_text(extraction_mode="layout") or ""
-    text = "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())
+    version_id = version_id or document["active_version_id"]
+    version = store.version(report, version_id) if version_id else None
+    if not version or version["status"] not in {"ready", "partial"}:
+        raise ValueError("This document version has no readable extracted content.")
+    chunks = store.blocks(report, version_id)
+    if block_id and not any(chunk["block_id"] == block_id for chunk in chunks):
+        raise ValueError("The requested block is absent in this document version.")
+    if page is not None:
+        chunks = [chunk for chunk in chunks if chunk.get("page") == page]
+    elif block_id:
+        chunks = [chunk for chunk in chunks if chunk["block_id"] == block_id]
+    else:
+        raise ValueError("Provide page for PDF/image, or block_id for DOCX/Excel/CSV.")
+    if not chunks:
+        raise ValueError("The requested page or block is absent in this document version.")
+    if block_id and page is not None and not any(chunk["block_id"] == block_id for chunk in chunks):
+        raise ValueError("The requested block does not belong to this page.")
+    text = "\n\n".join(chunk["text"] for chunk in chunks)
+    methods = set(chunk.get("method", "native") for chunk in chunks)
+    suffix = f"#page={page}" if page is not None else ""
     return [
         {
             "report": report,
+            "document_id": report,
+            "version_id": version_id,
+            "block_id": chunks[0]["block_id"] if len(chunks) == 1 else None,
+            "block_ids": [chunk["block_id"] for chunk in chunks],
             "page": page,
-            "chunk_id": f"{report}:p{page}:full",
+            "chunk_id": f"{report}:{version_id}:{page or block_id}:full",
             "kind": "report",
-            "title": meta["title"],
-            "date": meta["date"],
-            "url": meta["url"] + f"#page={page}",
+            "title": version["title"],
+            "date": version["published_date"],
+            "url": (version["source_url"] or version["local_url"]) + suffix,
+            "local_url": version["local_url"] + suffix,
+            "locator": {"page": page} if page is not None else chunks[0]["locator"],
+            "method": next(iter(methods)) if len(methods) == 1 else "mixed",
             "text": text[:20000],
-            "full_page": True,
+            "full_page": page is not None,
+            "full_block": page is None,
             "truncated": len(text) > 20000,
         }
     ]
 
 
 def reports(query: str):
-    return index().search(query, settings().top_k)
+    from .rag.managed import managed_search
+
+    return managed_search(
+        query, settings().top_k, document_ids=current_scope().document_ids or None
+    )
 
 
 FUNCTIONS = {
     "read_report": (
         ReadReportArgs,
         read_report,
-        "Прочитать страницу найденного PDF, включая заголовки и строки таблиц.",
+        "Прочитать страницу PDF/скана или блок Word/Excel/CSV из найденной версии документа.",
     ),
     "report_search": (
         ReportArgs,
         reports,
-        "Найти top-k фрагментов отраслевых PDF с датой и страницей.",
+        "Найти top-k фрагментов выбранной базы знаний с версией, страницей или диапазоном ячеек.",
     ),
     "web_search": (
         WebArgs,
         web_lookup,
         "Найти публикации доверенных издателей или последний спот EIA/FRED.",
+    ),
+    "read_web": (
+        ReadWebArgs,
+        read_web,
+        "Извлечь текст уже найденной доверенной веб-страницы, сохранив ссылку и фрагменты.",
     ),
     "price_forecast": (
         ForecastArgs,
@@ -107,6 +155,8 @@ def make_registry() -> AnalystRegistry:
 
         def handler(ctx, _fn=fn, _schema=schema_cls, **kwargs):
             try:
+                if current_scope().report_only and _fn in (web_lookup, read_web):
+                    raise ValueError("Web access is disabled by the user's report-only scope.")
                 args = _schema.model_validate(kwargs)
                 data = _fn(**args.model_dump())
                 return json.dumps({"data": data}, ensure_ascii=False)

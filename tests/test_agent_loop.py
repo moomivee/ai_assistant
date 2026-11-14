@@ -187,12 +187,12 @@ def test_full_page_supersedes_cut_fragments_in_model_context():
             "report": "r",
             "page": 1,
             "full_page": True,
-            "text": "Header\nSokol 0.2%",
+            "text": "Header\n" + REPORT["text"],
         },
     ]
     evidence = catalog(sources)
     assert set(evidence) == {"R2:B1"}
-    assert evidence["R2:B1"]["text"] == "Header\nSokol 0.2%"
+    assert evidence["R2:B1"]["text"] == "Header\n" + REPORT["text"]
 
 
 def test_read_report_uses_registered_file_and_preserves_rows():
