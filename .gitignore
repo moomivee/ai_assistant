@@ -30,3 +30,6 @@ node_modules/
 # Keep the dependency lockfile in Git
 !uv.lock
 *.egg-info/
+
+# Local trust configuration for the optional GigaChat CA mount.
+certs/

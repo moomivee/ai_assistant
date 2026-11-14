@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .agent import ask
 from .config import manifest, settings
+from .integrations.llm import LLMUnavailable
 from .integrations.telemetry import flush
 from .logging import configure_logging, log, request_id
 from .models.schemas import AgentResponse, Question
@@ -23,8 +24,9 @@ async def lifespan(app):
     configure_logging()
     log(
         "service.started",
-        model=settings().llm_model,
-        llm_configured=bool(settings().llm_key),
+        model=settings().active_model,
+        provider=settings().llm_provider,
+        llm_configured=settings().llm_configured,
     )
     try:
         yield
@@ -73,9 +75,7 @@ def ready():
 
     try:
         index()
-        if llm().client is None:
-            raise ValueError("LLM not configured")
-        llm().client.with_options(timeout=3).models.list()
+        llm().check_ready(timeout=3)
         return {"status": "ready"}
     except Exception as exc:
         log("service.not_ready", logging.WARNING, error_type=type(exc).__name__)
@@ -93,7 +93,9 @@ def status():
     with (cfg.data / "prices/monthly.csv").open(encoding="utf-8") as f:
         history = list(csv.DictReader(f))[-24:]
     return {
-        "model": cfg.llm_model if cfg.llm_key else None,
+        "model": cfg.active_model if cfg.llm_configured else None,
+        "provider": cfg.llm_provider,
+        "llm_configured": cfg.llm_configured,
         "tavily": bool(cfg.web_key),
         "agent_mode": cfg.agent_mode,
         "agent_max_steps": cfg.agent_max_steps,
@@ -124,5 +126,7 @@ def pdf(filename: str):
 def query(body: Question):
     try:
         return ask(body.question, body.previous)
+    except LLMUnavailable as exc:
+        raise HTTPException(503, str(exc)) from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

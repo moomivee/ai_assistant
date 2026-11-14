@@ -42,7 +42,7 @@ def run(output, probe_only=False, suite=False, group="all"):
             blocks, claims, used = render_claims(draft, evidence, sources)
             row = {
                 "case_id": label,
-                "model": settings().llm_model,
+                "model": settings().active_model,
                 "question": fixture["question"],
                 "trace_id": trace_id,
                 "input_source_ids": [s["id"] for s in sources],

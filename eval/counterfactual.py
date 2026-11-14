@@ -89,7 +89,7 @@ def run(output, only=None):
         with Path(output).with_suffix(".jsonl").open("a") as f:
             f.write(json.dumps(rows[-1], ensure_ascii=False) + "\n")
     result = {
-        "model": settings().llm_model,
+        "model": settings().active_model,
         "scope": "actual_llm_controlled_synthetic_evidence",
         "case_selection": only or ["original", "swapped", "empty-first"],
         "provenance": provenance(Path(__file__)),

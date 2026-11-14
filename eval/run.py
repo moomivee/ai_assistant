@@ -96,7 +96,8 @@ def provenance(path):
         "python": platform.python_version(),
         "platform": platform.platform(),
         "configuration": {
-            "model": settings().llm_model,
+            "model": settings().active_model,
+            "provider": settings().llm_provider,
             "agent_mode": settings().agent_mode,
             "agent_max_steps": settings().agent_max_steps,
             "agent_no_progress_limit": settings().agent_no_progress_limit,
@@ -226,17 +227,27 @@ def controlled_executor(case):
 
 def make_judge():
     cfg = settings()
-    key = os.getenv("JUDGE_API_KEY", cfg.llm_key)
-    if not key:
-        raise ValueError("Set JUDGE_API_KEY or LLM_API_KEY")
+    names = ("JUDGE_API_KEY", "JUDGE_BASE_URL", "JUDGE_MODEL")
+    explicit = {name: os.getenv(name, "").strip() for name in names}
+    if not any(explicit.values()):
+        if not cfg.llm_configured:
+            raise ValueError(
+                "Настройте основную модель или JUDGE_API_KEY, JUDGE_BASE_URL и JUDGE_MODEL."
+            )
+        return LLMClient()
+    if not all(explicit.values()):
+        raise ValueError(
+            "Для отдельного оценщика задайте JUDGE_API_KEY, JUDGE_BASE_URL и JUDGE_MODEL."
+        )
     return LLMClient(
         OpenAI(
-            api_key=key,
-            base_url=os.getenv("JUDGE_BASE_URL", cfg.llm_base),
+            api_key=explicit["JUDGE_API_KEY"],
+            base_url=explicit["JUDGE_BASE_URL"],
             timeout=cfg.llm_timeout,
             max_retries=0,
         ),
-        model=os.getenv("JUDGE_MODEL", cfg.llm_model),
+        model=explicit["JUDGE_MODEL"],
+        provider="openai",
     )
 
 
@@ -338,15 +349,16 @@ def run(
         from src.agent import ask
 
         judge_client = make_judge() if judge else None
-        result["model"] = settings().llm_model
+        result["model"] = settings().active_model
         result["agent_mode"] = settings().agent_mode
         result["judge_model"] = judge_client.model if judge_client else None
         result["judge_same_model"] = bool(
-            judge_client and judge_client.model == settings().llm_model
+            judge_client and judge_client.model == settings().active_model
         )
+        run_client = LLMClient()
         for case in cases:
             client, start = (
-                RecordingClient(LLMClient(), controlled=mode == "routing"),
+                RecordingClient(run_client, controlled=mode == "routing"),
                 perf_counter(),
             )
             executor = RecordingExecutor(
@@ -371,7 +383,7 @@ def run(
                     "answer": "Evaluation request failed.",
                     "status": "unavailable",
                     "intent": "unknown",
-                    "mode": settings().llm_model,
+                    "mode": settings().active_model,
                     "sources": [],
                     "claims": [],
                     "trace": [],

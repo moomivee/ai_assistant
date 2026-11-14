@@ -255,7 +255,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "status": status,
                 "intent": intent,
                 "clarification": status == "clarification",
-                "mode": settings().llm_model,
+                "mode": settings().active_model,
                 "sources": list({r["id"]: r for r in sources}.values()),
                 "claims": claims,
                 "trace": s["trace"],

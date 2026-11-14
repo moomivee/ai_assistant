@@ -2,6 +2,7 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -17,6 +18,14 @@ class Settings(BaseModel):
     llm_key: str
     llm_base: str
     llm_model: str
+    llm_provider: Literal["openai", "gigachat"] = "openai"
+    gigachat_credentials: str = Field(default="", repr=False)
+    gigachat_scope: Literal["GIGACHAT_API_PERS", "GIGACHAT_API_B2B", "GIGACHAT_API_CORP"] = (
+        "GIGACHAT_API_PERS"
+    )
+    gigachat_base_url: str = "https://api.giga.chat/v1"
+    gigachat_model: str = "GigaChat-2"
+    gigachat_ca_bundle: str = ""
     web_key: str
     domains: tuple[str, ...]
     timeout: float = Field(gt=0, le=120)
@@ -38,6 +47,14 @@ class Settings(BaseModel):
     agent_answer_reserve_seconds: float = Field(default=60, ge=0, le=300)
     answer_review: bool = False
 
+    @property
+    def active_model(self) -> str:
+        return self.gigachat_model if self.llm_provider == "gigachat" else self.llm_model
+
+    @property
+    def llm_configured(self) -> bool:
+        return bool(self.gigachat_credentials if self.llm_provider == "gigachat" else self.llm_key)
+
 
 @lru_cache
 def settings() -> Settings:
@@ -48,6 +65,12 @@ def settings() -> Settings:
         llm_key=os.getenv("LLM_API_KEY", "").strip(),
         llm_base=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
         llm_model=os.getenv("LLM_MODEL", "qwen2.5:3b"),
+        llm_provider=os.getenv("LLM_PROVIDER", "openai").strip().lower(),
+        gigachat_credentials=os.getenv("GIGACHAT_CREDENTIALS", "").strip(),
+        gigachat_scope=os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS").strip(),
+        gigachat_base_url=os.getenv("GIGACHAT_BASE_URL", "https://api.giga.chat/v1").strip(),
+        gigachat_model=os.getenv("GIGACHAT_MODEL", "GigaChat-2").strip(),
+        gigachat_ca_bundle=os.getenv("GIGACHAT_CA_BUNDLE", "").strip(),
         web_key=os.getenv("TAVILY_API_KEY", "").strip(),
         domains=tuple(
             d.strip().lower()

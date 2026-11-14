@@ -1,0 +1,7 @@
+# Direct GigaChat API. Use with compose.yaml; do not combine with compose.local.yaml.
+services:
+  analyst:
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      LLM_PROVIDER: gigachat

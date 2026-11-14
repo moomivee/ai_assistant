@@ -223,6 +223,7 @@ fetch("/api/status")
   .then((r) => { if (!r.ok) throw new Error("status"); return r.json(); })
   .then((s) => {
     $("mode").textContent = s.model || "LLM не настроена";
+    $("mode").title = s.model ? "Модель из настроек. Доступ к API проверяется отдельно командой check-llm." : "Добавьте ключ выбранного провайдера в .env.";
     $("environment").textContent = [s.agent_mode === "loop" ? "Агентский цикл" : s.agent_mode === "workflow" ? "Фиксированный workflow" : "Режим не указан", s.agent_max_steps ? `до ${s.agent_max_steps} решений` : null, s.tavily ? "Веб: Tavily + FRED" : "Веб: RSS + FRED"].filter(Boolean).join(" · ");
     $("library").replaceChildren();
     if (!s.reports.length) $("library").textContent = "Отчёты пока не добавлены.";

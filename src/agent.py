@@ -474,7 +474,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "status": status,
                 "intent": intent,
                 "clarification": status == "clarification",
-                "mode": getattr(client, "model", settings().llm_model),
+                "mode": getattr(client, "model", settings().active_model),
                 "sources": sources,
                 "claims": claims,
                 "trace": state["trace"],

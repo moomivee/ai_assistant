@@ -9,6 +9,15 @@ from src.integrations.telemetry import langfuse_client
 def isolated(monkeypatch, tmp_path):
     for name, value in {
         "LLM_API_KEY": "",
+        "LLM_PROVIDER": "openai",
+        "GIGACHAT_CREDENTIALS": "",
+        "GIGACHAT_CA_BUNDLE": "",
+        "GIGACHAT_MODEL": "GigaChat-2",
+        "GIGACHAT_SCOPE": "GIGACHAT_API_PERS",
+        "GIGACHAT_BASE_URL": "https://api.giga.chat/v1",
+        "JUDGE_API_KEY": "",
+        "JUDGE_BASE_URL": "",
+        "JUDGE_MODEL": "",
         "LANGFUSE_ENABLED": "false",
         "TRACE_CONTENT": "true",
         "TRACE_FILE": str(tmp_path / "trace.jsonl"),

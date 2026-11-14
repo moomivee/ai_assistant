@@ -2,9 +2,11 @@
 
 Агент для работы с отраслевыми отчётами, свежими публикациями и расчётом цен нефти. Разработан на **LangGraph и Ouroboros**: модель выбирает следующий инструмент по результатам предыдущего шага. При поиске фактов сначала проверяет загруженные PDF, затем при необходимости обращается к веб-источникам. Прогноз Brent/WTI рассчитывается отдельным инструментом, Urals — как сценарий с заданным дисконтом.
 
-**Стек:** Python 3.12, uv, FastAPI, FAISS, ONNX-эмбеддеры, OpenAI-совместимый LLM-клиент, Langfuse. Локальная Qwen 2.5 3B выбрана как доступная стартовая модель.
+**Стек:** Python 3.12, uv, FastAPI, LangGraph, Ouroboros, FAISS, ONNX-эмбеддеры и Langfuse.
 
-**Текущий статус:** учебный прототип агентского цикла в [PR #2](https://github.com/moomivee/ai_assistant/pull/2), ветка `review/agent-eval-20261110`. Реализованные возможности, измерения и известные ограничения собраны [на отдельной странице](docs/Limitations.md).
+**Третья версия:** ветка `review/v3-knowledge-gigachat-20261114`, созданная из второй архитектуры. Подготовлен отдельный адаптер прямого GigaChat API для физлиц с проверкой JSON-схем. Авторизация и ответы проверяются локально после добавления личного ключа; без ключа не заявляется успешное подключение или улучшение качества. Предыдущие измерения Qwen остаются историческим baseline.
+
+[План после защиты](docs/V3_Roadmap.md) · [Получить ключ и запустить GigaChat](docs/GigaChat.md). OCR, загрузка документов через UI, новые skills и память пока запланированы.
 
 ## Тестовый интерфейс
 
@@ -44,25 +46,27 @@
 
 </details>
 
-## Запуск
+## Запуск третьей версии
 
-После установки [uv](https://docs.astral.sh/uv/getting-started/installation/) и [Ollama](https://ollama.com/download):
-
-```bash
-git clone --branch review/agent-eval-20261110 https://github.com/moomivee/ai_assistant.git
-cd ai_assistant
-cp -n .env.example .env
-uv sync --locked
-ollama pull qwen2.5:3b
-uv run python -m src.cli prepare
-uv run uvicorn src.api:app --host 127.0.0.1 --port 8000
-```
-
-Ollama должна быть запущена с контекстом **8192 токена**; настройка и обновление описаны в [инструкции](docs/Setup.md). Интерфейс: **http://localhost:8000**. Запуск приложения и Ollama в Docker:
+В проекте GigaChat API откройте **Настройки API → Получить ключ**. В `.env` нужен **Authorization Key**, без префикса `Basic`; временный access token приложение получает автоматически.
 
 ```bash
-docker compose -f compose.yaml -f compose.local.yaml up --build -d
+git clone --branch review/v3-knowledge-gigachat-20261114 https://github.com/moomivee/ai_assistant.git ai_assistant_ver_3
+cd ai_assistant_ver_3
+if [ ! -f .env ]; then cp .env.example .env; fi
+nano .env
 ```
+
+Укажите `GIGACHAT_CREDENTIALS` и оставьте `GIGACHAT_SCOPE=GIGACHAT_API_PERS`. `GIGACHAT_MODEL` — модель из списка, доступного вашему аккаунту; значение из примера является кандидатом, а не гарантией доступа.
+
+```bash
+docker compose -f compose.yaml -f compose.gigachat.yaml up --build -d
+docker compose -f compose.yaml -f compose.gigachat.yaml exec analyst python -m src.cli check-llm
+```
+
+Интерфейс с настройками из `.env.example`: **http://localhost:8003**. `check-llm` проверяет авторизацию и выводит ID моделей без генерации. При необходимости измените `GIGACHAT_MODEL` и пересоздайте `analyst`. Сборка не требует ключа и не обращается к GigaChat.
+
+Для этой версии используется облачная модель; файл `compose.local.yaml` предназначен для прежнего варианта с Ollama. Запуск без Docker, сертификаты, смена ключа и живая проверка ответа описаны в [инструкции GigaChat](docs/GigaChat.md).
 
 ## Примеры
 
@@ -74,7 +78,7 @@ docker compose -f compose.yaml -f compose.local.yaml up --build -d
 
 ## Текущие ограничения
 
-Qwen иногда неверно интерпретирует найденные числа, повторяет поиск и добавляет лишние действия. Проверка JSON, ссылок и чисел не гарантирует правильность смысла. Корпус пока состоит из двух отчётов; OCR и долговременной памяти нет. Без Tavily веб-доступ ограничен RSS и FRED. Прогноз использует сохранённую историю и сценарные допущения; превосходство над наивным прогнозом не гарантировано.
+В предыдущих проверках Qwen неверно интерпретировала часть чисел и повторяла действия. Переход на GigaChat ещё требует живого сравнения на тех же вопросах. Проверка JSON, ссылок и чисел не гарантирует правильность смысла. Корпус пока состоит из двух отчётов; OCR и долговременной памяти нет. Без Tavily веб-доступ ограничен RSS и FRED. Прогноз использует сохранённую историю и сценарные допущения; превосходство над наивным прогнозом не гарантировано.
 
 Полный живой eval на 100 вопросах и независимая экспертная проверка ещё не проведены. Подробности — в [результатах и ограничениях](docs/Limitations.md).
 
@@ -86,7 +90,7 @@ uv run python -m eval.run retrieval
 uv run python -m eval.ui
 ```
 
-Eval-интерфейс: **http://localhost:8001**. В seed-наборе 100 вопросов, из них 40 с эталонными фрагментами PDF; это объём набора, а не число успешно решённых задач. **136 тестов кода** проверяют исполнение и контракты. Новые живые проверки — в [разборе передачи источников](docs/EvidenceHandoff.md), прежние измерения — в [аудите](docs/AgentAudit.md). Исторический результат фиксированного workflow сохранён в [Results](docs/Results.md).
+Eval-интерфейс: **http://localhost:8001**. В seed-наборе 100 вопросов, из них 40 с эталонными фрагментами PDF; это объём набора, а не число успешно решённых задач. Тесты кода проверяют исполнение и контракты; транспорт GigaChat проверяется с контролируемыми HTTP-ответами, без расхода токенов. Новые живые проверки — в [разборе передачи источников](docs/EvidenceHandoff.md), прежние измерения — в [аудите](docs/AgentAudit.md). Исторический результат фиксированного workflow сохранён в [Results](docs/Results.md).
 
 Актуальная документация архитектуры: [схема и файлы](docs/Architecture.md), [eval](docs/Evaluation.md), [трейсы и промпты](docs/Observability.md), [установка и обновление](docs/Setup.md). 
 

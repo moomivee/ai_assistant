@@ -62,6 +62,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("prepare", help="Проверить PDF, загрузить эмбеддер, собрать FAISS")
     sub.add_parser("refresh-prices", help="Обновить месячные цены из EIA/FRED")
+    sub.add_parser("check-llm", help="Проверить авторизацию и список моделей без генерации ответа")
     q = sub.add_parser("ask", help="Задать вопрос графу агента")
     q.add_argument("question")
     p = sub.add_parser("publish-prompts", help="Создать версии промптов в Langfuse")
@@ -70,7 +71,33 @@ def main():
     from .logging import configure_logging
 
     configure_logging()
-    if args.cmd == "publish-prompts":
+    if args.cmd == "check-llm":
+        from .integrations.llm import LLMUnavailable, llm
+
+        try:
+            client = llm()
+            models = client.list_models(timeout=settings().llm_timeout)
+            print(
+                json.dumps(
+                    {
+                        "provider": client.provider,
+                        "model": client.model,
+                        "available_models": models,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            if client.model not in models:
+                raise LLMUnavailable(
+                    "Выбранная модель отсутствует в списке. Укажите доступный ID в настройках."
+                )
+            print(
+                "Авторизация и наличие модели проверены. Генерация по схеме и качество ответа ещё не проверены."
+            )
+        except LLMUnavailable as exc:
+            parser.exit(1, f"{exc}\n")
+    elif args.cmd == "publish-prompts":
         from .integrations.prompts import publish_prompts
 
         publish_prompts(args.label)

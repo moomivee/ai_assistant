@@ -1,7 +1,7 @@
 # Третья версия — план развития после защиты
 
 Статус: план по обратной связи после защиты; реализация этапов ещё не выполнена.
-Этот первый коммит добавляет только план. Настройки модели, UI и исполняемый код остаются такими, как во второй версии.
+Этап 0 завершён. В этапе 1 подготовлен адаптер прямого GigaChat API, конфигурация и проверка доступа. Проверки транспорта используют контролируемые HTTP-ответы; живой запрос требует локального ключа. Карточки возможностей и последующие этапы ещё не реализованы.
 
 - Ветка: `review/v3-knowledge-gigachat-20261114`.
 - Основа: `review/agent-eval-20261110`, коммит `77fd3c20c3116c5a09e58d30ff884ca47a70b83d`.
@@ -172,7 +172,7 @@ Hit@5=0,8 означает 80% попаданий в этом наборе, а �
 
 Каждый этап — отдельный коммит и короткий результат проверки. Новые известные ошибки добавляются в dev-регрессии. Финальное сравнение использует отложенные вопросы и ручной просмотр части ответов. Фиксировать код, промпты, модель, корпус, эмбеддер и датасет; не смешивать результаты разных версий.
 
-На текущем шаге выполнен только этап 0. Новый UI, OCR, обновления, память и подключение GigaChat ещё не реализованы.
+Состояние этапов: 0 завершён; 1 — адаптер GigaChat подготовлен, живой smoke и карточки возможностей ожидаются; 2–6 — запланированы. Инструкция подключения: [GigaChat](GigaChat.md).
 
 ## Проверенные источники для реализации
 
@@ -182,3 +182,4 @@ Hit@5=0,8 означает 80% попаданий в этом наборе, а �
 - [Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search), [Tavily Extract](https://docs.tavily.com/documentation/api-reference/endpoint/extract).
 - [Ouroboros skills на закреплённой ревизии](https://github.com/razzant/ouroboros/blob/6b8a898023366f281816729daa27d7ab8a31c1f2/docs/CREATING_SKILLS.md), [knowledge](https://github.com/razzant/ouroboros/blob/6b8a898023366f281816729daa27d7ab8a31c1f2/ouroboros/knowledge.py), [ограничения LLMClient](https://github.com/razzant/ouroboros/blob/6b8a898023366f281816729daa27d7ab8a31c1f2/ouroboros/llm.py#L175).
 - [GigaChat structured output](https://developers.sber.ru/docs/ru/gigachat/guides/structured-output), [совместимость OpenAI](https://developers.sber.ru/docs/ru/gigachat/guides/compatible-openai), [подключение физлиц](https://developers.sber.ru/docs/ru/gigachat/individuals-quickstart).
+

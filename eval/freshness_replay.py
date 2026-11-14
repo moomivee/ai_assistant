@@ -33,7 +33,7 @@ def run(output):
         "scope": "isolated_decision_replay",
         "provenance": provenance(FIXTURE),
         "fixture_provenance": fixture["provenance"],
-        "model": cfg.llm_model,
+        "model": cfg.active_model,
         "expected_action": "web_search",
         "answer_quality_measured": False,
         "live_web_measured": False,
