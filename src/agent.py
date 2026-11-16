@@ -481,13 +481,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 stop = "budget_exhausted"
             if state.get("failure"):
                 complete = False
-            if not blocks:
-                blocks = [
-                    "Не удалось подготовить ответ по найденным источникам."
-                    if state.get("failure") and state["sources"]
-                    else "Подтверждённых данных для ответа недостаточно."
-                ]
-            if not complete:
+                status = "partial" if blocks else "unavailable"
+                blocks.append("Не удалось завершить обработку запроса. " + state["failure"])
+            else:
+                status = "ok" if complete else "partial"
+                if not blocks:
+                    blocks = ["Подтверждённых данных для ответа недостаточно."]
+            if not complete and not state.get("failure"):
                 blocks.append(
                     "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
                 )
@@ -499,7 +499,6 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 for observation in state["observations"]:
                     if not observation.get("duplicate_of"):
                         blocks.extend(observation.get("notices", []))
-            status = "ok" if complete else "partial"
         if stop == "no_progress":
             blocks.append("Поиск остановлен: повторные попытки не добавили новых данных.")
         elif stop == "time_budget_exhausted":
@@ -701,6 +700,6 @@ def ask(
                 "status": response["status"],
                 "agent_mode": "loop",
             },
-            status="error" if response["status"] == "unavailable" else "ok",
+            status="error" if response["diagnostics"]["failure"] else "ok",
         )
         return response

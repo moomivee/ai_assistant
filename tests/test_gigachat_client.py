@@ -58,6 +58,18 @@ def completion(payload=None, *, finish="stop", usage=None):
     )
 
 
+def empty_completion():
+    # Observed GigaChat-2:2.0.30.01 response: stop, no role, two output tokens.
+    return httpx.Response(
+        200,
+        json={
+            "model": "GigaChat-2:2.0.30.01",
+            "choices": [{"finish_reason": "stop", "message": {"content": ""}}],
+            "usage": {"prompt_tokens": 3363, "completion_tokens": 2, "total_tokens": 3365},
+        },
+    )
+
+
 def client(handler):
     native = GigaChatClient(KEY, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
     return LLMClient(native, provider="gigachat"), native
@@ -160,6 +172,186 @@ def test_invalid_structured_content_is_rejected_without_rule_fallback():
     with pytest.raises(LLMUnavailable, match="схеме"):
         wrapper.generate("judge", {}, JudgeResult)
     assert len(calls) == 2
+    native.close()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"claims": [], "complete": False},
+        {"claims": [{"text": "Факт", "evidence_ids": ["R1:B1"]}], "complete": True},
+    ],
+)
+def test_empty_native_answer_retries_once_with_same_schema_locally_validated(payload, monkeypatch):
+    monkeypatch.setenv("TRACE_CONTENT", "false")
+    settings.cache_clear()
+    sent = []
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        sent.append(json.loads(req.content))
+        return empty_completion() if len(sent) == 1 else completion(payload)
+
+    wrapper, native = client(reply)
+    answer = wrapper.generate("cited_answer", {"question": "PRIVATE-QUESTION"}, CitedAnswer)
+    assert answer.model_dump() == payload
+    assert len(sent) == 2
+    assert sent[0]["response_format"]["type"] == "json_schema"
+    assert sent[1]["response_format"] == {"type": "text"}
+    assert sent[1]["model"] == sent[0]["model"]
+    assert sent[1]["messages"][1:] == sent[0]["messages"][1:]
+    assert "Предыдущая попытка" not in sent[0]["messages"][0]["content"]
+    assert (
+        json.dumps(CitedAnswer.model_json_schema(), ensure_ascii=False)
+        in sent[1]["messages"][0]["content"]
+    )
+    events = settings().trace_file.read_text()
+    assert all(secret not in events for secret in (KEY, TOKEN, "PRIVATE-QUESTION"))
+    metadata = json.loads(events.splitlines()[-1])["metadata"]
+    assert [a["mode"] for a in metadata["generation_attempts"]] == ["json_schema", "validated_json"]
+    assert metadata["generation_attempts"][0]["content_length"] == 0
+    assert metadata["usage"] == {"input": 3373, "output": 22, "total": 3395}
+    native.close()
+
+
+def test_two_empty_answers_stop_with_safe_diagnostics_and_no_third_attempt():
+    calls = []
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        calls.append(req)
+        return empty_completion()
+
+    wrapper, native = client(reply)
+    with pytest.raises(LLMUnavailable, match="после двух попыток"):
+        wrapper.generate("cited_answer", {}, CitedAnswer)
+    assert len(calls) == 2
+    trace = json.loads(settings().trace_file.read_text().splitlines()[-1])
+    assert trace["status"] == "error"
+    assert trace["metadata"]["provider_error"] == "empty_response"
+    assert len(trace["metadata"]["generation_attempts"]) == 2
+    assert trace["metadata"]["usage"]["output"] == 4
+    native.close()
+
+
+def test_retry_cannot_bypass_pydantic_validation():
+    calls = []
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        calls.append(req)
+        return (
+            empty_completion()
+            if len(calls) == 1
+            else completion({"claims": [{"text": "Факт", "evidence_ids": []}], "complete": True})
+        )
+
+    wrapper, native = client(reply)
+    with pytest.raises(LLMUnavailable, match="схеме"):
+        wrapper.generate("cited_answer", {}, CitedAnswer)
+    assert len(calls) == 2
+    trace = json.loads(settings().trace_file.read_text().splitlines()[-1])
+    assert trace["status"] == "error"
+    assert len(trace["metadata"]["generation_attempts"]) == 2
+    native.close()
+
+
+@pytest.mark.parametrize("elapsed,expected_calls", [(4, 2), (11, 1)])
+def test_retry_shares_original_generation_timeout(monkeypatch, elapsed, expected_calls):
+    clock, timeouts = [0.0], []
+    monkeypatch.setattr(gigachat, "monotonic", lambda: clock[0])
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        timeouts.append(req.extensions["timeout"]["read"])
+        clock[0] = elapsed
+        return empty_completion() if len(timeouts) == 1 else completion()
+
+    _, native = client(reply)
+    kwargs = dict(model="GigaChat-2", messages=[], schema={}, max_tokens=128, timeout=10)
+    if elapsed > 10:
+        with pytest.raises(gigachat.GigaChatError, match="время ожидания"):
+            native.generate(**kwargs)
+    else:
+        native.generate(**kwargs)
+        assert timeouts == [10, 6]
+    assert len(timeouts) == expected_calls
+    native.close()
+
+
+def test_retry_does_not_start_after_agent_budget_expires(monkeypatch):
+    clock, calls = [0.0], []
+    monkeypatch.setattr(gigachat, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(budget, "monotonic", lambda: clock[0])
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        calls.append(req)
+        clock[0] = 6
+        return empty_completion()
+
+    wrapper, native = client(reply)
+    with budget.request_budget(5), pytest.raises(budget.RequestBudgetExceeded):
+        wrapper.generate("cited_answer", {}, CitedAnswer)
+    assert len(calls) == 1
+    native.close()
+
+
+def test_recovered_empty_answer_allows_model_to_choose_web_search():
+    from test_agent import REPORT, WEB
+
+    from src.agent import ask
+
+    replies = iter(
+        [
+            empty_completion(),
+            completion({"claims": [], "complete": False}),
+            completion(
+                {
+                    "action": "web_search",
+                    "query": "latest oil news",
+                    "purpose": "Fresh evidence",
+                    "report": "",
+                    "page": None,
+                }
+            ),
+            completion(
+                {
+                    "claims": [{"text": WEB["text"], "evidence_ids": ["W1:B1"]}],
+                    "complete": True,
+                }
+            ),
+        ]
+    )
+    calls = []
+
+    def reply(req):
+        return auth_reply() if req.url.path.endswith("oauth") else next(replies)
+
+    def execute(registry, name, **kwargs):
+        calls.append(name)
+        assert name in {"report_search", "web_search"}
+        data = [REPORT] if name == "report_search" else {"items": [WEB], "notices": []}
+        return data, None, {"tool": name, "engine": "fixture", "status": "ok", "ms": 1}
+
+    wrapper, native = client(reply)
+    result = ask(
+        "Последние новости нефти?",
+        client=wrapper,
+        planner=lambda *_: plan(fresh=True),
+        execute=execute,
+    )
+    assert calls == ["report_search", "web_search"]
+    assert result["status"] == "ok"
+    assert not result["diagnostics"]["failure"]
+    assert result["claims"][0]["evidence_ids"] == ["W1:B1"]
+    assert result["decisions"][1]["action"] == "web_search"
+    assert next(replies, None) is None
     native.close()
 
 

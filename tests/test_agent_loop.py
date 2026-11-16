@@ -1,5 +1,6 @@
 """Harness tests with scripted LLMs. Live model quality is measured separately."""
 
+import json
 from itertools import repeat
 
 import pytest
@@ -7,7 +8,9 @@ from test_agent import REPORT, WEB, plan
 
 from eval.metrics import route_metrics
 from src.agent import ask, merge_sources
+from src.config import settings
 from src.evidence import catalog, generate_answer
+from src.integrations.llm import LLMUnavailable
 from src.models.schemas import CitedAnswer, CitedClaim, NextAction
 from src.tools import make_registry, read_report, run_tool
 
@@ -42,6 +45,39 @@ class Scripted:
 
 def event(name):
     return {"tool": name, "engine": "test.fixture", "status": "ok", "ms": 1}
+
+
+@pytest.mark.parametrize("keep_draft", [False, True])
+def test_generation_failure_is_visible_even_after_retrieval(keep_draft):
+    class BrokenAnswer(Scripted):
+        def generate(self, name, payload, schema):
+            if name == "cited_answer" and (
+                not keep_draft or any(n == "cited_answer" for n, _ in self.payloads)
+            ):
+                raise LLMUnavailable("GigaChat вернул пустой ответ после двух попыток генерации.")
+            return super().generate(name, payload, schema)
+
+    def execute(registry, name, **kwargs):
+        data = [REPORT] if name == "report_search" else {"items": [WEB], "notices": []}
+        return data, None, event(name)
+
+    result = ask(
+        "Последние сведения о Sokol",
+        client=BrokenAnswer([action("web_search", "fresh facts")], complete=False),
+        execute=execute,
+        planner=lambda *_: plan(fresh=True),
+    )
+    assert result["status"] == ("partial" if keep_draft else "unavailable")
+    assert result["stop_reason"] == "llm_unavailable"
+    assert "после двух попыток" in result["answer"]
+    assert "Доступных источников" not in result["answer"]
+    assert bool(result["claims"]) is keep_draft
+    assert result["diagnostics"]["retrieved_sources"]
+    if keep_draft:
+        assert REPORT["text"] in result["answer"]
+    events = [json.loads(line) for line in settings().trace_file.read_text().splitlines()]
+    root = next(e for e in events if e["name"] == "agent.request")
+    assert root["status"] == "error"
 
 
 def test_replans_after_empty_search_and_reads_full_page():

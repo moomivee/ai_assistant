@@ -1,4 +1,4 @@
-"""Provider-neutral structured generation; no JSON/regex fallback."""
+"""Provider-neutral schema-validated generation; no rule-based answer fallback."""
 
 import json
 import logging
@@ -133,12 +133,16 @@ class LLMClient:
                         timeout=bounded_timeout(settings().llm_timeout),
                     )
                     check_budget()
-                    result = schema.model_validate_json(response.content)
                     obs.update(
-                        output=result.model_dump(),
-                        metadata={"response_model": response.model, "usage": response.usage},
+                        metadata={
+                            "response_model": response.model,
+                            "usage": response.usage,
+                            "generation_attempts": list(response.attempts),
+                        },
                         usage_details=response.usage,
                     )
+                    result = schema.model_validate_json(response.content)
+                    obs.update(output=result.model_dump())
                     return result
                 response = self.client.with_options(
                     timeout=bounded_timeout(settings().llm_timeout), max_retries=0
@@ -169,7 +173,19 @@ class LLMClient:
                 return result
             except GigaChatError as exc:
                 check_budget()
-                obs.update(status="error", metadata={"provider_error": exc.code})
+                usage = {}
+                for attempt in exc.attempts:
+                    for key, value in attempt["usage"].items():
+                        usage[key] = usage.get(key, 0) + value
+                obs.update(
+                    status="error",
+                    metadata={
+                        "provider_error": exc.code,
+                        "generation_attempts": list(exc.attempts),
+                        "usage": usage or None,
+                    },
+                    usage_details=usage or None,
+                )
                 log(
                     "llm.failed",
                     logging.ERROR,

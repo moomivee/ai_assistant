@@ -59,10 +59,13 @@ def test_slow_tool_keeps_sources_but_does_not_start_another_generation(clock):
 
     response = ask("Вопрос", client=client, execute=execute, planner=lambda *_: plan())
     assert client.payloads == []
-    assert response["stop_reason"] == "time_budget_exhausted" and response["status"] == "partial"
+    assert (
+        response["stop_reason"] == "time_budget_exhausted" and response["status"] == "unavailable"
+    )
     assert response["diagnostics"]["retrieved_sources"][0]["id"] == "R1"
     assert response["claims"] == []
-    assert "Не удалось подготовить ответ" in response["answer"]
+    assert "Не удалось завершить обработку запроса" in response["answer"]
+    assert "лимит времени" in response["answer"]
 
 
 def test_grounded_partial_draft_survives_deadline_before_replanning(clock):

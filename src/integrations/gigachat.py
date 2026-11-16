@@ -4,6 +4,7 @@ Only public provider contracts live here. The agent still validates every
 structured response with its own Pydantic schema in ``llm.py``.
 """
 
+import json
 import math
 import ssl
 import threading
@@ -14,6 +15,7 @@ from uuid import uuid4
 import httpx
 
 from ..budget import bounded_timeout, check_budget
+from ..logging import log
 
 AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 # The personal API allows one stream. This gate covers this Python process;
@@ -24,9 +26,10 @@ _generation_lock = threading.Lock()
 class GigaChatError(RuntimeError):
     """A safe public message/code, never a provider response body or credential."""
 
-    def __init__(self, code, message):
+    def __init__(self, code, message, *, attempts=()):
         super().__init__(message)
         self.code = code
+        self.attempts = attempts
 
 
 @dataclass(frozen=True)
@@ -34,6 +37,40 @@ class GigaChatResponse:
     content: str
     usage: dict | None
     model: str | None
+    attempts: tuple[dict, ...] = ()
+
+
+def _usage(data):
+    usage = data.get("usage")
+    return {
+        dest: usage[key]
+        for key, dest in (
+            ("prompt_tokens", "input"),
+            ("completion_tokens", "output"),
+            ("total_tokens", "total"),
+        )
+        if isinstance(usage, dict)
+        and isinstance(usage.get(key), int)
+        and not isinstance(usage[key], bool)
+        and usage[key] >= 0
+    }
+
+
+def _retry_messages(messages, schema):
+    """Ask the same model for JSON; the caller still validates the full schema."""
+    instruction = (
+        "\n\nПредыдущая попытка вернула пустой ответ. Повтори исходную задачу. "
+        "Верни только JSON по приведённой схеме, без Markdown и пояснений вокруг JSON. "
+        "Недостаток данных обозначай внутри JSON согласно исходным инструкциям; "
+        "не выдумывай недостающие сведения.\nJSON Schema:\n"
+        + json.dumps(schema, ensure_ascii=False)
+    )
+    copied = [dict(message) for message in messages]
+    if copied and copied[0].get("role") == "system":
+        copied[0]["content"] += instruction
+    else:
+        copied.insert(0, {"role": "system", "content": instruction.strip()})
+    return copied
 
 
 def _timeout(deadline):
@@ -197,50 +234,72 @@ class GigaChatClient:
         return [item["id"] for item in models]
 
     def generate(self, *, model, messages, schema, max_tokens, timeout):
-        data = self._request(
-            "POST",
-            "/chat/completions",
-            timeout,
-            payload={
-                "model": model,
-                "messages": messages,
-                "temperature": 0,
-                "max_tokens": max_tokens,
-                "stream": False,
-                "response_format": {"type": "json_schema", "schema": schema, "strict": True},
-            },
-        )
-        choices = data.get("choices")
-        choice = choices[0] if isinstance(choices, list) and choices else None
-        if not isinstance(choice, dict):
-            raise GigaChatError("response", "GigaChat не вернул вариант ответа.")
-        finish = choice.get("finish_reason")
-        if finish == "blacklist":
-            raise GigaChatError("refusal", "GigaChat отказался обрабатывать этот запрос.")
-        if finish == "length":
-            raise GigaChatError("length", "Ответ GigaChat оборван по лимиту токенов.")
-        message = choice.get("message")
-        if finish != "stop" or not isinstance(message, dict):
-            raise GigaChatError("response", "GigaChat не завершил структурированный ответ.")
-        if message.get("refusal"):
-            raise GigaChatError("refusal", "GigaChat отказался обрабатывать этот запрос.")
-        content = message.get("content")
-        if not isinstance(content, str) or not content.strip():
-            raise GigaChatError("response", "GigaChat вернул пустой структурированный ответ.")
-        usage = data.get("usage")
-        usage = {
-            dest: usage[key]
-            for key, dest in (
-                ("prompt_tokens", "input"),
-                ("completion_tokens", "output"),
-                ("total_tokens", "total"),
-            )
-            if isinstance(usage, dict)
-            and isinstance(usage.get(key), int)
-            and not isinstance(usage[key], bool)
-            and usage[key] >= 0
+        deadline, attempts, usage = monotonic() + timeout, [], {}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": max_tokens,
+            "stream": False,
+            "response_format": {"type": "json_schema", "schema": schema, "strict": True},
         }
-        actual_model = data.get("model")
-        return GigaChatResponse(
-            content, usage or None, actual_model if isinstance(actual_model, str) else None
-        )
+        try:
+            for attempt in range(2):
+                # Both attempts, including OAuth and queueing, share the original budget.
+                data = self._request(
+                    "POST", "/chat/completions", _timeout(deadline), payload=payload
+                )
+                choices = data.get("choices")
+                choice = choices[0] if isinstance(choices, list) and choices else None
+                if not isinstance(choice, dict):
+                    raise GigaChatError("response", "GigaChat не вернул вариант ответа.")
+                finish = choice.get("finish_reason")
+                message = choice.get("message")
+                content = message.get("content") if isinstance(message, dict) else None
+                counts = _usage(data)
+                diagnostic = {
+                    "attempt": attempt + 1,
+                    "mode": "json_schema" if attempt == 0 else "validated_json",
+                    "finish_reason": finish
+                    if finish in ("stop", "length", "blacklist", "function_call")
+                    else "unknown",
+                    "content_type": type(content).__name__,
+                    "content_length": len(content) if isinstance(content, str) else None,
+                    "usage": counts,
+                }
+                attempts.append(diagnostic)
+                # Safe even with TRACE_CONTENT=false: no bodies, prompts or credentials.
+                log("llm.gigachat_response", **diagnostic)
+                for key, value in counts.items():
+                    usage[key] = usage.get(key, 0) + value
+                if finish == "blacklist" or (isinstance(message, dict) and message.get("refusal")):
+                    raise GigaChatError("refusal", "GigaChat отказался обрабатывать этот запрос.")
+                if finish == "length":
+                    raise GigaChatError("length", "Ответ GigaChat оборван по лимиту токенов.")
+                if finish != "stop" or not isinstance(message, dict):
+                    raise GigaChatError("response", "GigaChat не завершил структурированный ответ.")
+                if not isinstance(content, str):
+                    raise GigaChatError("response", "GigaChat вернул ответ неожиданного формата.")
+                if content.strip():
+                    actual_model = data.get("model")
+                    return GigaChatResponse(
+                        content,
+                        usage or None,
+                        actual_model if isinstance(actual_model, str) else None,
+                        tuple(attempts),
+                    )
+                if attempt == 0:
+                    # Native schema generation can finish with stop + content="".
+                    # Retry only this observed failure, not refusals or arbitrary errors.
+                    payload = {
+                        **payload,
+                        "messages": _retry_messages(messages, schema),
+                        "response_format": {"type": "text"},
+                    }
+                    continue
+                raise GigaChatError(
+                    "empty_response", "GigaChat вернул пустой ответ после двух попыток генерации."
+                )
+        except GigaChatError as exc:
+            exc.attempts = tuple(attempts)
+            raise
