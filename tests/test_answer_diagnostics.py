@@ -72,7 +72,8 @@ def test_local_rejections_count_claims_at_the_first_failed_check_only():
     assert diagnostic["numeric_rejected"] == 1
     assert diagnostic["semantic_rejected"] == 0
     assert diagnostic["accepted_claims"] == 1
-    assert diagnostic["reason"] == "incomplete" and not draft.complete
+    assert diagnostic["reason"] == "semantic_review_disabled" and not draft.complete
+    assert diagnostic["coverage"] == "unverified" and diagnostic["review_executed"] is False
     assert len(draft.claims) == 1
     encoded = json.dumps(diagnostic)
     assert secret not in encoded and "unknown-id" not in encoded and "99" not in encoded
@@ -97,6 +98,7 @@ def test_semantic_rejections_have_separate_counters(monkeypatch):
     client = Responses(
         [claim()],
         review={
+            "coverage": "partial",
             "supported": [],
             "complete": False,
             "feedback": "Not relevant to the requested object.",
@@ -129,6 +131,8 @@ def test_review_exception_preserves_stage_without_exposing_error_text(monkeypatc
         generate_answer(client, "Сера?", [REPORT], diagnostics=diagnostic)
     assert diagnostic["candidate_claims"] == 1
     assert diagnostic["stage"] == "semantic_review"
+    assert diagnostic["review_attempted"] is True
+    assert diagnostic["review_executed"] is False
     assert diagnostic["accepted_claims"] == 0
     assert "provider private details" not in json.dumps(diagnostic)
 

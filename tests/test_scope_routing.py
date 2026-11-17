@@ -99,7 +99,9 @@ def test_wage_cost_question_can_reach_web_when_model_selects_research():
     finally:
         native.close()
     assert generated == ["Plan", "AvailableAction", "CitedAnswer"]
-    assert result["intent"] == "research" and result["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["intent"] == "research" and result["status"] == "partial"
     assert [name for name, _ in executed] == ["web_search"]
     assert result["claims"][0]["text"] == fact
 

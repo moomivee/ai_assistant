@@ -408,7 +408,9 @@ def test_recovered_empty_answer_allows_model_to_choose_web_search(monkeypatch):
                     "complete": True,
                 }
             ),
-            completion({"supported": [0], "complete": True, "feedback": ""}),
+            completion(
+                {"coverage": "sufficient", "supported": [0], "complete": True, "feedback": ""}
+            ),
         ]
     )
     calls = []

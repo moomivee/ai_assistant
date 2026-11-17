@@ -205,6 +205,70 @@ class Handler(BaseHTTPRequestHandler):
         response = copy.deepcopy(RESPONSE)
         if question == "legacy":
             response = LEGACY
+        elif question == "web-only":
+            web_source = dict(
+                id="W4",
+                kind="web",
+                title="Тестовая веб-страница о сортах нефти",
+                date=None,
+                url="https://example.invalid/web-fixture",
+                text="В тестовом источнике названы образцы Orion и Vega.",
+                content_type="snippet",
+                provider="tavily",
+                cache_hit=True,
+                used_in_answer=True,
+            )
+            decisions = [
+                dict(action="web_search", purpose="Пустая попытка не выполнена.", query=""),
+                dict(
+                    action="web_search",
+                    purpose="Проверить перечень в интернете.",
+                    query="oil grades",
+                ),
+            ]
+            response.update(
+                answer="В тестовом веб-источнике названы Orion и Vega. [W4]",
+                status="partial",
+                sources=[web_source],
+                decisions=decisions,
+                trace=[dict(tool="web_search", status="ok", ms=200)],
+            )
+            response["diagnostics"].update(
+                plan=dict(intent="research", report_only=False, wants_context=True, fresh=False),
+                steps=[
+                    dict(step=1, tool="web_search", status="rejected", error="Empty query"),
+                    dict(step=2, tool="web_search", status="ok", ms=200, source_ids=["W4"]),
+                ],
+                retrieved_sources=[web_source],
+                semantic_review_enabled=False,
+                answer_checks=[
+                    dict(
+                        after_step=2,
+                        source_ids=["W4"],
+                        status="ok",
+                        complete=False,
+                        claims=1,
+                        ms=10,
+                        validation=dict(
+                            coverage="unverified",
+                            missing_aspects=["Полнота перечня не подтверждена"],
+                        ),
+                    )
+                ],
+            )
+        elif question == "failed-only":
+            response.update(
+                status="unavailable",
+                answer="Поиск недоступен.",
+                sources=[],
+                decisions=[dict(action="report_search", purpose="Найти факт в отчёте.")],
+                trace=[dict(tool="report_search", status="error", ms=20)],
+            )
+            response["diagnostics"].update(
+                steps=[dict(step=1, tool="report_search", status="error", error="Unavailable")],
+                retrieved_sources=[],
+                answer_checks=[],
+            )
         elif question in {"clarification", "unavailable", "outside"}:
             response.update(
                 status=question,
@@ -290,6 +354,10 @@ async def check(url):
             await page.locator('#result[aria-busy="false"]').wait_for()
 
         await submit(QUESTION)
+        assert "база знаний (1)" in await page.locator(".route-used-sources").inner_text()
+        assert "только база знаний" in await page.locator(".route-policy").inner_text()
+        assert "Поиск в отчётах" in await page.locator(".route-executed").inner_text()
+        assert "Цель шага контроллера" in await page.locator(".route-purpose").inner_text()
         assert "2026-11-17" in await page.locator(".trace-time").inner_text()
         assert "Europe/Moscow" in await page.locator(".trace-time").inner_text()
         assert await page.locator(".trace-step").count() == 4
@@ -390,8 +458,51 @@ async def check(url):
             await submit(scenario)
             assert await page.locator(".trace-step").count() == 0
             assert "Вызовов инструментов нет" in await page.locator(".empty-trace").inner_text()
+            assert "Вызовов инструментов нет" in await page.locator(".route-executed").inner_text()
+            assert await page.locator(".route-purpose").count() == 0
+        await submit("web-only")
+        assert "интернет (1)" in await page.locator(".route-used-sources").inner_text()
+        assert "Веб-поиск" in await page.locator(".route-executed").inner_text()
+        assert "Поиск в отчётах" not in await page.locator(".route-executed").inner_text()
+        assert "Обязательной очереди нет" in await page.locator(".route-policy").inner_text()
+        assert "Отклонённых попыток: 1" in await page.locator(".route-attempts").inner_text()
+        assert (
+            "Цель модели: Проверить перечень в интернете."
+            in await page.locator(".route-purpose").inner_text()
+        )
+        assert "Пустая попытка" not in await page.locator(".route-summary").inner_text()
+        caveats = await page.locator(".route-caveat").all_text_contents()
+        assert any(
+            "[W4] дата публикации неизвестна" in line and "поисковой выдачи" in line
+            for line in caveats
+        )
+        assert any("отключена в настройках" in line for line in caveats)
+        await (
+            page.locator(".inspector-detail > summary")
+            .filter(has_text="Как источники переданы в ответ")
+            .click()
+        )
+        assert "Покрытие вопроса: не проверено" in await page.locator(".answer-check").inner_text()
+        assert "Полнота перечня не подтверждена" in await page.locator(".answer-check").inner_text()
+        await submit("failed-only")
+        assert (
+            "Успешных вызовов инструментов нет"
+            in await page.locator(".route-executed").inner_text()
+        )
+        assert "Вызовов с ошибкой: 1" in await page.locator(".route-attempts").inner_text()
+        assert await page.locator(".route-purpose").count() == 0
         await submit("legacy")
         assert await page.locator(".trace-legacy").count() == 1
+        assert "отключена в настройках" not in await page.locator(".route-summary").inner_text()
+        calculation_summary = await page.evaluate(
+            """() => window.TraceView.render({agent_mode: 'loop', status: 'ok',
+              sources: [{id: 'M1', kind: 'model'}], trace: [],
+              diagnostics: {semantic_review_enabled: false,
+                plan: {intent: 'forecast', wants_context: false}, answer_checks: []}
+            }, 0).querySelector('.route-summary').textContent"""
+        )
+        assert "отключена в настройках" not in calculation_summary
+        assert "расчёт (1)" in calculation_summary
         await page.locator(".forecast-details > summary").click()
         assert await page.locator(".forecast-details tbody tr").count() == len(
             LEGACY["forecast"]["rows"]
@@ -429,6 +540,8 @@ async def check(url):
             "controller override and unknown references",
             "evidence handoff and answer reserve",
             "policy step separate from model choices",
+            "source route summary: reports, web and failed attempts",
+            "used web source caveats and disabled semantic review",
             "clarification",
             "unavailable",
             "outside",

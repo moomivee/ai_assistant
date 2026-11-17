@@ -38,7 +38,12 @@ class Scripted:
             )
         if name == "citation_review":
             return schema.model_validate(
-                {"supported": list(range(len(payload["claims"]))), "complete": True, "feedback": ""}
+                {
+                    "coverage": "sufficient",
+                    "supported": list(range(len(payload["claims"]))),
+                    "complete": True,
+                    "feedback": "",
+                }
             )
         raise AssertionError(name)
 
@@ -116,7 +121,9 @@ def test_replans_after_empty_search_and_reads_full_page():
         execute=execute,
         planner=lambda *_: plan(report_only=True, rag_query="broad"),
     )
-    assert response["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial"
     assert [x[0] for x in calls] == ["report_search", "report_search", "read_report"]
     assert calls[0][1] != calls[1][1]
     second = [p for n, p in client.payloads if n == "decide"][0]
@@ -278,7 +285,9 @@ def test_answer_context_uses_model_selected_source_ids():
     )
     payload = [p for n, p in client.payloads if n == "cited_answer"][-1]
     assert all(key.startswith("R1:") for key in payload["evidence"])
-    assert result["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["status"] == "partial"
 
 
 def test_api_returns_new_agent_contract(monkeypatch):
@@ -300,7 +309,9 @@ def test_api_returns_new_agent_contract(monkeypatch):
     )
     with TestClient(api.app) as http:
         result = http.post("/api/ask", json={"question": "Сера Sokol"}).json()
-    assert result["agent_mode"] == "loop" and result["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["agent_mode"] == "loop" and result["status"] == "partial"
     assert result["claims"][0]["evidence_ids"] and result["sources"][0]["evidence"]
 
 
@@ -467,4 +478,6 @@ def test_duplicate_empty_search_still_allows_a_different_query():
         planner=lambda *_: plan(report_only=True, rag_query="broad"),
     )
     assert queries == ["broad", "focused"]
-    assert response["status"] == "ok" and response["rejected_actions"] == 1
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial" and response["rejected_actions"] == 1

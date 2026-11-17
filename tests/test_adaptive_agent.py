@@ -100,6 +100,7 @@ def test_failed_semantic_review_can_lead_to_new_search_and_correct_evidence(
                 return schema(
                     supported=[0] if valid else [],
                     complete=valid,
+                    coverage="sufficient" if valid else "unverified",
                     feedback=""
                     if valid
                     else "Bibliography does not establish the latest meeting; verify current events.",

@@ -102,6 +102,16 @@ def route_metrics(expected, response, plan):
     checks = (response.get("diagnostics") or {}).get("answer_checks", [])
     if checks:
         last = checks[-1]
+        validation = last.get("validation") or {}
+        # Missing fields in historical traces are unknown, not evidence that
+        # semantic review ran. New traces make contradictions observable.
+        review_consistent = (
+            (response.get("diagnostics") or {}).get("semantic_review_enabled") is not False
+            and validation.get("review_enabled") is not False
+            and validation.get("review_executed") is not False
+            and ("coverage" not in validation or validation["coverage"] == "sufficient")
+            and not validation.get("missing_aspects")
+        )
         # This is a consistency check, not independent semantic evaluation.
         # A web call or a matching source date cannot establish answer freshness.
         metrics["final_review_consistency"] = float(
@@ -110,6 +120,7 @@ def route_metrics(expected, response, plan):
                 bool(last.get("complete"))
                 and not (last.get("feedback") or "").strip()
                 and not last.get("error")
+                and review_consistent
             )
         )
     return metrics

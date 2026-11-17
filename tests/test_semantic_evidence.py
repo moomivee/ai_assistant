@@ -59,6 +59,7 @@ def test_bibliography_numbers_are_not_enough_to_accept_event():
     client = ScriptedReview(
         claim(),
         {
+            "coverage": "partial",
             "supported": [],
             "complete": False,
             "feedback": "Библиография не подтверждает дату встречи. Откройте первичный источник.",
@@ -79,7 +80,13 @@ def test_bibliography_numbers_are_not_enough_to_accept_event():
 def test_reviewer_receives_clock_scope_and_only_claims_cited_evidence():
     unrelated = {**REPORT, "id": "W1", "kind": "web", "text": "Unrelated new publication."}
     client = ScriptedReview(
-        claim(), {"supported": [], "complete": False, "feedback": "Currency is unverified."}
+        claim(),
+        {
+            "coverage": "partial",
+            "supported": [],
+            "complete": False,
+            "feedback": "Currency is unverified.",
+        },
     )
     generate_answer(client, "Последняя встреча?", [REPORT, unrelated], fresh=True, report_only=True)
     payload = client.calls[-1][1]
@@ -95,7 +102,8 @@ def test_reviewer_receives_clock_scope_and_only_claims_cited_evidence():
 def test_historical_fact_can_pass_and_keep_exact_source_quote():
     source = {**REPORT, "text": "Встреча состоялась 3 апреля 2025 года."}
     client = ScriptedReview(
-        claim(source["text"]), {"supported": [0], "complete": True, "feedback": ""}
+        claim(source["text"]),
+        {"coverage": "sufficient", "supported": [0], "complete": True, "feedback": ""},
     )
     draft, evidence, feedback = generate_answer(
         client, "Когда была встреча в апреле 2025?", [source]
@@ -111,9 +119,17 @@ def test_historical_fact_can_pass_and_keep_exact_source_quote():
 @pytest.mark.parametrize(
     "raw_complete,review",
     [
-        (False, {"supported": [0], "complete": True, "feedback": ""}),
-        (True, {"supported": [0], "complete": False, "feedback": ""}),
-        (True, {"supported": [0], "complete": True, "feedback": "Дата не проверена."}),
+        (False, {"coverage": "sufficient", "supported": [0], "complete": True, "feedback": ""}),
+        (True, {"coverage": "partial", "supported": [0], "complete": False, "feedback": ""}),
+        (
+            True,
+            {
+                "coverage": "sufficient",
+                "supported": [0],
+                "complete": True,
+                "feedback": "Дата не проверена.",
+            },
+        ),
     ],
 )
 def test_disagreement_never_upgrades_answer_to_complete(raw_complete, review):
@@ -125,7 +141,9 @@ def test_disagreement_never_upgrades_answer_to_complete(raw_complete, review):
 
 @pytest.mark.parametrize("indexes", [[0, 0], [1], [-1]])
 def test_invalid_review_indexes_fail_closed(indexes):
-    client = ScriptedReview(claim(), {"supported": indexes, "complete": True, "feedback": ""})
+    client = ScriptedReview(
+        claim(), {"coverage": "sufficient", "supported": indexes, "complete": True, "feedback": ""}
+    )
     draft, _, feedback = generate_answer(client, "Последняя встреча?", [REPORT])
     assert not draft.claims and not draft.complete
     assert "invalid or duplicate" in feedback

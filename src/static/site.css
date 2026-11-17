@@ -15,6 +15,7 @@
 #result .answer-panel>p{font-size:15px;line-height:1.75}.answer-q{margin-bottom:24px;line-height:1.5}
 .trace-panel{background:#f6f8f5;padding:22px}.trace-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .trace-kicker{font:10px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.12em;color:#7b8b81}
+.route-summary{padding:14px;background:white;border:1px solid var(--line);border-radius:9px;margin:14px 0}.route-summary h4{font-size:13px;margin:0 0 9px}.route-summary p{font-size:12px;margin:7px 0;overflow-wrap:anywhere}.route-summary .small{font-size:11px}.route-summary .route-caveat{color:#856127;border-left:2px solid #d6bd88;padding-left:9px}
 #result .trace-panel p{line-height:1.55;white-space:pre-line}.trace-panel>.small{margin:10px 0 18px;font-size:12px}
 .trace-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:16px 0;border-block:1px solid var(--line);margin-bottom:6px}
 .trace-metrics strong{display:block;font-size:20px;font-weight:550;font-variant-numeric:tabular-nums;color:#294d3b}.trace-metrics span{display:block;margin-top:5px;font-size:10px;color:var(--muted);line-height:1.4}

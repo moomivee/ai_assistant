@@ -51,7 +51,12 @@ class ChoosingModel:
             )
         if name == "citation_review":
             return schema.model_validate(
-                {"supported": list(range(len(payload["claims"]))), "complete": True, "feedback": ""}
+                {
+                    "coverage": "sufficient",
+                    "supported": list(range(len(payload["claims"]))),
+                    "complete": True,
+                    "feedback": "",
+                }
             )
         raise AssertionError(name)
 

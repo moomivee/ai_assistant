@@ -30,7 +30,9 @@ def test_explicit_scope_survives_graph_and_cannot_be_overridden():
             execute=execute,
             planner=lambda *_: plan(report_only=False),
         )
-    assert result["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["status"] == "partial"
     assert result["diagnostics"]["plan"]["report_only"] is True
     assert seen[0][1].document_ids == ("selected-document",)
     assert current_scope().document_ids == ()
@@ -57,7 +59,9 @@ def test_read_web_requires_discovered_url_and_keeps_extraction():
         complete=[False, True],
     )
     result = ask("Какой факт?", client=client, execute=execute, planner=lambda *_: plan())
-    assert result["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["status"] == "partial"
     assert calls == ["web_search", "read_web"]
     assert len(result["diagnostics"]["retrieved_sources"]) == 2
     assert "read_web" in [p for n, p in client.payloads if n == "decide"][-1]["allowed_actions"]
@@ -193,7 +197,9 @@ def test_selected_native_skill_enters_llm_context_and_is_reset():
         execute=lambda _, name, **args: ([REPORT], None, event(name)),
         planner=lambda *_: plan(skill="report_analysis"),
     )
-    assert response["status"] == "ok"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial"
     assert current_skill_context()["text"] == ""
 
 

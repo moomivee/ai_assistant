@@ -156,6 +156,7 @@ def research_status(state):
         ),
         "web_source_count": sum(s["kind"] == "web" for s in state["sources"]),
         "accepted_claim_count": len(state["draft"]["claims"]),
+        "semantic_review_enabled": settings().answer_review,
     }
 
 
@@ -215,21 +216,42 @@ def needs_answer(state):
     return bool(ids) and ids != state.get("answer_context_ids", [])
 
 
+def required_results_ready(state):
+    """Calculation and quote obligations are independent of prose review."""
+    p = state.get("plan")
+    if not p or (p["intent"] == "forecast" and not state["calc"]):
+        return False
+    web = [s for s in state["sources"] if s["kind"] == "web"]
+    return set(p["quotes"]) <= {s.get("grade") for s in web if "price" in s}
+
+
+def can_finish_unreviewed(state):
+    """Do not research repeatedly solely because the review was switched off."""
+    checks = state.get("answer_checks", [])
+    validation = checks[-1].get("validation", {}) if checks else {}
+    return (
+        not settings().answer_review
+        and bool(state["draft"]["claims"])
+        and validation.get("candidate_complete") is True
+        and validation.get("candidate_claims") == validation.get("accepted_claims")
+        and required_results_ready(state)
+    )
+
+
 def task_complete(state):
     p = state.get("plan")
     if not p or (p["wants_context"] and not state["draft"]["complete"]):
         return False
-    if p["intent"] == "forecast" and not state["calc"]:
+    if not required_results_ready(state):
         return False
     if p["fresh"] and p["report_only"]:
         # The user permits only a document snapshot, not verification as of now.
         return False
-    web = [s for s in state["sources"] if s["kind"] == "web"]
     # A successful search is not proof of a current, relevant answer. For prose
     # answers generate_answer has already checked the actual cited evidence.
     if p["wants_context"] and state.get("feedback", "").strip():
         return False
-    return set(p["quotes"]) <= {s.get("grade") for s in web if "price" in s}
+    return True
 
 
 def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
@@ -276,6 +298,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         ),
                         "calculation_available": bool(state["calc"]),
                         "answer_feedback": state["feedback"],
+                        "answer_validation": state["answer_checks"][-1].get("validation", {})
+                        if state["answer_checks"]
+                        else {},
                         "current_answer": state["draft"],
                         "no_progress_steps": state["no_progress_steps"],
                         "no_progress_limit": settings().agent_no_progress_limit,
@@ -529,6 +554,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     blocks.append(source["text"] + f" [{source['id']}]")
                     sources.append(source)
             complete = task_complete(state)
+            unreviewed = (
+                bool(p and p["wants_context"] and draft.claims) and not settings().answer_review
+            )
+            if unreviewed:
+                complete = False
+                if stop == "completed" and can_finish_unreviewed(state):
+                    stop = "review_disabled"
             if (
                 state["attempts"] >= settings().agent_max_steps
                 and not complete
@@ -545,7 +577,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     blocks = ["Подтверждённых данных для ответа недостаточно."]
             if not complete and not state.get("failure"):
                 blocks.append(
-                    "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
+                    "Проверка смысла и полноты ответа отключена в настройках. "
+                    "Утверждения проверены только по ссылкам и числам; полнота ответа не подтверждена."
+                    if unreviewed
+                    else "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
                 )
             if p and p["report_only"] and p["fresh"]:
                 blocks.append(
@@ -581,6 +616,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "rejected_actions": sum(bool(o.get("error")) for o in state["observations"]),
                 "diagnostics": {
                     "time_context": clock_payload(),
+                    "semantic_review_enabled": settings().answer_review,
                     "plan": p,
                     "steps": state.get("diagnostic_steps", []),
                     "retrieved_sources": [
@@ -636,6 +672,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             return "answer"
         if (
             task_complete(state)
+            or can_finish_unreviewed(state)
             or state.get("research_stopped")
             or state.get("stop_reason") == "no_progress"
             or state["attempts"] >= settings().agent_max_steps
@@ -649,6 +686,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             and state.get("stop_reason", "completed") == "completed"
             and not state.get("research_stopped")
             and not task_complete(state)
+            and not can_finish_unreviewed(state)
             and state["attempts"] < settings().agent_max_steps
         ):
             return "decide"

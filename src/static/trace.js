@@ -18,6 +18,7 @@ window.TraceView = (() => {
     no_progress: "Повторные попытки не добавили данных",
     time_budget_exhausted: "Достигнут общий лимит времени",
     research_budget_exhausted: "Поиск завершён с резервом времени на ответ",
+    review_disabled: "Кандидат ответа получен; проверка смысла и полноты отключена",
   };
   const intents = { research: "Анализ источников", forecast: "Прогноз", outside: "Вне специализации" };
   const node = (tag, text, cls) => {
@@ -124,12 +125,61 @@ window.TraceView = (() => {
     }
     return box;
   }
+  function routeView(data) {
+    const box = node("section", undefined, "route-summary");
+    box.setAttribute("aria-label", "Источники и маршрут ответа");
+    box.append(node("h4", "Откуда взят ответ"));
+    const labels = { report: "база знаний", web: "интернет", model: "расчёт" };
+    const counts = new Map();
+    for (const source of data.sources || []) {
+      const label = labels[source.kind] || "другие источники";
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+    box.append(node("p", counts.size ? "Источники ответа: " + [...counts].map(([label, count]) => `${label} (${count})`).join("; ") + "." : "Подтверждённые источники ответа не указаны.", "route-used-sources"));
+    const trace = data.trace || [];
+    const successful = [...new Set(trace.filter(step => step.status === "ok").map(step => step.tool))];
+    box.append(node("p", successful.length ? "Успешно выполнено: " + successful.map(name => tools[name] || name).join("; ") + "." : trace.length ? "Успешных вызовов инструментов нет." : "Вызовов инструментов нет.", "route-executed"));
+    const steps = data.diagnostics?.steps || [];
+    const rejected = steps.filter(step => step.status === "rejected").length;
+    const failed = trace.filter(step => step.status === "error").length;
+    if (rejected || failed) box.append(node("p", `Отклонённых попыток: ${rejected}. Вызовов с ошибкой: ${failed}.`, "small route-attempts"));
+    // Match by the observed step number and tool, never by a repeated tool name.
+    const first = steps.find(step => step.status === "ok");
+    const decision = first && (data.decisions || [])[first.step - 1];
+    if (first && decision && decision.action === first.tool && decision.purpose) {
+      const label = decision.origin === "plan_policy" ? "Цель шага контроллера: " : "Цель модели: ";
+      box.append(node("p", label + decision.purpose, "small route-purpose"));
+    }
+    const plan = data.diagnostics?.plan;
+    if (plan?.report_only) {
+      box.append(node("p", "Область поиска: только база знаний. Интернет запрещён для этого запроса.", "small route-policy"));
+    } else if (data.agent_mode === "loop" && plan && plan.intent !== "outside") {
+      box.append(node("p", "Источник выбирает модель по задаче: содержание отчётов — в базе знаний, внешние и свежие сведения — в интернете. Обязательной очереди нет; при нехватке данных можно сменить источник.", "small route-policy"));
+    }
+    const lastCheck = data.diagnostics?.answer_checks?.at(-1);
+    if (data.diagnostics?.semantic_review_enabled === false && (plan?.wants_context || data.diagnostics?.answer_checks?.length)) {
+      box.append(node("p", "Проверка смысла и полноты ответа отключена в настройках.", "small route-caveat"));
+    }
+    if (data.status === "ok" && lastCheck?.complete === true) {
+      box.append(node("p", "Ответ завершён: модель сочла найденные сведения достаточными. Это оценка модели, а не гарантия полноты.", "small route-completion"));
+    }
+    for (const source of data.sources || []) {
+      if (source.kind !== "web") continue;
+      const caveats = [];
+      if (!source.date) caveats.push("дата публикации неизвестна");
+      if (source.content_type === "snippet") caveats.push("цитата из поисковой выдачи, это не полный текст страницы");
+      else if (source.content_scope === "query_chunks") caveats.push("использованы выбранные фрагменты страницы");
+      if (source.content_truncated) caveats.push("переданный текст ограничен по длине");
+      if (caveats.length) box.append(node("p", `[${source.id}] ${caveats.join("; ")}.`, "small route-caveat"));
+    }
+    return box;
+  }
   function render(data, elapsed) {
     const box = node("aside", undefined, "trace-panel");
     box.setAttribute("aria-label", "Ход запроса");
     const heading = node("div", undefined, "trace-heading");
     heading.append(node("h3", "Ход запроса"), node("span", "TRACE", "trace-kicker"));
-    box.append(heading, node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"));
+    box.append(heading, node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"), routeView(data));
     const metrics = node("div", undefined, "trace-metrics");
     for (const [value, label] of [[duration(elapsed), "запрос в браузере"], [(data.trace || []).length, "вызовов инструментов"], [(data.decisions || []).filter(d => d.origin !== "plan_policy").length, "выборов LLM"]]) {
       const metric = node("div"); metric.append(node("strong", String(value)), node("span", label)); metrics.append(metric);
@@ -168,12 +218,15 @@ window.TraceView = (() => {
       for (const check of diagnostics.answer_checks) {
         const item = node("div", undefined, "answer-check");
         item.append(node("p", `После шага ${check.after_step}: переданы источники ${(check.source_ids || []).join(", ") || "отсутствуют"}.`));
-        item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
+        item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота кандидата по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
         if (check.feedback) item.append(node("p", check.feedback, "small"));
         if (Number.isInteger(check.validation?.candidate_claims)) {
           const v = check.validation;
           item.append(node("p", `Модель предложила утверждений: ${v.candidate_claims}. Отклонено по ссылкам: ${v.citation_rejected || 0}, по числам: ${v.numeric_rejected || 0}, по смыслу: ${v.semantic_rejected || 0}.`, "small"));
         }
+        const coverageLabels = { sufficient: "достаточно сведений", partial: "частичное", unverified: "не проверено" };
+        if (check.validation?.coverage) item.append(node("p", "Покрытие вопроса: " + (coverageLabels[check.validation.coverage] || check.validation.coverage) + ".", "small"));
+        if (check.validation?.missing_aspects?.length) item.append(node("p", "Не хватает: " + check.validation.missing_aspects.join("; "), "small"));
         handoffs.append(item);
       }
       box.append(detail("Как источники переданы в ответ", handoffs));

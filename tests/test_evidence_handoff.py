@@ -58,7 +58,9 @@ def test_real_sdk_receives_report_text_and_ids_without_a_finish_decision():
             execute=lambda *a, **kw: ([{**REPORT, "text": table}], None, event("report_search")),
         )
     assert [name for name, _ in calls] == ["CitedAnswer"]
-    assert response["status"] == "ok" and len(response["decisions"]) == 1
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial" and len(response["decisions"]) == 1
     assert response["decisions"][0]["origin"] == "plan_policy"
     assert response["diagnostics"]["steps"][0]["arguments"] == {"query": "amounts"}
     assert response["claims"][0]["evidence_ids"] == ["R1:B1"]
@@ -100,7 +102,9 @@ def test_partial_answer_is_available_to_next_action_and_can_be_completed():
     second = [p for n, p in client.payloads if n == "decide"][1]
     assert second["current_answer"]["claims"][0]["text"] == "first fact"
     assert second["current_answer"]["complete"] is False
-    assert response["status"] == "ok" and len(response["claims"]) == 2
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial" and len(response["claims"]) == 2
     assert len(response["diagnostics"]["answer_checks"]) == 2
 
 
@@ -148,7 +152,9 @@ def test_source_handoff_does_not_skip_calculation_in_mixed_request():
         planner=lambda *_: plan(intent="forecast", benchmark="WTI", months=2),
         execute=execute,
     )
-    assert response["status"] == "ok" and response["forecast"]["benchmark"] == "WTI"
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial" and response["forecast"]["benchmark"] == "WTI"
     assert [t["tool"] for t in response["trace"]] == ["report_search", "price_forecast"]
     assert len(response["diagnostics"]["answer_checks"]) == 1
 

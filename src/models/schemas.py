@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
@@ -151,6 +151,7 @@ class DiagnosticStep(StrictModel):
 
 class AgentDiagnostics(StrictModel):
     time_context: dict = Field(default_factory=dict)
+    semantic_review_enabled: bool | None = None
     plan: Plan | None = None
     steps: list[DiagnosticStep] = Field(default_factory=list)
     retrieved_sources: list[Source] = Field(default_factory=list)
@@ -189,7 +190,13 @@ class EvidenceCheck(StrictModel):
 
 class NextAction(StrictModel):
     assessment: Literal["need_evidence", "need_detail", "enough", "unavailable"] = "need_evidence"
-    purpose: str = Field(max_length=250)
+    purpose: str = Field(
+        max_length=250,
+        description=(
+            "Краткая цель по-русски: какой пробел закрыть и почему выбранный источник "
+            "подходит этому вопросу. Без утверждения об успехе ещё не выполненного шага."
+        ),
+    )
     action: Literal[
         "report_search", "read_report", "web_search", "read_web", "price_forecast", "finish"
     ]
@@ -263,6 +270,19 @@ class CitationReview(StrictModel):
     feedback: str = Field(max_length=600)
     supported: list[int] = Field(max_length=8)
     complete: bool
+    coverage: Literal["sufficient", "partial", "unverified"] = Field(
+        default="unverified",
+        description=(
+            "Whether the supported claims sufficiently answer the scope and relation requested "
+            "in the question, including its time scope. A true individual fact does not establish "
+            "complete coverage."
+        ),
+    )
+    missing_aspects: list[Annotated[str, Field(min_length=1, max_length=250)]] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Specific requested aspects or evidence still missing; empty only if none are identified.",
+    )
 
 
 class Question(StrictModel):

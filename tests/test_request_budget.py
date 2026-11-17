@@ -127,7 +127,9 @@ def test_research_deadline_leaves_time_for_answer_generation(clock):
         planner=lambda *_: plan(),
         execute=execute,
     )
-    assert response["status"] == "ok" and response["claims"]
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert response["diagnostics"]["semantic_review_enabled"] is False
+    assert response["status"] == "partial" and response["claims"]
     assert len(response["decisions"]) == 1
 
 

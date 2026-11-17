@@ -166,7 +166,9 @@ def test_read_report_missing_required_arguments_is_rejected_then_replanned(missi
         planner=lambda *_: plan(report_only=True),
     )
     assert [name for name, _ in calls] == ["report_search", "read_report"]
-    assert result["status"] == "ok" and result["rejected_actions"] == 1
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["status"] == "partial" and result["rejected_actions"] == 1
     assert result["diagnostics"]["steps"][1]["status"] == "rejected"
     assert result["decisions"][1]["page"] == missing.get("page")
     assert result["decisions"][1]["report"] == missing.get("report", "")
@@ -187,7 +189,9 @@ def test_report_query_is_not_fabricated_when_missing():
         ]
     )
     result = ask("Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan())
-    assert result["status"] == "ok" and result["rejected_actions"] == 1
+    # This transport fixture disables semantic review; no verified completeness is claimed.
+    assert result["diagnostics"]["semantic_review_enabled"] is False
+    assert result["status"] == "partial" and result["rejected_actions"] == 1
     assert len(calls) == 1
     assert result["decisions"][0]["query"] == ""
 

@@ -5,6 +5,7 @@ from test_agent import REPORT, plan
 from test_agent_loop import Scripted, action, event
 
 from src.agent import ask
+from src.config import settings
 
 
 def report(text, **kwargs):
@@ -73,7 +74,9 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
     assert {"report_search", "read_report", "web_search", "finish"} <= set(third["allowed_actions"])
     assert calls == ["broad", "specific missing property"]
     assert response["diagnostics"]["steps"][2]["new_evidence"] is True
-    assert response["stop_reason"] == "completed"
+    assert response["stop_reason"] == "review_disabled"
+    assert response["status"] == "partial"
+    assert response["diagnostics"]["semantic_review_enabled"] is False
 
 
 def test_new_queries_and_urls_with_same_content_do_not_extend_loop():
@@ -148,8 +151,24 @@ def test_assessment_never_rewrites_the_models_chosen_action(assessment, missing,
     assert second["unknown_source_ids"] == (["R999"] if ids == ["R999"] else [])
 
 
-def test_sufficiency_does_not_skip_required_fresh_web_check():
-    client = Scripted(
+def test_sufficiency_does_not_skip_required_fresh_web_check(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    settings.cache_clear()
+
+    class HistoricalEvidenceReview(Scripted):
+        def generate(self, name, payload, schema):
+            if name == "citation_review":
+                self.payloads.append((name, payload))
+                return schema(
+                    supported=[],
+                    complete=False,
+                    coverage="unverified",
+                    missing_aspects=["Current demand is not established by historical supply."],
+                    feedback="Verify the current requested period.",
+                )
+            return super().generate(name, payload, schema)
+
+    client = HistoricalEvidenceReview(
         [
             action("report_search", "supply"),
             {
@@ -180,3 +199,6 @@ def test_sufficiency_does_not_skip_required_fresh_web_check():
     assert calls == ["report_search", "web_search"]
     assert response["status"] == "partial"
     assert response["decisions"][1]["action"] == "web_search"
+    first_check = response["diagnostics"]["answer_checks"][0]["validation"]
+    assert first_check["review_executed"] is True
+    assert first_check["coverage"] == "unverified"

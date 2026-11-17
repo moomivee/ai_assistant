@@ -35,6 +35,7 @@ def catalog(sources, limit=18000, *, priority_source_ids=()):
                     "method",
                     "content_type",
                     "content_scope",
+                    "content_truncated",
                     "date_basis",
                     "retrieved_at",
                 )
@@ -57,12 +58,19 @@ def generate_answer(
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
     checks = diagnostics if diagnostics is not None else {}
+    review_enabled = settings().answer_review
     checks.update(
         candidate_claims=None,
+        candidate_complete=None,
         citation_rejected=0,
         numeric_rejected=0,
         semantic_rejected=0,
         accepted_claims=0,
+        review_enabled=review_enabled,
+        review_attempted=False,
+        review_executed=False,
+        coverage="unverified",
+        missing_aspects=[],
         stage="evidence",
         reason="pending",
     )
@@ -91,6 +99,7 @@ def generate_answer(
                     "method",
                     "content_type",
                     "content_scope",
+                    "content_truncated",
                     "date_basis",
                     "retrieved_at",
                 )
@@ -103,6 +112,7 @@ def generate_answer(
     checks["stage"] = "answer_generation"
     raw = client.generate("cited_answer", payload, CitedAnswer)
     checks["candidate_claims"] = len(raw.claims)
+    checks["candidate_complete"] = raw.complete
     if not raw.claims:
         checks["reason"] = "no_candidate_claims"
         return (
@@ -133,18 +143,14 @@ def generate_answer(
             evidence,
             "No claims passed citation and numeric checks.",
         )
-    if not settings().answer_review:
+    if not review_enabled:
         # Valid IDs and matching numbers cannot establish currency. A fetched
         # web result may itself be old or unrelated to the claim.
         complete = raw.complete and len(valid) == len(raw.claims) and not fresh
         checks.update(
             accepted_claims=len(valid),
             stage="finished",
-            reason="freshness_review_disabled"
-            if fresh
-            else "complete"
-            if complete
-            else "incomplete",
+            reason="semantic_review_disabled",
         )
         return (
             CitedAnswer(claims=valid, complete=complete),
@@ -157,6 +163,7 @@ def generate_answer(
             else "Some requested facts remain unsupported. Search for the missing evidence or open the relevant page.",
         )
     checks["stage"] = "semantic_review"
+    checks["review_attempted"] = True
     review = client.generate(
         "citation_review",
         {
@@ -170,6 +177,11 @@ def generate_answer(
             ],
         },
         CitationReview,
+    )
+    checks.update(
+        review_executed=True,
+        coverage=review.coverage,
+        missing_aspects=review.missing_aspects,
     )
     indexes = review.supported
     well_formed = len(set(indexes)) == len(indexes) and all(0 <= i < len(valid) for i in indexes)
@@ -188,6 +200,8 @@ def generate_answer(
         and bool(supported)
         and len(supported) == len(valid) == len(raw.claims)
         and not review.feedback.strip()
+        and review.coverage == "sufficient"
+        and not review.missing_aspects
     )
     checks.update(
         semantic_rejected=len(valid) - len(supported),
@@ -197,12 +211,29 @@ def generate_answer(
         if complete
         else "semantic_validation_rejected"
         if not supported
+        else "coverage_unverified"
+        if review.coverage == "unverified"
+        else "coverage_incomplete"
+        if review.coverage != "sufficient" or review.missing_aspects
         else "incomplete",
     )
+    feedback_parts = [review.feedback.strip()]
+    if review.missing_aspects:
+        feedback_parts.append("Missing requested aspects: " + "; ".join(review.missing_aspects))
+    if review.coverage == "unverified":
+        feedback_parts.append(
+            "Coverage of the question was not verified. Check the requested relation, scope "
+            "and time period before treating the answer as complete."
+        )
+    elif review.coverage == "partial" and not review.missing_aspects:
+        feedback_parts.append(
+            "The review found only partial coverage of the question. "
+            "Identify the missing requested aspect and obtain direct evidence."
+        )
     return (
         CitedAnswer(claims=supported, complete=complete),
         evidence,
-        review.feedback.strip()
+        " ".join(part for part in feedback_parts if part)
         or (
             ""
             if complete
