@@ -128,6 +128,7 @@ class DiagnosticStep(StrictModel):
     tool: str
     purpose: str
     arguments: dict
+    argument_repair: dict | None = None
     status: Literal["ok", "error", "rejected"]
     ms: int | None
     error: str | None = None
@@ -193,12 +194,31 @@ class NextAction(StrictModel):
     version_id: str = Field(default="", max_length=100)
     url: str = Field(default="", max_length=2048)
     topic: Literal["general", "news"] = "general"
-    days: int | None = Field(default=None, ge=1, le=3650)
-    start_date: str | None = Field(default=None, max_length=10)
-    end_date: str | None = Field(default=None, max_length=10)
+    days: int | None = Field(
+        default=None,
+        ge=1,
+        le=3650,
+        description="Окно последних N дней. При заданных start_date/end_date должно быть null.",
+    )
+    start_date: str | None = Field(
+        default=None,
+        max_length=10,
+        description="Начало периода YYYY-MM-DD. При заданном days должно быть null.",
+    )
+    end_date: str | None = Field(
+        default=None,
+        max_length=10,
+        description="Конец периода YYYY-MM-DD. При заданном days должно быть null.",
+    )
     search_depth: Literal["basic", "advanced"] = "basic"
     missing_facts: list[str] = Field(default_factory=list, max_length=6)
     evidence_checks: list[EvidenceCheck] = Field(default_factory=list, max_length=8)
+
+
+class WebTimeFilterChoice(StrictModel):
+    mode: Literal["unbounded", "relative", "dates"] = Field(
+        description="Ровно один вариант: без окна, предложенные days или предложенные даты."
+    )
 
 
 class CitedClaim(StrictModel):

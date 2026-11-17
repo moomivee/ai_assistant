@@ -127,6 +127,27 @@ def _date_bounds(days, start_date, end_date):
     return start, end
 
 
+def validate_search_options(
+    *,
+    topic="general",
+    days=None,
+    start_date=None,
+    end_date=None,
+    max_results=6,
+    search_depth="basic",
+):
+    """Invalid arguments are tool errors, not a successfully executed empty search."""
+    if topic not in {"general", "news"} or search_depth not in {"basic", "advanced"}:
+        raise ValueError("Неизвестный topic или search_depth для веб-поиска.")
+    if (
+        isinstance(max_results, bool)
+        or not isinstance(max_results, int)
+        or not 1 <= max_results <= 6
+    ):
+        raise ValueError("max_results должен быть целым числом от 1 до 6.")
+    return _date_bounds(days, start_date, end_date)
+
+
 def _within_window(published, start, end):
     if published is None:
         return not (start or end)
@@ -180,15 +201,14 @@ def search_web(
     query = " ".join(query.split())[:400]
     if not query:
         raise ValueError("Для веб-поиска нужен непустой запрос.")
-    if topic not in {"general", "news"} or search_depth not in {"basic", "advanced"}:
-        raise ValueError("Неизвестный topic или search_depth для веб-поиска.")
-    if (
-        isinstance(max_results, bool)
-        or not isinstance(max_results, int)
-        or not 1 <= max_results <= 6
-    ):
-        raise ValueError("max_results должен быть целым числом от 1 до 6.")
-    start, end = _date_bounds(days, start_date, end_date)
+    start, end = validate_search_options(
+        topic=topic,
+        days=days,
+        start_date=start_date,
+        end_date=end_date,
+        max_results=max_results,
+        search_depth=search_depth,
+    )
     log("web.search_requested", provider="tavily" if cfg.web_key else "rss", fresh=fresh)
     if not cfg.web_key:
         if fresh:
@@ -375,6 +395,9 @@ def read_web(url: str, query: str = "") -> dict:
 
 
 def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **search_options) -> dict:
+    # Validate before the provider-error handlers below (and before FRED calls).
+    # The tool registry must record invalid arguments as an error, not status=ok.
+    validate_search_options(**search_options)
     rows, notices = [], []
     for grade in dict.fromkeys(quotes):
         if grade not in DAILY:

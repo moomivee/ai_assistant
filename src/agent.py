@@ -24,7 +24,7 @@ from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
 from .logging import log
-from .models.schemas import AgentResponse, CitedAnswer, NextAction
+from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import make_plan
 from .progress import action_signature, check_assessment, context_sources, evidence_key, source_key
 from .request_context import current_scope, scope_payload
@@ -61,6 +61,38 @@ class State(TypedDict, total=False):
 @lru_cache(maxsize=32)
 def action_schema(allowed):
     return create_model("AvailableAction", __base__=NextAction, action=(Literal[allowed], ...))
+
+
+def repair_web_time_filter(client, question, previous, decision):
+    """Let the model choose one window; never silently prefer a date or force web."""
+    if (
+        decision["action"] != "web_search"
+        or decision.get("days") is None
+        or not (decision.get("start_date") or decision.get("end_date"))
+    ):
+        return decision
+    before = {key: decision.get(key) for key in ("days", "start_date", "end_date")}
+    choice = client.generate(
+        "web_time_filter",
+        {
+            "question": question,
+            "previous": previous,
+            "today": date.today().isoformat(),
+            "search_query": decision["query"],
+            "proposed": before,
+        },
+        WebTimeFilterChoice,
+    )
+    after = {
+        "days": before["days"] if choice.mode == "relative" else None,
+        "start_date": before["start_date"] if choice.mode == "dates" else None,
+        "end_date": before["end_date"] if choice.mode == "dates" else None,
+    }
+    return {
+        **decision,
+        **after,
+        "argument_repair": {"mode": choice.mode, "before": before, "after": after},
+    }
 
 
 def decision_sources(sources):
@@ -261,6 +293,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 decision["controller_note"] = (
                     "Referenced assessment says enough; proceeding to answer."
                 )
+            if "web_search" in actions:
+                decision = repair_web_time_filter(
+                    client, state["question"], state.get("previous"), decision
+                )
             return {
                 "decision": decision,
                 "decisions": state["decisions"] + [decision],
@@ -299,7 +335,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "search": p["news"] or p["wants_context"] or not p["quotes"],
             }
             for key in ("topic", "days", "start_date", "end_date", "search_depth"):
-                if d.get(key) not in (None, "general", "basic"):
+                if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
         elif name == "read_web":
             args = {"url": d["url"], "query": d["query"]}
@@ -316,6 +352,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if not error:
             data, error, event = execute(registry, name, **args)
         observation = {"tool": name, "arguments": args, "error": error}
+        if d.get("argument_repair"):
+            observation["argument_repair"] = d["argument_repair"]
         update = {
             "trace": state["trace"] + ([event] if event else []),
         }

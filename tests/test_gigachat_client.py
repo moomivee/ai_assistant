@@ -15,7 +15,7 @@ from src.config import settings
 from src.integrations import gigachat
 from src.integrations.gigachat import GigaChatClient
 from src.integrations.llm import LLMClient, LLMUnavailable
-from src.models.schemas import CitedAnswer, JudgeResult, Plan
+from src.models.schemas import CitedAnswer, JudgeResult, Plan, WebTimeFilterChoice
 
 KEY = "test-only-authorization-key"
 TOKEN = "test-only-access-token"
@@ -114,6 +114,7 @@ def test_native_schema_oauth_cache_and_safe_trace():
     "schema,payload",
     [
         (Plan, plan().model_dump()),
+        (WebTimeFilterChoice, {"mode": "unbounded"}),
         (
             action_schema(("report_search", "finish")),
             {

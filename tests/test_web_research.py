@@ -6,6 +6,7 @@ import pytest
 from src.budget import RequestBudgetExceeded, request_budget
 from src.config import settings
 from src.integrations import web, web_cache
+from src.tools import make_registry, run_tool
 
 
 @pytest.fixture(autouse=True)
@@ -111,6 +112,46 @@ def test_invalid_search_options_do_not_make_requests(monkeypatch, options):
     with pytest.raises(ValueError):
         web.search_web("Oil", True, **options)
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"days": 30, "start_date": "2024-01-01", "end_date": "2024-01-31"},
+        {"start_date": "2024-02-30"},
+        {"start_date": "2024-03-01", "end_date": "2024-01-01"},
+    ],
+)
+def test_invalid_window_is_a_tool_error_before_any_network_call(monkeypatch, options):
+    calls = post_fixture(monkeypatch, {"results": []})
+    monkeypatch.setattr(web, "latest_spot", lambda *_: pytest.fail("Must validate before FRED"))
+    data, error, event = run_tool(
+        make_registry(),
+        "web_search",
+        query="Oil",
+        fresh=True,
+        quotes=["Brent"],
+        search=True,
+        **options,
+    )
+    assert data is None and error
+    assert event["status"] == "error"
+    assert calls == []
+
+
+def test_genuinely_empty_web_search_is_still_successful(monkeypatch):
+    calls = post_fixture(monkeypatch, {"results": []})
+    data, error, event = run_tool(
+        make_registry(),
+        "web_search",
+        query="Oil",
+        fresh=True,
+        quotes=[],
+        search=True,
+    )
+    assert len(calls) == 1
+    assert data["items"] == [] and error is None
+    assert event["status"] == "ok"
 
 
 @pytest.mark.parametrize(
