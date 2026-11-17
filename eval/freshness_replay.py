@@ -2,12 +2,12 @@
 
 import argparse
 import json
-from datetime import date
 from pathlib import Path
 from time import perf_counter
 
 from src.agent import action_schema, allowed_actions, decision_sources, research_status
 from src.budget import remaining_seconds, request_budget, research_phase
+from src.clock import clock_payload, request_clock
 from src.config import ROOT, settings
 from src.integrations.llm import LLMClient
 from src.integrations.telemetry import flush
@@ -39,13 +39,16 @@ def run(output):
         "live_web_measured": False,
     }
     start = perf_counter()
-    with request_budget(cfg.agent_timeout_seconds, cfg.agent_answer_reserve_seconds):
+    with (
+        request_clock(),
+        request_budget(cfg.agent_timeout_seconds, cfg.agent_answer_reserve_seconds),
+    ):
         with research_phase():
             payload = {
                 "question": fixture["question"],
                 "previous": None,
                 "task": fixture["plan"],
-                "today": date.today().isoformat(),
+                **clock_payload(),
                 "allowed_actions": actions,
                 "research_status": research_status(state),
                 "steps_remaining": cfg.agent_max_steps - 1,

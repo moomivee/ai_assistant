@@ -65,7 +65,7 @@ function selectQuery(question, keepScope = false) {
 function updateScopeHint() {
   $("scope-hint").textContent = $("report-only").checked
     ? "Используются только документы базы знаний. Веб-поиск отключён для этого вопроса."
-    : "Агент сначала ищет в документах. Если сведений недостаточно, может обратиться к веб-источникам.";
+    : "Агент выбирает документы или веб по задаче. Для актуальных событий может сразу обратиться к интернету.";
 }
 function locatorLabel(locator = {}, page = null) {
   if (locator?.label) return locator.label;

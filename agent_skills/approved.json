@@ -3,16 +3,25 @@
   "admission_basis": "trusted_application_bundle",
   "skills": {
     "price_forecast": {
-      "version": "1.0.0",
-      "manifest_sha256": "85af6de78df0267ca3c6bcaa07c9cb0d3233818931e4ebb27f4d5e7e096ecea9"
+      "version": "1.1.0",
+      "manifest_sha256": "19a8262b485fabd0f39c55ef7fd326a6bb0c17a16e083a34b23f6a452cab3490",
+      "previous_manifest_sha256": [
+        "85af6de78df0267ca3c6bcaa07c9cb0d3233818931e4ebb27f4d5e7e096ecea9"
+      ]
     },
     "report_analysis": {
-      "version": "1.0.0",
-      "manifest_sha256": "62c6c0a7d95e8a893afe7fe7a29fe7ad8cf07adf3e95819ab5b08c83c843d217"
+      "version": "1.1.0",
+      "manifest_sha256": "7d17a889c87624ca191fbc29b62e7d816328327f18f0ad7f85c4c4da8dce318e",
+      "previous_manifest_sha256": [
+        "62c6c0a7d95e8a893afe7fe7a29fe7ad8cf07adf3e95819ab5b08c83c843d217"
+      ]
     },
     "web_research": {
-      "version": "1.0.0",
-      "manifest_sha256": "9bb52e43170eae5ef2783de4efc35478f9493107bd2125a7960d3250fc287534"
+      "version": "1.1.0",
+      "manifest_sha256": "a65a634694c287e1471541e4b4d0deeefcf7de090457f10f891d827888b53d07",
+      "previous_manifest_sha256": [
+        "9bb52e43170eae5ef2783de4efc35478f9493107bd2125a7960d3250fc287534"
+      ]
     }
   }
 }

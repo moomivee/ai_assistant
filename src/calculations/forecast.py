@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..clock import clock_today
 from ..config import settings
 
 SERIES = {"Brent": "MCOILBRENTEU", "WTI": "MCOILWTICO"}
@@ -34,7 +35,7 @@ def load_history(
     months, values = zip(*pairs)
     if any(month_after(a, 1) != b for a, b in zip(months, months[1:])):
         raise ValueError("В истории есть пропуск, повтор или нарушен порядок месяцев.")
-    if months[-1] >= date.today().isoformat()[:7]:
+    if months[-1] >= clock_today().isoformat()[:7]:
         raise ValueError("В ряду обнаружен незавершённый или будущий месяц.")
     prices = np.asarray(values, dtype=float)
     if not np.isfinite(prices).all() or np.any(prices <= 0):

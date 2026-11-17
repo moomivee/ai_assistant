@@ -1,12 +1,11 @@
 """Regression tests for context delivery and model choice, not LLM quality scores."""
 
-from datetime import date
-
 import pytest
 from test_agent import REPORT, WEB, plan
 from test_agent_loop import Scripted, action, event
 
 from src.agent import ask, decision_sources
+from src.clock import clock_payload
 from src.evidence import generate_answer
 
 
@@ -32,7 +31,7 @@ def test_answer_generation_gets_today_and_original_source_dates():
     class Capture:
         def generate(self, name, payload, schema):
             assert name == "cited_answer"
-            assert payload["today"] == date.today().isoformat()
+            assert payload["today"] == clock_payload()["today"]
             assert payload["sources"][0]["date"] == REPORT["date"]
             assert payload["sources"][0]["url"] == REPORT["url"]
             assert payload["evidence"]["R1:B1"] == REPORT["text"]
@@ -64,15 +63,15 @@ def test_stale_context_leaves_next_tool_to_model_even_if_plan_missed_freshness(c
             data = [{**REPORT, "url": "https://eia.gov/other.pdf", "text": "Additional fact."}]
         return data, None, event(name)
 
-    client = Scripted([choice], complete=[False, True])
+    client = Scripted([action("report_search", "meeting"), choice], complete=[False, True])
     ask(
         "Когда была последняя встреча?",
         client=client,
         execute=execute,
         planner=lambda *_: plan(fresh=False, rag_query="meeting"),
     )
-    payload = next(p for name, p in client.payloads if name == "decide")
-    assert payload["today"] == date.today().isoformat()
+    payload = [p for name, p in client.payloads if name == "decide"][1]
+    assert payload["today"] == clock_payload()["today"]
     assert payload["sources"][0]["date"] == old["date"]
     assert payload["sources"][0]["url"] == old["url"]
     assert payload["task"]["fresh"] is False

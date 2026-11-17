@@ -2,6 +2,7 @@
 
 import json
 import unicodedata
+from collections import deque
 
 
 def action_signature(name, arguments):
@@ -32,31 +33,82 @@ def page_key(source):
     )
 
 
-def context_sources(sources):
+def context_sources(sources, *, priority_source_ids=()):
     """Opening a long page must never hide an already retrieved relevant excerpt."""
     short_pages = [
         s
         for s in sources
         if s.get("full_page") and page_key(s) and not s.get("truncated") and len(s["text"]) <= 6000
     ]
+    priorities = {source_id: rank for rank, source_id in enumerate(priority_source_ids)}
     selected = []
     for source in sources:
-        covered = not source.get("full_page") and any(
-            page_key(source) == page_key(page)
-            and " ".join(source["text"].split()) in " ".join(page["text"].split())
+        covering = [
+            page
             for page in short_pages
-        )
-        if not covered:
+            if not source.get("full_page")
+            and page_key(source) == page_key(page)
+            and " ".join(source["text"].split()) in " ".join(page["text"].split())
+        ]
+        if not covering:
             selected.append(source)
+        elif source["id"] in priorities:
+            for page in covering:
+                priorities[page["id"]] = min(
+                    priorities.get(page["id"], len(priorities)), priorities[source["id"]]
+                )
     # Short opened pages keep table headers together. Long pages come after
     # retrieved excerpts so their prefix cannot exhaust the context budget.
     return sorted(
         selected,
         key=lambda s: (
+            priorities.get(s["id"], len(priorities)),
             bool(s.get("full_page") and (s.get("truncated") or len(s["text"]) > 6000)),
             not s.get("full_page", False),
         ),
     )
+
+
+def _source_blocks(source):
+    """Stable exact slices, independent of context limit and source priority."""
+    text, start, block_no = source["text"], 0, 0
+    while start < len(text):
+        end = min(start + 1600, len(text))
+        if end < len(text):
+            boundary = text.rfind("\n", start + 800, end)
+            if boundary <= start:
+                # Prefer a token boundary when a page has no line breaks. A
+                # normal date or numeric value must not be split at the cap.
+                boundary = max(text.rfind(" ", start, end), text.rfind("\t", start, end))
+            if boundary > start:
+                end = boundary + 1
+        block = text[start:end]
+        if block.strip():
+            block_no += 1
+            yield block_no, start, end, block
+        start = end
+
+
+def context_blocks(sources, limit, *, priority_source_ids=()):
+    """Pack one exact block per source per round, giving new evidence a turn."""
+    pending = deque(
+        (source, iter(_source_blocks(source)))
+        for source in context_sources(sources, priority_source_ids=priority_source_ids)
+    )
+    selected, remaining = [], limit
+    while pending and remaining > 0:
+        source, blocks = pending.popleft()
+        block = next(blocks, None)
+        if block is None:
+            continue
+        block_no, start, end, text = block
+        if len(text) > remaining:
+            # Do not replace a full block by an orphan tail or change its ID.
+            continue
+        selected.append((source, block_no, start, end, text))
+        remaining -= len(text)
+        pending.append((source, blocks))
+    return selected
 
 
 def evidence_key(source):

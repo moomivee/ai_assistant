@@ -58,7 +58,7 @@ def test_read_web_requires_discovered_url_and_keeps_extraction():
     )
     result = ask("Какой факт?", client=client, execute=execute, planner=lambda *_: plan())
     assert result["status"] == "ok"
-    assert calls == ["report_search", "web_search", "read_web"]
+    assert calls == ["web_search", "read_web"]
     assert len(result["diagnostics"]["retrieved_sources"]) == 2
     assert "read_web" in [p for n, p in client.payloads if n == "decide"][-1]["allowed_actions"]
 
@@ -79,7 +79,7 @@ def test_unseen_web_url_is_rejected_before_executor():
         complete=False,
     )
     result = ask("Какой факт?", client=client, execute=execute, planner=lambda *_: plan())
-    assert calls == ["report_search", "web_search"]
+    assert calls == ["web_search"]
     assert any("Read only" in (s["error"] or "") for s in result["diagnostics"]["steps"])
 
 
@@ -189,7 +189,7 @@ def test_selected_native_skill_enters_llm_context_and_is_reset():
 
     response = ask(
         "Сера Urals?",
-        client=SkillClient([]),
+        client=SkillClient([action("report_search", "sulfur")]),
         execute=lambda _, name, **args: ([REPORT], None, event(name)),
         planner=lambda *_: plan(skill="report_analysis"),
     )

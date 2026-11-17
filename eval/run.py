@@ -24,7 +24,7 @@ from src.tools import run_tool
 
 from .metrics import mean_metrics, relevant, retrieval_metrics, route_metrics
 
-DEFAULT_DATA = ROOT / "eval/data/cases.jsonl"
+DEFAULT_DATA = ROOT / "eval/data/cases_v3.jsonl"
 
 
 def load_cases(path=DEFAULT_DATA, split="all", limit=None):
@@ -51,6 +51,15 @@ def validate_data(path=DEFAULT_DATA):
         assert row["split"] in ("dev", "test")
         assert row["split"] == groups.setdefault(row["group"], row["split"]), "Group leakage"
         assert row["expected"]["answer_rubric"]
+        expected = row["expected"]
+        if expected.get("routing_policy") == "adaptive-v3":
+            tools = {"report_search", "read_report", "web_search", "read_web", "price_forecast"}
+            assert set(expected["required_tools"]) <= tools, "Unknown required tool"
+            tool_groups = expected.get("required_tool_groups", [])
+            assert all(group and set(group) <= tools for group in tool_groups), "Invalid tool group"
+            forbidden = set(expected.get("forbidden", []))
+            assert not set(expected["required_tools"]) & forbidden, "Contradictory tool labels"
+            assert all(set(group) - forbidden for group in tool_groups), "Forbidden tool group"
         for gold in row["relevant"]:
             assert any(relevant(c, gold) for c in chunks), f"Missing evidence: {row['id']} {gold}"
     return {
@@ -107,6 +116,7 @@ def provenance(path, *, include_knowledge=False):
             "agent_answer_reserve_seconds": settings().agent_answer_reserve_seconds,
             "llm_http_timeout": settings().llm_timeout,
             "answer_self_review": settings().answer_review,
+            "app_timezone": settings().app_timezone,
             "embedding": settings().embedding,
             "retrieval_mode": settings().rag_search,
             "top_k": settings().top_k,
@@ -319,6 +329,9 @@ def run(
         "scope": "controlled_routing" if mode == "routing" else mode,
         "provenance": provenance(data, include_knowledge=mode == "agent"),
         "split": split,
+        "routing_policies": sorted(
+            {case["expected"].get("routing_policy", "legacy-report-first") for case in cases}
+        ),
         "rows": [],
     }
 
@@ -424,6 +437,7 @@ def run(
             row = {
                 "case_id": case["id"],
                 "split": case["split"],
+                "routing_policy": case["expected"].get("routing_policy", "legacy-report-first"),
                 "metrics": metrics,
                 "plan": plan,
                 "initial_plan": client.raw_plan.model_dump() if client.raw_plan else None,
@@ -489,6 +503,8 @@ def run(
             "judge_calibrated": False,
             "judge_assisted_success_rate": sum(
                 r["metrics"]["tool_policy_pass"] == 1
+                and r["metrics"]["required_tool_success"] == 1
+                and r["metrics"].get("final_review_consistency", 1) == 1
                 and r["metrics"]["intent_correct"] == 1
                 and r["metrics"]["status_correct"] == 1
                 and "judge" in r

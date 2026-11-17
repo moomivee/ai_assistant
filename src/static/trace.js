@@ -5,7 +5,7 @@
 window.TraceView = (() => {
   const tools = {
     report_search: "Поиск в отчётах", read_report: "Чтение страницы PDF",
-    web_search: "Веб-поиск и котировки", price_forecast: "Расчёт прогноза",
+    web_search: "Веб-поиск и котировки", read_web: "Чтение веб-страницы", price_forecast: "Расчёт прогноза",
     finish: "Перейти к ответу",
   };
   const statuses = {
@@ -76,7 +76,7 @@ window.TraceView = (() => {
     const badgeText = state === "rejected" ? "Отклонён" : state === "error" ? "Ошибка" : state === "ok" ? duration(execution.ms) : decision.action === "finish" ? "Решение" : "Нет результата";
     title.append(node("span", badgeText, "step-state " + (state || "decision")));
     li.append(title);
-    if (decision.origin === "plan_policy") li.append(node("p", "По правилу приоритета отчётов. Поисковый запрос взят из плана; отдельного вызова LLM для выбора этого шага нет.", "small step-origin"));
+    if (decision.origin === "plan_policy") li.append(node("p", "Шаг по правилам контроллера. Запрос взят из плана; отдельного вызова LLM для выбора этого шага нет.", "small step-origin"));
     if (decision.purpose) li.append(node("p", "Цель по плану: " + decision.purpose, "step-purpose"));
     if (decision.controller_note) li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
     if (decision.missing_facts?.length || decision.evidence_checks?.length) {
@@ -135,6 +135,13 @@ window.TraceView = (() => {
     }
     box.append(metrics);
     const diagnostics = data.diagnostics;
+    const clock = diagnostics?.time_context;
+    if (clock?.today) {
+      const time = node("div", undefined, "trace-time");
+      time.append(node("strong", `Дата запроса: ${clock.today}`), node("p", `Часовой пояс: ${clock.timezone || "не указан"}. Эта дата передана модели.`, "small"));
+      time.append(detail("Время запроса", json(clock)));
+      box.append(time);
+    }
     box.append(detail("Как понят запрос", planView(diagnostics?.plan)));
     const timeline = node("ol", undefined, "trace-timeline");
     const decisions = data.decisions || [];

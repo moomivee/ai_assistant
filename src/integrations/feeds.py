@@ -2,7 +2,6 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, urlunsplit
 from xml.etree import ElementTree
@@ -10,6 +9,7 @@ from xml.etree import ElementTree
 import httpx
 
 from ..budget import bounded_timeout
+from ..clock import clock_today
 from ..config import settings
 from ..logging import log
 
@@ -63,6 +63,7 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
         feeds = FEEDS
     # Compute before entering worker threads, which do not inherit ContextVars.
     request_timeout = bounded_timeout(cfg.timeout)
+    today = clock_today()
 
     def fetch(entry):
         publisher, feed = entry
@@ -83,7 +84,7 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
         found = []
         for row in root.findall("./channel/item"):
             day = parse_date(row.findtext("pubDate", ""))
-            if not day or not 0 <= (date.today() - day).days <= cfg.news_days:
+            if not day or not 0 <= (today - day).days <= cfg.news_days:
                 continue
             parts = urlsplit(row.findtext("link", ""))
             if parts.scheme not in ("http", "https"):

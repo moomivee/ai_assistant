@@ -1,7 +1,6 @@
 """Bounded observe/act loop: the LLM chooses the next tool after every result."""
 
 from contextlib import nullcontext
-from datetime import date
 from functools import lru_cache
 from time import perf_counter
 from typing import Literal, TypedDict
@@ -18,6 +17,7 @@ from .budget import (
     request_budget,
     research_phase,
 )
+from .clock import clock_payload, request_clock
 from .config import settings
 from .evidence import generate_answer, render_claims
 from .integrations.agent_skills import SkillUnavailable, skill_context
@@ -26,7 +26,7 @@ from .integrations.telemetry import callbacks, request_trace, span
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import make_plan
-from .progress import action_signature, check_assessment, context_sources, evidence_key, source_key
+from .progress import action_signature, check_assessment, context_blocks, evidence_key, source_key
 from .request_context import current_scope, scope_payload
 from .tools import make_registry, run_tool
 from .workflow import forecast_answer
@@ -77,7 +77,7 @@ def repair_web_time_filter(client, question, previous, decision):
         {
             "question": question,
             "previous": previous,
-            "today": date.today().isoformat(),
+            **clock_payload(),
             "search_query": decision["query"],
             "proposed": before,
         },
@@ -95,39 +95,52 @@ def repair_web_time_filter(client, question, previous, decision):
     }
 
 
-def decision_sources(sources):
-    """Bound context and replace fragmented pages with their opened full page."""
-    result, remaining = [], 14000
-    for source in context_sources(sources):
-        if remaining <= 0:
-            break
-        row = {
-            k: source.get(k)
-            for k in (
-                "id",
-                "report",
-                "page",
-                "title",
-                "kind",
-                "date",
-                "url",
-                "full_page",
-                "document_id",
-                "version_id",
-                "block_id",
-                "locator",
-                "method",
-                "content_type",
-                "content_scope",
-                "date_basis",
-                "retrieved_at",
-                "local_url",
-            )
-        }
-        row["text"] = source["text"][:remaining]
-        remaining -= len(row["text"])
-        result.append(row)
-    return result
+def recent_source_ids(state):
+    """Prioritize newly obtained evidence, without treating retrieval time as truth."""
+    return list(
+        dict.fromkeys(
+            source_id
+            for observation in reversed(state.get("observations", []))
+            for source_id in observation.get("new_source_ids", [])
+        )
+    )
+
+
+def decision_sources(sources, *, priority_source_ids=()):
+    """Share bounded context across sources instead of filling it with one PDF."""
+    result = {}
+    for source, _, _, end, block in context_blocks(
+        sources, 14000, priority_source_ids=priority_source_ids
+    ):
+        row = result.setdefault(
+            source["id"],
+            {
+                k: source.get(k)
+                for k in (
+                    "id",
+                    "report",
+                    "page",
+                    "title",
+                    "kind",
+                    "date",
+                    "url",
+                    "full_page",
+                    "document_id",
+                    "version_id",
+                    "block_id",
+                    "locator",
+                    "method",
+                    "content_type",
+                    "content_scope",
+                    "date_basis",
+                    "retrieved_at",
+                    "local_url",
+                )
+            },
+        )
+        row["text"] = row.get("text", "") + block
+        row["context_truncated"] = end < len(source["text"])
+    return list(result.values())
 
 
 def research_status(state):
@@ -150,23 +163,23 @@ def allowed_actions(state):
     p = state["plan"]
     called = [event["tool"] for event in state["trace"]]
     actions = []
-    if p["wants_context"] or p["quotes"]:
+    if p["wants_context"]:
         actions.append("report_search")
         if any(s["kind"] == "report" for s in state["sources"]):
             actions.append("read_report")
-        if not p["report_only"] and "report_search" in called:
-            actions.append("web_search")
-            if any(s["kind"] == "web" and "price" not in s for s in state["sources"]):
-                actions.append("read_web")
+    if (p["wants_context"] or p["quotes"]) and not p["report_only"]:
+        actions.append("web_search")
+        if any(s["kind"] == "web" and "price" not in s for s in state["sources"]):
+            actions.append("read_web")
     if p["intent"] == "forecast" and not state["calc"]:
         actions.append("price_forecast")
-    # Finishing without a required attempt cannot silently skip the user's task.
-    required = (
-        (p["intent"] != "forecast" or bool(state["calc"]))
-        and (not p["wants_context"] or "report_search" in called)
-        and (not (p["fresh"] and not p["report_only"]) or "web_search" in called)
+    # A model may stop with a partial answer after an unsuccessful attempt.
+    # Source order is its decision; completeness is checked against evidence.
+    evidence_attempted = any(name in called for name in ("report_search", "web_search"))
+    required = (p["intent"] != "forecast" or bool(state["calc"])) and (
+        not (p["wants_context"] or p["quotes"]) or evidence_attempted
     )
-    if required:
+    if required or not actions:
         actions.append("finish")
     # Repeated arguments do not disable an entire tool. A changed query must
     # remain available even when other tools are also allowed.
@@ -208,10 +221,15 @@ def task_complete(state):
         return False
     if p["intent"] == "forecast" and not state["calc"]:
         return False
+    if p["fresh"] and p["report_only"]:
+        # The user permits only a document snapshot, not verification as of now.
+        return False
     web = [s for s in state["sources"] if s["kind"] == "web"]
-    return (not p["fresh"] or p["report_only"] or bool(web)) and set(p["quotes"]) <= {
-        s.get("grade") for s in web if "price" in s
-    }
+    # A successful search is not proof of a current, relevant answer. For prose
+    # answers generate_answer has already checked the actual cited evidence.
+    if p["wants_context"] and state.get("feedback", "").strip():
+        return False
+    return set(p["quotes"]) <= {s.get("grade") for s in web if "price" in s}
 
 
 def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
@@ -230,11 +248,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         try:
             actions = allowed_actions(state)
             if state["attempts"] == 0 and actions == ["report_search"]:
-                # The model already supplied a search query in Plan, and the
-                # report-first policy leaves no action to choose here.
+                # Only an explicit reports-only scope leaves one evidence tool.
+                # Reuse the model's planned query without a redundant decision.
                 decision = NextAction(
                     action="report_search",
-                    purpose="Первый поиск по запросу из проверенного плана; приоритет отчётов.",
+                    purpose="Поиск по запросу из плана в выбранной пользователем базе документов.",
                     query=state["plan"]["rag_query"] or state["question"],
                     report="",
                     page=None,
@@ -248,12 +266,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "previous": state.get("previous"),
                         "task": state["plan"],
                         "user_scope": scope_payload(),
-                        "today": date.today().isoformat(),
+                        **clock_payload(),
                         "allowed_actions": allowed_actions(state),
                         "research_status": research_status(state),
                         "steps_remaining": settings().agent_max_steps - state["attempts"],
                         "observations": state["observations"],
-                        "sources": decision_sources(state["sources"]),
+                        "sources": decision_sources(
+                            state["sources"], priority_source_ids=recent_source_ids(state)
+                        ),
                         "calculation_available": bool(state["calc"]),
                         "answer_feedback": state["feedback"],
                         "current_answer": state["draft"],
@@ -274,25 +294,6 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 ).model_dump()
                 decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
-            if (
-                decision["assessment"] == "enough"
-                and not decision["missing_facts"]
-                and decision["assessment_references_valid"]
-                and "finish" in allowed_actions(state)
-                and decision["action"] != "finish"
-            ):
-                # Reconcile the model's own explicit, referenced assessment.
-                # Record both actions; answer generation still validates claims.
-                decision["model_action"] = decision["action"]
-                decision["action"] = "finish"
-                decision["source_ids"] = list(
-                    dict.fromkeys(
-                        key for check in decision["evidence_checks"] for key in check["source_ids"]
-                    )
-                )
-                decision["controller_note"] = (
-                    "Referenced assessment says enough; proceeding to answer."
-                )
             if "web_search" in actions:
                 decision = repair_web_time_filter(
                     client, state["question"], state.get("previous"), decision
@@ -447,11 +448,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 p["rag_query"] if p["intent"] == "forecast" else state["question"],
                 sources,
                 feedback=state["feedback"],
+                fresh=p["fresh"],
+                report_only=p["report_only"],
+                priority_source_ids=recent_source_ids(state),
             )
-            previous = CitedAnswer.model_validate(state["draft"])
-            if not draft.complete and len(draft.claims) < len(previous.claims):
-                draft = previous
-                evidence = {**evidence, **state["evidence"]}
+            # The latest validation replaces the candidate, including an empty
+            # rejection. Restoring an old complete draft can resurrect stale facts.
             return {
                 "draft": draft.model_dump(),
                 "evidence": evidence,
@@ -460,6 +462,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "answer_context_ids": ids,
                 "answer_checks": result_check(
                     status="ok",
+                    supplied_source_ids=ids,
+                    source_ids=list(dict.fromkeys(row["source"] for row in evidence.values())),
+                    evidence_ids=list(evidence),
                     complete=draft.complete,
                     claims=len(draft.claims),
                     feedback=feedback,
@@ -562,6 +567,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "agent_mode": "loop",
                 "rejected_actions": sum(bool(o.get("error")) for o in state["observations"]),
                 "diagnostics": {
+                    "time_context": clock_payload(),
                     "plan": p,
                     "steps": state.get("diagnostic_steps", []),
                     "retrieved_sources": [
@@ -698,6 +704,7 @@ def ask(
     if not 1 <= len(question) <= 2000:
         raise ValueError("Введите вопрос длиной от 1 до 2000 символов.")
     with (
+        request_clock(),
         request_budget(settings().agent_timeout_seconds, settings().agent_answer_reserve_seconds),
         request_trace(question, previous) as (trace_id, obs),
     ):

@@ -54,7 +54,7 @@ def test_real_sdk_receives_report_text_and_ids_without_a_finish_decision():
         response = ask(
             "Сравни количества",
             client=LLMClient(sdk),
-            planner=lambda *_: plan(rag_query="amounts"),
+            planner=lambda *_: plan(report_only=True, rag_query="amounts"),
             execute=lambda *a, **kw: ([{**REPORT, "text": table}], None, event("report_search")),
         )
     assert [name for name, _ in calls] == ["CitedAnswer"]
@@ -88,14 +88,16 @@ def test_partial_answer_is_available_to_next_action_and_can_be_completed():
                 )
             return super().generate(name, payload, schema)
 
-    client = Client([action("report_search", "missing fact")])
+    client = Client(
+        [action("report_search", "first fact"), action("report_search", "missing fact")]
+    )
     response = ask(
         "Два факта",
         client=client,
         planner=lambda *_: plan(rag_query="first fact"),
         execute=lambda r, n, **kw: ([{**REPORT, "text": kw["query"]}], None, event(n)),
     )
-    second = [p for n, p in client.payloads if n == "decide"][0]
+    second = [p for n, p in client.payloads if n == "decide"][1]
     assert second["current_answer"]["claims"][0]["text"] == "first fact"
     assert second["current_answer"]["complete"] is False
     assert response["status"] == "ok" and len(response["claims"]) == 2

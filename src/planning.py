@@ -1,7 +1,6 @@
 """Bounded structured checks of forecast inputs and explicitly requested context."""
 
-from datetime import date
-
+from .clock import clock_payload
 from .integrations.agent_skills import get_skill_catalog
 from .logging import log
 from .models.schemas import ForecastInputs, ForecastScope, Plan
@@ -94,7 +93,7 @@ def make_plan(client, question, previous=None) -> Plan:
     payload = {
         "question": question,
         "previous": previous,
-        "today": date.today().isoformat(),
+        **clock_payload(),
         "user_scope": scope_payload(),
         "available_skills": [
             s for s in get_skill_catalog() if s.get("enabled") and s.get("available", True)

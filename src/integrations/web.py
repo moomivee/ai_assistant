@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import httpx
 
 from ..budget import bounded_timeout, check_budget
+from ..clock import clock_today
 from ..config import settings
 from ..logging import log
 from . import web_cache
@@ -85,7 +86,7 @@ def latest_spot(grade: str) -> dict:
             price = float(row[ticker])
         except (ValueError, TypeError, KeyError):
             continue
-        if day and day <= date.today() and math.isfinite(price):
+        if day and day <= clock_today() and math.isfinite(price):
             observations.append((day, price))
     if not observations:
         raise ValueError("FRED не вернул наблюдений с датой.")
@@ -102,7 +103,7 @@ def latest_spot(grade: str) -> dict:
 
 
 def _date_bounds(days, start_date, end_date):
-    today = date.today()
+    today = clock_today()
     if days is not None:
         if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 3650:
             raise ValueError("days должен быть целым числом от 1 до 3650.")
@@ -152,7 +153,7 @@ def _within_window(published, start, end):
     if published is None:
         return not (start or end)
     return (
-        published <= date.today()
+        published <= clock_today()
         and (not start or published >= start)
         and (not end or published <= end)
     )
@@ -358,7 +359,7 @@ def read_web(url: str, query: str = "") -> dict:
             continue
         text = str(item.get("raw_content") or "").strip()
         published = web_date(item.get("published_date"))
-        if published and published > date.today():
+        if published and published > clock_today():
             notices.append("Источник с будущей датой публикации отклонён.")
             continue
         if not text:

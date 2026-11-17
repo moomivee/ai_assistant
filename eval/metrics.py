@@ -36,19 +36,24 @@ def route_metrics(expected, response, plan):
         forbidden.update({"web_search", "read_web"})
     web_i = next((i for i, tool in enumerate(actual) if tool in {"web_search", "read_web"}), None)
     required = expected.get("required_tools", wanted)
+    groups = expected.get("required_tool_groups", [])
+    adaptive = expected.get("routing_policy") == "adaptive-v3"
     # A pure numerical forecast needs no report lookup. Retain the historical
     # exact sequence only as a diagnostic, not a quality gate for an agent loop.
     if (
-        response.get("agent_mode") == "loop"
+        not adaptive
+        and response.get("agent_mode") == "loop"
         and expected.get("intent") == "forecast"
         and expected.get("plan_checks", {}).get("wants_context") is False
         and not expected.get("plan_checks", {}).get("quotes")
     ):
         required = [tool for tool in required if tool != "report_search"]
-    required_ok = set(required) <= set(actual) if required else not actual
-    policy_ok = not set(actual) & set(forbidden) and (
-        web_i is None or ("report_search" in actual and actual.index("report_search") < web_i)
+    requirements = [set([tool]) for tool in required] + [set(group) for group in groups]
+    required_ok = all(group & set(actual) for group in requirements) if requirements else not actual
+    rag_first = web_i is None or (
+        "report_search" in actual and actual.index("report_search") < web_i
     )
+    policy_ok = not set(actual) & forbidden and (adaptive or rag_first)
     if "read_web" in actual:
         policy_ok = (
             policy_ok
@@ -56,9 +61,11 @@ def route_metrics(expected, response, plan):
             and actual.index("web_search") < actual.index("read_web")
         )
     successful = {t["tool"] for t in response["trace"] if t.get("status", "ok") == "ok"}
-    return {
+    metrics = {
         "tool_policy_pass": float(required_ok and policy_ok),
-        "required_tool_success": float(set(required) <= successful),
+        "required_tool_success": float(
+            all(group & successful for group in requirements) if requirements else not actual
+        ),
         "tool_calls": len(actual),
         "rejected_actions": response.get("rejected_actions", 0),
         "decision_count": len(response.get("decisions", [])),
@@ -79,19 +86,33 @@ def route_metrics(expected, response, plan):
         ),
         "answer_attempts": len((response.get("diagnostics") or {}).get("answer_checks", [])),
         "tool_sequence_exact": float(actual == wanted),
-        "required_tool_recall": len(set(actual) & set(required)) / len(set(required))
-        if required
+        "required_tool_recall": sum(bool(group & set(actual)) for group in requirements)
+        / len(requirements)
+        if requirements
         else float(not actual),
         "forbidden_tool_violation": float(bool(set(actual) & set(forbidden))),
-        "rag_before_web": float(
-            web_i is None or ("report_search" in actual and actual.index("report_search") < web_i)
-        ),
+        "rag_before_web": float(rag_first),
+        "adaptive_routing_policy": float(adaptive),
         "intent_correct": float(response["intent"] == expected["intent"]),
         "status_correct": float(response["status"] in expected["statuses"]),
         "plan_fields_correct": float(
             bool(plan) and all(plan.get(k) == v for k, v in expected.get("plan_checks", {}).items())
         ),
     }
+    checks = (response.get("diagnostics") or {}).get("answer_checks", [])
+    if checks:
+        last = checks[-1]
+        # This is a consistency check, not independent semantic evaluation.
+        # A web call or a matching source date cannot establish answer freshness.
+        metrics["final_review_consistency"] = float(
+            response.get("status") != "ok"
+            or (
+                bool(last.get("complete"))
+                and not (last.get("feedback") or "").strip()
+                and not last.get("error")
+            )
+        )
+    return metrics
 
 
 def mean_metrics(rows):

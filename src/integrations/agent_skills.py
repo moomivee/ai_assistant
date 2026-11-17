@@ -58,8 +58,44 @@ def _exact_manifest(folder: Path, expected: str) -> str:
     return raw.decode("utf-8")
 
 
+def _upgrade_bundled(runtime: Path, destination: Path, name: str, pin: dict, body: str) -> bool:
+    """Replace only an explicitly pinned, unedited, app-installed prior release."""
+    path = destination / "SKILL.md"
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual == pin["manifest_sha256"]:
+        return False
+    if actual not in pin.get("previous_manifest_sha256", []):
+        raise SkillUnavailable("Skill bytes differ from the application allowlist")
+    _exact_manifest(destination, actual)
+    old = native_load_skill(destination, runtime)
+    record = read_install_record(runtime, name)
+    if (
+        old is None
+        or old.load_error
+        or old.name != name
+        or not record
+        or record.get("basis") != "trusted"
+        or record.get("source", {}).get("id") != "ai-assistant-bundled"
+        or record.get("source", {}).get("kind") != "local"
+        or record.get("release", {}).get("digest") != old.content_hash
+        or record.get("release", {}).get("version") != old.manifest.version
+        or not old.review.gate_for(old.content_hash)["executable_review"]
+    ):
+        raise SkillUnavailable("Prior skill release is not admitted as an application bundle")
+    # Stage outside the package: extra files inside it would change its hash.
+    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(body.encode("utf-8"))
+    try:
+        _exact_manifest(destination, actual)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return True
+
+
 def _install_bundled(runtime: Path, bundle_root: Path) -> dict[str, str]:
-    """Install new approved bundles; never overwrite edits or reset disablement."""
+    """Install/upgrade pinned releases; never overwrite edits or reset disablement."""
     errors: dict[str, str] = {}
     runtime.mkdir(parents=True, exist_ok=True)
     with FileLock(str(runtime / ".bundled-skills.lock"), timeout=10):
@@ -81,6 +117,7 @@ def _install_bundled(runtime: Path, bundle_root: Path) -> dict[str, str]:
                     raise SkillUnavailable("Bundled skill contract does not match allowlist")
                 destination = runtime / "skills" / "external" / name
                 destination.resolve().relative_to(runtime)
+                upgraded = False
                 if not destination.exists():
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     temporary = Path(tempfile.mkdtemp(prefix=f".{name}-", dir=destination.parent))
@@ -90,12 +127,14 @@ def _install_bundled(runtime: Path, bundle_root: Path) -> dict[str, str]:
                     finally:
                         if temporary.exists():
                             shutil.rmtree(temporary)
+                else:
+                    upgraded = _upgrade_bundled(runtime, destination, name, pin, body)
                 _exact_manifest(destination, pin["manifest_sha256"])
                 loaded = native_load_skill(destination, runtime)
                 if loaded is None or loaded.load_error:
                     raise SkillUnavailable("Ouroboros could not load this instruction skill")
                 record = read_install_record(runtime, name)
-                if record is None:
+                if record is None or upgraded:
                     write_install_record(
                         runtime,
                         name,

@@ -24,6 +24,7 @@ def isolated(monkeypatch, tmp_path):
         "CACHE_DIR": str(tmp_path / "cache"),
         "PROMPT_SOURCE": "local",
         "AGENT_MODE": "loop",
+        "APP_TIMEZONE": "Europe/Moscow",
         "AGENT_MAX_STEPS": "6",
         "AGENT_NO_PROGRESS_LIMIT": "2",
         "AGENT_TIMEOUT_SECONDS": "180",

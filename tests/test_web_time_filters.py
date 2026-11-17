@@ -49,6 +49,10 @@ class ChoosingModel:
                     "complete": bool(keys),
                 }
             )
+        if name == "citation_review":
+            return schema.model_validate(
+                {"supported": list(range(len(payload["claims"]))), "complete": True, "feedback": ""}
+            )
         raise AssertionError(name)
 
 
@@ -88,7 +92,8 @@ def test_valid_windows_and_other_tools_do_not_add_an_llm_call(overrides):
 
 
 @pytest.mark.parametrize("mode", ["unbounded", "relative", "dates"])
-def test_loop_executes_repaired_action_and_records_both_versions(mode):
+def test_loop_executes_repaired_action_and_records_both_versions(mode, monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
     client, called = ChoosingModel(mode), []
 
     def execute(registry, name, **args):
@@ -105,15 +110,15 @@ def test_loop_executes_repaired_action_and_records_both_versions(mode):
         planner=lambda *_: plan(fresh=True),
         execute=execute,
     )
-    assert [name for name, _ in called] == ["report_search", "web_search"]
+    assert [name for name, _ in called] == ["web_search"]
     assert response["status"] == "ok"
     assert response["rejected_actions"] == 0
     assert [name for name, _ in client.calls].count("web_time_filter") == 1
-    decision = response["decisions"][1]
-    step = response["diagnostics"]["steps"][1]
+    decision = response["decisions"][0]
+    step = response["diagnostics"]["steps"][0]
     assert step["argument_repair"] == decision["argument_repair"]
     assert step["argument_repair"]["before"]["days"] == 30
-    assert step["arguments"] == called[1][1]
+    assert step["arguments"] == called[0][1]
 
 
 @pytest.mark.parametrize(
@@ -137,6 +142,6 @@ def test_failed_repair_never_sends_invalid_arguments(failure, stop):
         planner=lambda *_: plan(fresh=True),
         execute=execute,
     )
-    assert called == ["report_search"]
+    assert called == []
     assert response["status"] == "unavailable"
     assert response["stop_reason"] == stop

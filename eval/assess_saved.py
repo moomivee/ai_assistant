@@ -73,6 +73,7 @@ def assess(results, output, data):
                     calibrated
                     and acceptable(grade)
                     and row.get("contract_valid", False)
+                    and row["metrics"].get("final_review_consistency", 1) == 1
                     and all(
                         row["metrics"][key] == 1
                         for key in (
@@ -135,6 +136,8 @@ if __name__ == "__main__":
         type=Path,
         default=[
             ROOT / "eval/data/cases.jsonl",
+            ROOT / "eval/data/cases_v3.jsonl",
+            ROOT / "eval/data/adaptive_regressions.jsonl",
             ROOT / "eval/data/regressions.jsonl",
             ROOT / "eval/data/audit.jsonl",
         ],

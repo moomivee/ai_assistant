@@ -8,6 +8,7 @@ from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from ..budget import bounded_timeout, check_budget
+from ..clock import clock_instruction, clock_payload
 from ..config import settings
 from ..logging import log
 from .agent_skills import current_skill_context
@@ -98,6 +99,10 @@ class LLMClient:
         prompt = get_prompt(prompt_name)
         skill = current_skill_context()
         output_schema = schema.model_json_schema()
+        clock = clock_payload()
+        # Runtime values win over caller-supplied fields and are repeated in the
+        # system instruction; retrieved text must never set the present date.
+        payload = {**payload, **clock}
         raw_content = None
         with span(
             "llm." + prompt_name,
@@ -111,6 +116,7 @@ class LLMClient:
                 "provider": self.provider,
                 "model": self.model,
                 "skill": skill["metadata"],
+                "clock": clock,
             },
         ) as obs:
             try:
@@ -119,6 +125,7 @@ class LLMClient:
                         "role": "system",
                         "content": prompt.text
                         + ("\n\n" + skill["text"] if skill["text"] else "")
+                        + clock_instruction(clock)
                         + schema_contract(output_schema),
                     },
                     {

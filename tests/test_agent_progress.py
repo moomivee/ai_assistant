@@ -16,6 +16,7 @@ def test_search_read_ping_pong_stops_and_reuses_results():
     client = Scripted(
         [
             action("report_search", "composition"),
+            action("report_search", "composition"),
             action("read_report", report="fixture-report", page=6),
             action("read_report", report="fixture-report", page=6),
             action("report_search", "composition"),
@@ -50,6 +51,7 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
     client = Scripted(
         [
             action("report_search", "broad"),
+            action("report_search", "broad"),
             action("report_search", "specific missing property"),
             action("finish"),
         ],
@@ -67,7 +69,7 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
         execute=execute,
         planner=lambda *_: plan(rag_query="broad"),
     )
-    third = [p for n, p in client.payloads if n == "decide"][1]
+    third = [p for n, p in client.payloads if n == "decide"][2]
     assert {"report_search", "read_report", "web_search", "finish"} <= set(third["allowed_actions"])
     assert calls == ["broad", "specific missing property"]
     assert response["diagnostics"]["steps"][2]["new_evidence"] is True
@@ -76,7 +78,9 @@ def test_duplicate_does_not_disable_changed_search_when_other_tools_are_availabl
 
 def test_new_queries_and_urls_with_same_content_do_not_extend_loop():
     calls = []
-    client = Scripted([action("report_search", q) for q in ("second", "third")], complete=False)
+    client = Scripted(
+        [action("report_search", q) for q in ("first", "second", "third")], complete=False
+    )
 
     def execute(registry, name, **args):
         calls.append(args["query"])
@@ -109,25 +113,25 @@ def test_query_case_and_whitespace_do_not_bypass_duplicate_guard():
 
 
 @pytest.mark.parametrize(
-    "assessment,missing,ids,finish_early",
+    "assessment,missing,ids",
     [
-        ("enough", [], ["R1"], True),
-        ("enough", ["Another property"], ["R1"], False),
-        ("enough", [], ["R999"], False),
-        ("enough", [], [], False),
-        ("need_evidence", ["Another property"], ["R1"], False),
+        ("enough", [], ["R1"]),
+        ("enough", ["Another property"], ["R1"]),
+        ("enough", [], ["R999"]),
+        ("enough", [], []),
+        ("need_evidence", ["Another property"], ["R1"]),
     ],
 )
-def test_referenced_sufficiency_can_finish_but_missing_or_invalid_evidence_cannot(
-    assessment, missing, ids, finish_early
-):
+def test_assessment_never_rewrites_the_models_chosen_action(assessment, missing, ids):
     decision = {
         **action("report_search", "another property"),
         "assessment": assessment,
         "missing_facts": missing,
         "evidence_checks": [{"fact": "Property found", "source_ids": ids}],
     }
-    client = Scripted([decision, action("finish")], complete=False)
+    client = Scripted(
+        [action("report_search", "property"), decision, action("finish")], complete=False
+    )
     calls = []
 
     def execute(registry, name, **args):
@@ -138,19 +142,16 @@ def test_referenced_sufficiency_can_finish_but_missing_or_invalid_evidence_canno
         "Свойства?", client=client, execute=execute, planner=lambda *_: plan(rag_query="property")
     )
     second = response["decisions"][1]
-    assert len(calls) == (1 if finish_early else 2)
-    if finish_early:
-        assert second["action"] == "finish" and second["model_action"] == "report_search"
-        assert second["controller_note"] and response["claims"]
-    else:
-        assert second["action"] == "report_search"
-        assert "model_action" not in second
+    assert len(calls) == 2
+    assert second["action"] == "report_search"
+    assert "model_action" not in second
     assert second["unknown_source_ids"] == (["R999"] if ids == ["R999"] else [])
 
 
 def test_sufficiency_does_not_skip_required_fresh_web_check():
     client = Scripted(
         [
+            action("report_search", "supply"),
             {
                 **action("web_search", "supply today"),
                 "assessment": "enough",

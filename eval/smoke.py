@@ -11,7 +11,7 @@ from src.validation import normalized, numbers
 
 from .run import load_cases, run
 
-DATA = ROOT / "eval/data/regressions.jsonl"
+DATA = ROOT / "eval/data/adaptive_regressions.jsonl"
 
 
 def check_result(result, cases):
@@ -31,7 +31,9 @@ def check_result(result, cases):
                     "plan_fields_correct",
                 )
             )
+            and row["metrics"].get("required_tool_success", 0) == 1
             and row["metrics"]["forbidden_tool_violation"] == 0
+            and row["metrics"].get("final_review_consistency", 1) == 1
         )
         facts = []
         for fact in expected.get("answer_facts", []):
@@ -52,6 +54,7 @@ def check_result(result, cases):
                 "route_ok": route_ok,
                 "facts": facts,
                 "no_claims_ok": not expected.get("no_claims") or not response["claims"],
+                "semantic_quality_independently_measured": False,
                 "passed": route_ok
                 and all(f["covered"] for f in facts)
                 and (not expected.get("no_claims") or not response["claims"]),
@@ -67,9 +70,10 @@ def main():
         type=Path,
         default=ROOT / ".cache/eval" / f"live-{datetime.now(timezone.utc):%Y%m%dT%H%M%S%f}.json",
     )
+    parser.add_argument("--data", type=Path, default=DATA)
     args = parser.parse_args()
-    result = run("agent", data=DATA, output=args.output)
-    result["regression_checks"] = check_result(result, load_cases(DATA))
+    result = run("agent", data=args.data, output=args.output)
+    result["regression_checks"] = check_result(result, load_cases(args.data))
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     # Known public regression questions only. Preserve outputs in CI logs for review.
     print("LIVE_EVAL_RESULT=" + json.dumps(result, ensure_ascii=False))

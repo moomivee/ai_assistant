@@ -6,13 +6,13 @@ import io
 import json
 import os
 import tempfile
-from datetime import date
 from pathlib import Path
 
 import httpx
 from filelock import FileLock
 
 from .calculations.forecast import SERIES, load_history
+from .clock import clock_today
 from .config import settings
 from .integrations.web import FRED_CSV
 from .rag import index
@@ -29,7 +29,7 @@ def refresh_prices():
             follow_redirects=True,
         )
         r.raise_for_status()
-        cutoff = date.today().replace(day=1).isoformat()
+        cutoff = clock_today().replace(day=1).isoformat()
         with tempfile.NamedTemporaryFile(
             dir=target.parent,
             suffix=".csv",

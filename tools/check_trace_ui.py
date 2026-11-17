@@ -116,6 +116,12 @@ RESPONSE = dict(
     rejected_actions=1,
     decisions=DECISIONS,
     diagnostics=dict(
+        time_context=dict(
+            today="2026-11-17",
+            current_year=2026,
+            current_time="2026-11-17T23:14:00+03:00",
+            timezone="Europe/Moscow",
+        ),
         plan=dict(
             intent="research",
             rag_query="Orion Vega",
@@ -276,6 +282,8 @@ async def check(url):
             await page.locator('#result[aria-busy="false"]').wait_for()
 
         await submit(QUESTION)
+        assert "2026-11-17" in await page.locator(".trace-time").inner_text()
+        assert "Europe/Moscow" in await page.locator(".trace-time").inner_text()
         assert await page.locator(".trace-step").count() == 4
         assert await page.locator(".step-state.rejected").count() == 1
         assert "Найдено фрагментов: 0" in await page.locator(".trace-panel").inner_text()

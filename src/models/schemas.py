@@ -144,6 +144,7 @@ class DiagnosticStep(StrictModel):
 
 
 class AgentDiagnostics(StrictModel):
+    time_context: dict = Field(default_factory=dict)
     plan: Plan | None = None
     steps: list[DiagnosticStep] = Field(default_factory=list)
     retrieved_sources: list[Source] = Field(default_factory=list)

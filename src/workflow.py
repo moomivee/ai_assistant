@@ -1,11 +1,11 @@
 """Bounded LangGraph workflow; LLM plans, code enforces source priority."""
 
-from datetime import date
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from .answering import verified_answer
+from .clock import clock_payload, clock_today, request_clock
 from .config import settings
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
@@ -51,7 +51,7 @@ def forecast_answer(calc: dict):
         )
     from .calculations.forecast import month_number
 
-    if month_number(date.today().isoformat()[:7]) - month_number(calc["as_of"]) > 2:
+    if month_number(clock_today().isoformat()[:7]) - month_number(calc["as_of"]) > 2:
         answer += "\n\nПоследнее наблюдение старше двух месяцев. Обновите CSV для прогноза от текущей даты."
     if last["mae"] >= last["naive_mae"]:
         answer += (
@@ -99,7 +99,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "task": "forecast_context" if is_forecast else "research",
                     "question": s["plan"]["rag_query"] if is_forecast else s["question"],
                     "previous": None if is_forecast else s.get("previous"),
-                    "today": date.today().isoformat() if s["plan"]["fresh"] else None,
+                    **clock_payload(),
                     "requires_fresh": s["plan"]["fresh"],
                     "sources": sources,
                 },
@@ -310,7 +310,7 @@ def ask(
     question = question.strip()
     if not 1 <= len(question) <= 2000:
         raise ValueError("Введите вопрос длиной от 1 до 2000 символов.")
-    with request_trace(question, previous) as (trace_id, obs):
+    with request_clock(), request_trace(question, previous) as (trace_id, obs):
         initial = {
             "question": question,
             "previous": previous,
@@ -335,7 +335,11 @@ def ask(
         ).model_dump()
         obs.update(
             output=response,
-            metadata={"intent": response["intent"], "status": response["status"]},
+            metadata={
+                "intent": response["intent"],
+                "status": response["status"],
+                "clock": clock_payload(),
+            },
             status="error" if response["status"] == "unavailable" else "ok",
         )
         return response

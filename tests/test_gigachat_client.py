@@ -373,13 +373,24 @@ def test_retry_does_not_start_after_agent_budget_expires(monkeypatch):
     native.close()
 
 
-def test_recovered_empty_answer_allows_model_to_choose_web_search():
+def test_recovered_empty_answer_allows_model_to_choose_web_search(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    settings.cache_clear()
     from test_agent import REPORT, WEB
 
     from src.agent import ask
 
     replies = iter(
         [
+            completion(
+                {
+                    "action": "report_search",
+                    "query": "oil news context",
+                    "purpose": "Check available evidence",
+                    "report": "",
+                    "page": None,
+                }
+            ),
             empty_completion(),
             completion({"claims": [], "complete": False}),
             completion(
@@ -397,6 +408,7 @@ def test_recovered_empty_answer_allows_model_to_choose_web_search():
                     "complete": True,
                 }
             ),
+            completion({"supported": [0], "complete": True, "feedback": ""}),
         ]
     )
     calls = []

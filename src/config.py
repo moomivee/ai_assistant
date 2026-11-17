@@ -3,15 +3,17 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
 
 class Settings(BaseModel):
+    app_timezone: str = "Europe/Moscow"
     data: Path
     cache: Path
     top_k: int = Field(ge=1, le=15)
@@ -45,7 +47,19 @@ class Settings(BaseModel):
     agent_no_progress_limit: int = Field(default=2, ge=1, le=12)
     agent_timeout_seconds: float = Field(default=180, ge=5, le=900)
     agent_answer_reserve_seconds: float = Field(default=60, ge=0, le=300)
-    answer_review: bool = False
+    answer_review: bool = True
+
+    @field_validator("app_timezone")
+    @classmethod
+    def timezone_exists(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(
+                "APP_TIMEZONE должен быть доступным часовым поясом IANA, например Europe/Moscow. "
+                "Проверьте значение и наличие системного пакета tzdata."
+            ) from None
+        return value
 
     @property
     def active_model(self) -> str:
@@ -59,6 +73,7 @@ class Settings(BaseModel):
 @lru_cache
 def settings() -> Settings:
     s = Settings(
+        app_timezone=os.getenv("APP_TIMEZONE", "Europe/Moscow").strip(),
         data=Path(os.getenv("DATA_DIR", str(ROOT / "data"))).resolve(),
         cache=Path(os.getenv("CACHE_DIR", str(ROOT / ".cache"))).resolve(),
         top_k=int(os.getenv("RAG_TOP_K", "6")),
@@ -97,7 +112,7 @@ def settings() -> Settings:
         agent_no_progress_limit=int(os.getenv("AGENT_NO_PROGRESS_LIMIT", "2")),
         agent_timeout_seconds=float(os.getenv("AGENT_TIMEOUT_SECONDS", "180")),
         agent_answer_reserve_seconds=float(os.getenv("AGENT_ANSWER_RESERVE_SECONDS", "60")),
-        answer_review=os.getenv("ANSWER_SELF_REVIEW", "false").lower() == "true",
+        answer_review=os.getenv("ANSWER_SELF_REVIEW", "true").lower() == "true",
     )
     os.environ.setdefault("OUROBOROS_DATA_DIR", str(s.cache / "ouroboros"))
     return s

@@ -258,6 +258,7 @@ def test_live_smoke_checks_answer_facts_not_only_success_status():
         key: 1.0
         for key in (
             "tool_sequence_exact",
+            "required_tool_success",
             "intent_correct",
             "status_correct",
             "plan_fields_correct",
@@ -282,6 +283,7 @@ def test_missing_data_smoke_rejects_invented_claims_even_with_partial_status():
         "case_id": "missing",
         "metrics": dict(
             tool_policy_pass=1,
+            required_tool_success=1,
             intent_correct=1,
             status_correct=1,
             plan_fields_correct=1,

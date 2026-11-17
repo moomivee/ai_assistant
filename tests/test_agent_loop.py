@@ -63,7 +63,10 @@ def test_generation_failure_is_visible_even_after_retrieval(keep_draft):
 
     result = ask(
         "Последние сведения о Sokol",
-        client=BrokenAnswer([action("web_search", "fresh facts")], complete=False),
+        client=BrokenAnswer(
+            [action("report_search", "Sokol"), action("web_search", "fresh facts")],
+            complete=False,
+        ),
         execute=execute,
         planner=lambda *_: plan(fresh=True),
     )
@@ -121,30 +124,24 @@ def test_replans_after_empty_search_and_reads_full_page():
     assert response["agent_mode"] == "loop" and response["claims"][0]["evidence_ids"]
 
 
-def test_model_cannot_skip_report_priority():
+def test_model_can_choose_web_first_for_current_events(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
     called = []
 
     def execute(registry, name, **args):
         called.append(name)
-        return (
-            ([REPORT] if name == "report_search" else {"items": [WEB], "notices": []}),
-            None,
-            event(name),
-        )
+        assert name == "web_search"
+        return {"items": [WEB], "notices": []}, None, event(name)
 
-    client = Scripted(
-        [
-            action("web_search", "news"),
-            action("finish"),
-        ]
-    )
+    client = Scripted([action("web_search", "news")])
     response = ask(
         "Новости нефти", client=client, execute=execute, planner=lambda *_: plan(fresh=True)
     )
-    assert called == ["report_search", "web_search"]
-    assert response["decisions"][0]["origin"] == "plan_policy"
+    assert called == ["web_search"]
+    assert response["decisions"][0]["origin"] == "llm"
     first_choice = next(p for n, p in client.payloads if n == "decide")
-    assert first_choice["observations"][0]["tool"] == "report_search"
+    assert first_choice["observations"] == []
+    assert {"report_search", "web_search"} <= set(first_choice["allowed_actions"])
     assert response["status"] == "ok"
 
 
@@ -348,7 +345,7 @@ def test_eval_counts_execution_failure_in_denominator(monkeypatch, tmp_path):
     assert result["summary"]["task_success_rate"] is None
 
 
-def test_failed_repair_does_not_erase_previously_grounded_facts():
+def test_failed_validation_does_not_resurrect_an_older_draft():
     class Client(Scripted):
         answers = 0
 
@@ -391,8 +388,9 @@ def test_failed_repair_does_not_erase_previously_grounded_facts():
     )
     assert (
         response["status"] == "partial"
-        and "0.2%" in response["answer"]
+        and "0.2%" not in response["answer"]
         and "99%" not in response["answer"]
+        and response["claims"] == []
     )
     assert client.answers == 2
 
@@ -403,7 +401,7 @@ def test_blocks_keep_table_headers_and_rows_together():
     assert list(evidence) == ["R1:B1"] and evidence["R1:B1"]["text"] == table
 
 
-def test_self_review_is_explicit_opt_in(monkeypatch):
+def test_self_review_can_be_explicitly_disabled_for_controlled_tests(monkeypatch):
     from src.config import settings
 
     class Client(Scripted):
