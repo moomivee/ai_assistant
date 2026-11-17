@@ -21,6 +21,13 @@ def numbers(text):
 
 def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Plan:
     p = plan.model_copy(deep=True)
+    if p.intent == "outside":
+        # Canonicalize a semantic decision already made by the model; never
+        # classify the question here using occupation names or keyword lists.
+        p.rag_query = ""
+        p.fresh = p.news = p.wants_context = False
+        p.quotes = []
+        p.skill = None
     p.fresh = p.fresh or p.news or bool(p.quotes)
     if p.intent == "research" and (not p.quotes or p.news):
         p.wants_context = True

@@ -451,6 +451,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             ]
 
         try:
+            validation = {}
             draft, evidence, feedback = generate_answer(
                 client,
                 p["rag_query"] if p["intent"] == "forecast" else state["question"],
@@ -459,6 +460,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 fresh=p["fresh"],
                 report_only=p["report_only"],
                 priority_source_ids=recent_source_ids(state),
+                diagnostics=validation,
             )
             # The latest validation replaces the candidate, including an empty
             # rejection. Restoring an old complete draft can resurrect stale facts.
@@ -476,6 +478,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     complete=draft.complete,
                     claims=len(draft.claims),
                     feedback=feedback,
+                    validation=validation,
                 ),
             }
         except (LLMUnavailable, RequestBudgetExceeded) as exc:
@@ -484,7 +487,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "stop_reason": "time_budget_exhausted"
                 if isinstance(exc, RequestBudgetExceeded)
                 else "llm_unavailable",
-                "answer_checks": result_check(status="error", error=str(exc)),
+                "answer_checks": result_check(
+                    status="error", error=str(exc), validation=validation
+                ),
             }
 
     def finish(state):

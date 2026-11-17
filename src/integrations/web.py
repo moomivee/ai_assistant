@@ -215,7 +215,13 @@ def search_web(
         if fresh:
             retrieved = _retrieved_at()
             return [
-                dict(row, content_type="snippet", retrieved_at=retrieved, provider="rss")
+                dict(
+                    row,
+                    content_type="snippet",
+                    retrieved_at=retrieved,
+                    provider="rss",
+                    cache_hit=False,
+                )
                 for row in search_feeds(query, allowed, web_date)
                 if _within_window(web_date(row.get("date")), start, end)
             ][:max_results]
@@ -252,7 +258,7 @@ def search_web(
         hits = cached.get("items", [])
         if isinstance(hits, list):
             log("web.cache_hit", operation="search", accepted=len(hits))
-            return hits
+            return [dict(row, provider="tavily", cache_hit=True) for row in hits]
     response = httpx.post(
         "https://api.tavily.com/search",
         json=payload,
@@ -276,12 +282,16 @@ def search_web(
             continue
         seen.add(url)
         hits.append(
-            _evidence(
-                dict(item, url=url),
-                text=snippet,
-                content_type="snippet",
-                retrieved_at=retrieved,
-                limit=SEARCH_TEXT_LIMIT,
+            dict(
+                _evidence(
+                    dict(item, url=url),
+                    text=snippet,
+                    content_type="snippet",
+                    retrieved_at=retrieved,
+                    limit=SEARCH_TEXT_LIMIT,
+                ),
+                provider="tavily",
+                cache_hit=False,
             )
         )
         if len(hits) >= max_results:
@@ -331,7 +341,12 @@ def read_web(url: str, query: str = "") -> dict:
     cached = web_cache.get("tavily.extract", cache_params)
     if cached is not None:
         log("web.cache_hit", operation="extract", accepted=len(cached.get("items", [])))
-        return cached
+        return {
+            **cached,
+            "items": [
+                dict(row, provider="tavily", cache_hit=True) for row in cached.get("items", [])
+            ],
+        }
     log("web.extract_requested", provider="tavily", host=urlparse(url).hostname)
     try:
         response = httpx.post(
@@ -371,7 +386,13 @@ def read_web(url: str, query: str = "") -> dict:
             retrieved_at=retrieved,
             limit=EXTRACT_TEXT_LIMIT,
         )
-        row.update(id="W1", content_scope="query_chunks" if query else "page", requested_url=url)
+        row.update(
+            id="W1",
+            content_scope="query_chunks" if query else "page",
+            requested_url=url,
+            provider="tavily",
+            cache_hit=False,
+        )
         rows.append(row)
         if row["content_truncated"]:
             notices.append(f"Текст страницы ограничен {EXTRACT_TEXT_LIMIT} символами.")

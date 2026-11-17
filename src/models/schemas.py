@@ -16,7 +16,13 @@ class ParameterEvidence(StrictModel):
 
 class Plan(StrictModel):
     skill: Literal["report_analysis", "web_research", "price_forecast"] | None = None
-    intent: Literal["research", "forecast", "outside"]
+    intent: Literal["research", "forecast", "outside"] = Field(
+        description=(
+            "research — анализ нефтегазового рынка и его факторов; forecast — наш расчёт цены. "
+            "outside — другая цель, включая личную карьеру, вакансии и зарплату профессии, "
+            "даже если упомянут нефтегаз. Влияние расходов на персонал на добычу/рынок — research."
+        )
+    )
     rag_query: str = Field(max_length=2000)
     fresh: bool = Field(
         description=(

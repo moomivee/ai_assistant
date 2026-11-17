@@ -52,9 +52,23 @@ def generate_answer(
     fresh=False,
     report_only=False,
     priority_source_ids=(),
+    diagnostics: dict | None = None,
 ):
+    # These counters describe validation, not model quality. Keep raw text and
+    # rejected values out of diagnostics; None means generation did not finish.
+    checks = diagnostics if diagnostics is not None else {}
+    checks.update(
+        candidate_claims=None,
+        citation_rejected=0,
+        numeric_rejected=0,
+        semantic_rejected=0,
+        accepted_claims=0,
+        stage="evidence",
+        reason="pending",
+    )
     evidence = catalog(sources, priority_source_ids=priority_source_ids)
     if not evidence:
+        checks["reason"] = "no_evidence"
         return CitedAnswer(claims=[], complete=False), evidence, "No evidence available"
     temporal_requirements = {"fresh": fresh, "report_only": report_only}
     payload = {
@@ -86,10 +100,23 @@ def generate_answer(
         "evidence": {key: row["text"] for key, row in evidence.items()},
         "feedback": feedback,
     }
+    checks["stage"] = "answer_generation"
     raw = client.generate("cited_answer", payload, CitedAnswer)
+    checks["candidate_claims"] = len(raw.claims)
+    if not raw.claims:
+        checks["reason"] = "no_candidate_claims"
+        return (
+            CitedAnswer(claims=[], complete=False),
+            evidence,
+            "The model proposed no supported claims from the supplied evidence. "
+            "Reassess whether the sources answer the question. Change the query or source "
+            "to address a specific gap, or finish with the limitation; do not repeat the same search.",
+        )
+    checks["stage"] = "local_validation"
     valid = []
     for claim in raw.claims:
         if any(key not in evidence for key in claim.evidence_ids):
+            checks["citation_rejected"] += 1
             continue
         text = " ".join(
             evidence[key]["text"] + " " + (evidence[key]["date"] or "")
@@ -97,7 +124,10 @@ def generate_answer(
         )
         if numbers(claim.text) <= numbers(text):
             valid.append(claim)
+        else:
+            checks["numeric_rejected"] += 1
     if not valid:
+        checks["reason"] = "local_validation_rejected"
         return (
             CitedAnswer(claims=[], complete=False),
             evidence,
@@ -107,6 +137,15 @@ def generate_answer(
         # Valid IDs and matching numbers cannot establish currency. A fetched
         # web result may itself be old or unrelated to the claim.
         complete = raw.complete and len(valid) == len(raw.claims) and not fresh
+        checks.update(
+            accepted_claims=len(valid),
+            stage="finished",
+            reason="freshness_review_disabled"
+            if fresh
+            else "complete"
+            if complete
+            else "incomplete",
+        )
         return (
             CitedAnswer(claims=valid, complete=complete),
             evidence,
@@ -117,6 +156,7 @@ def generate_answer(
             if complete
             else "Some requested facts remain unsupported. Search for the missing evidence or open the relevant page.",
         )
+    checks["stage"] = "semantic_review"
     review = client.generate(
         "citation_review",
         {
@@ -134,6 +174,7 @@ def generate_answer(
     indexes = review.supported
     well_formed = len(set(indexes)) == len(indexes) and all(0 <= i < len(valid) for i in indexes)
     if not well_formed:
+        checks.update(semantic_rejected=len(valid), reason="invalid_review_indexes")
         return (
             CitedAnswer(claims=[], complete=False),
             evidence,
@@ -147,6 +188,16 @@ def generate_answer(
         and bool(supported)
         and len(supported) == len(valid) == len(raw.claims)
         and not review.feedback.strip()
+    )
+    checks.update(
+        semantic_rejected=len(valid) - len(supported),
+        accepted_claims=len(supported),
+        stage="finished",
+        reason="complete"
+        if complete
+        else "semantic_validation_rejected"
+        if not supported
+        else "incomplete",
     )
     return (
         CitedAnswer(claims=supported, complete=complete),

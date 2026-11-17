@@ -147,6 +147,14 @@ RESPONSE = dict(
                 complete=True,
                 ms=300,
                 feedback="",
+                validation=dict(
+                    candidate_claims=1,
+                    citation_rejected=0,
+                    numeric_rejected=0,
+                    semantic_rejected=0,
+                    accepted_claims=1,
+                    reason="complete",
+                ),
             )
         ],
     ),
@@ -322,6 +330,9 @@ async def check(url):
         )
         await handoff.click()
         assert "переданы источники R1" in await page.locator(".answer-check").inner_text()
+        assert (
+            "Модель предложила утверждений: 1" in await page.locator(".answer-check").inner_text()
+        )
         await handoff.click()
         await page.locator(".text-button").click()
         assert await page.evaluate("navigator.clipboard.readText()") == RESPONSE["trace_id"]

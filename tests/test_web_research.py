@@ -250,7 +250,10 @@ def test_extract_future_date_is_rejected(monkeypatch):
 def test_cache_normalizes_query_and_varies_by_parameters_and_trust(monkeypatch):
     calls = post_fixture(monkeypatch, {"results": [result()]})
     first = web.search_web("  oil   demand ", False)
-    assert web.search_web("oil demand", False) == first
+    cached = web.search_web("oil demand", False)
+    assert cached == [{**row, "cache_hit": True} for row in first]
+    assert first[0]["cache_hit"] is False and cached[0]["provider"] == "tavily"
+    assert cached[0]["retrieved_at"] == first[0]["retrieved_at"]
     assert len(calls) == 1
     web.search_web("oil demand", False, search_depth="advanced")
     assert len(calls) == 2
@@ -282,7 +285,11 @@ def test_extraction_cached_without_resetting_retrieved_at(monkeypatch):
     url = "https://eia.gov/report"
     calls = post_fixture(monkeypatch, {"results": [{"url": url, "raw_content": "Text"}]})
     first = web.read_web(url, "oil")
-    assert web.read_web(url, "oil") == first
+    cached = web.read_web(url, "oil")
+    assert cached == {**first, "items": [{**row, "cache_hit": True} for row in first["items"]]}
+    assert first["items"][0]["cache_hit"] is False
+    assert cached["items"][0]["provider"] == "tavily"
+    assert cached["items"][0]["retrieved_at"] == first["items"][0]["retrieved_at"]
     assert len(calls) == 1
 
 

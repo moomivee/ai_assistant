@@ -111,6 +111,7 @@ window.TraceView = (() => {
       const content = node("div");
       content.append(node("p", [s.date || "Дата не указана", s.page ? `стр. PDF ${s.page}` : null, Number.isFinite(s.score) ? `score ${s.score.toFixed(4)}` : null].filter(Boolean).join(" · "), "small"));
       content.append(node("p", s.used_in_answer ? "Использован в ответе" : "Найден, но не указан в ответе", "source-use"));
+      if (s.provider) content.append(node("p", `Получение: ${s.provider}${s.cache_hit === true ? " · из кэша" : ""}.`, "small"));
       content.append(node("pre", s.text, "source-preview"));
       if (s.text_truncated) content.append(node("p", "Показаны первые 4000 символов. Полный текст доступен в документе.", "small"));
       const href = safeURL(s.local_url || s.url);
@@ -169,6 +170,10 @@ window.TraceView = (() => {
         item.append(node("p", `После шага ${check.after_step}: переданы источники ${(check.source_ids || []).join(", ") || "отсутствуют"}.`));
         item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
         if (check.feedback) item.append(node("p", check.feedback, "small"));
+        if (Number.isInteger(check.validation?.candidate_claims)) {
+          const v = check.validation;
+          item.append(node("p", `Модель предложила утверждений: ${v.candidate_claims}. Отклонено по ссылкам: ${v.citation_rejected || 0}, по числам: ${v.numeric_rejected || 0}, по смыслу: ${v.semantic_rejected || 0}.`, "small"));
+        }
         handoffs.append(item);
       }
       box.append(detail("Как источники переданы в ответ", handoffs));
