@@ -4,7 +4,6 @@ Only public provider contracts live here. The agent still validates every
 structured response with its own Pydantic schema in ``llm.py``.
 """
 
-import json
 import math
 import ssl
 import threading
@@ -16,6 +15,7 @@ import httpx
 
 from ..budget import bounded_timeout, check_budget
 from ..logging import log
+from .structured_output import schema_contract
 
 AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 # The personal API allows one stream. This gate covers this Python process;
@@ -60,16 +60,19 @@ def _retry_messages(messages, schema):
     """Ask the same model for JSON; the caller still validates the full schema."""
     instruction = (
         "\n\nПредыдущая попытка вернула пустой ответ. Повтори исходную задачу. "
-        "Верни только JSON по приведённой схеме, без Markdown и пояснений вокруг JSON. "
+        "Сформируй объект ДАННЫХ с заполненными полями результата, "
+        "а не копию описания JSON Schema. "
         "Недостаток данных обозначай внутри JSON согласно исходным инструкциям; "
-        "не выдумывай недостающие сведения.\nJSON Schema:\n"
-        + json.dumps(schema, ensure_ascii=False)
+        "не выдумывай недостающие сведения. Верни только объект результата."
     )
     copied = [dict(message) for message in messages]
+    contract = schema_contract(schema)
     if copied and copied[0].get("role") == "system":
+        if contract not in copied[0]["content"]:
+            copied[0]["content"] += contract
         copied[0]["content"] += instruction
     else:
-        copied.insert(0, {"role": "system", "content": instruction.strip()})
+        copied.insert(0, {"role": "system", "content": contract + instruction})
     return copied
 
 

@@ -13,6 +13,7 @@ from ..logging import log
 from .agent_skills import current_skill_context
 from .gigachat import GigaChatClient, GigaChatError
 from .prompts import get_prompt
+from .structured_output import is_schema_echo, schema_contract, validation_issues
 from .telemetry import span
 
 
@@ -96,6 +97,8 @@ class LLMClient:
         self._check_configured()
         prompt = get_prompt(prompt_name)
         skill = current_skill_context()
+        output_schema = schema.model_json_schema()
+        raw_content = None
         with span(
             "llm." + prompt_name,
             "generation",
@@ -116,8 +119,7 @@ class LLMClient:
                         "role": "system",
                         "content": prompt.text
                         + ("\n\n" + skill["text"] if skill["text"] else "")
-                        + "\nOutput JSON Schema:\n"
-                        + json.dumps(schema.model_json_schema(), ensure_ascii=False),
+                        + schema_contract(output_schema),
                     },
                     {
                         "role": "user",
@@ -128,7 +130,7 @@ class LLMClient:
                     response = self.client.generate(
                         model=self.model,
                         messages=messages,
-                        schema=schema.model_json_schema(),
+                        schema=output_schema,
                         max_tokens=settings().llm_max_tokens,
                         timeout=bounded_timeout(settings().llm_timeout),
                     )
@@ -141,6 +143,7 @@ class LLMClient:
                         },
                         usage_details=response.usage,
                     )
+                    raw_content = response.content
                     result = schema.model_validate_json(response.content)
                     obs.update(output=result.model_dump())
                     return result
@@ -195,7 +198,43 @@ class LLMClient:
                     error_code=exc.code,
                 )
                 raise LLMUnavailable(str(exc)) from None
-            except (OpenAIError, ValidationError, ValueError, IndexError) as exc:
+            except ValidationError as exc:
+                check_budget()
+                issues = validation_issues(exc, output_schema)
+                echo = is_schema_echo(raw_content, output_schema)
+                error_code = "schema_echo" if echo else "schema_validation"
+                obs.update(
+                    status="error",
+                    metadata={
+                        "validation_errors": issues,
+                        "error_code": error_code,
+                    },
+                )
+                log(
+                    "llm.failed",
+                    logging.ERROR,
+                    stage=prompt_name,
+                    provider=self.provider,
+                    error_type=type(exc).__name__,
+                    error_code=error_code,
+                    validation_errors=issues,
+                )
+                if echo:
+                    expected = ", ".join(output_schema.get("required", []))
+                    message = (
+                        "Модель вернула описание JSON-схемы вместо данных ответа. "
+                        f"Ожидается объект с заполненными полями: {expected}."
+                    )
+                else:
+                    details = "; ".join(
+                        f"{'.'.join(map(str, item['path'])) or '<root>'}: {item['type']}"
+                        for item in issues[:5]
+                    )
+                    message = (
+                        f"Ответ модели не прошёл проверку по схеме {schema.__name__}: {details}."
+                    )
+                raise LLMUnavailable(message) from exc
+            except (OpenAIError, ValueError, IndexError) as exc:
                 check_budget()
                 log(
                     "llm.failed",

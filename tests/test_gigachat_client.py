@@ -203,10 +203,13 @@ def test_empty_native_answer_retries_once_with_same_schema_locally_validated(pay
     assert sent[1]["model"] == sent[0]["model"]
     assert sent[1]["messages"][1:] == sent[0]["messages"][1:]
     assert "Предыдущая попытка" not in sent[0]["messages"][0]["content"]
-    assert (
-        json.dumps(CitedAnswer.model_json_schema(), ensure_ascii=False)
-        in sent[1]["messages"][0]["content"]
-    )
+    encoded_schema = json.dumps(CitedAnswer.model_json_schema(), ensure_ascii=False)
+    for request in sent:
+        system = request["messages"][0]["content"]
+        assert system.count(encoded_schema) == 1
+        assert system.count("BEGIN_OUTPUT_SCHEMA") == 1
+        assert system.index("END_OUTPUT_SCHEMA") < system.index("Обязательные поля результата")
+    assert "объект ДАННЫХ" in sent[1]["messages"][0]["content"]
     events = settings().trace_file.read_text()
     assert all(secret not in events for secret in (KEY, TOKEN, "PRIVATE-QUESTION"))
     metadata = json.loads(events.splitlines()[-1])["metadata"]
@@ -257,6 +260,73 @@ def test_retry_cannot_bypass_pydantic_validation():
     trace = json.loads(settings().trace_file.read_text().splitlines()[-1])
     assert trace["status"] == "error"
     assert len(trace["metadata"]["generation_attempts"]) == 2
+    native.close()
+
+
+@pytest.mark.parametrize("empty_first", [False, True])
+def test_schema_echo_is_rejected_and_explained_without_inventing_answer(empty_first, monkeypatch):
+    monkeypatch.setenv("TRACE_CONTENT", "false")
+    settings.cache_clear()
+    schema = CitedAnswer.model_json_schema()
+    # Match the observed keys: three schema keywords instead of claims/complete.
+    echo = {key: schema[key] for key in ("$defs", "additionalProperties", "properties")}
+    calls = []
+
+    def reply(req):
+        if req.url.path.endswith("oauth"):
+            return auth_reply()
+        calls.append(json.loads(req.content))
+        if empty_first and len(calls) == 1:
+            return empty_completion()
+        return completion(echo)
+
+    wrapper, native = client(reply)
+    with pytest.raises(LLMUnavailable, match="описание JSON-схемы") as caught:
+        wrapper.generate("cited_answer", {"question": "PRIVATE-QUESTION"}, CitedAnswer)
+    assert "claims, complete" in str(caught.value)
+    assert len(calls) == (2 if empty_first else 1)
+    events = settings().trace_file.read_text()
+    assert all(secret not in events for secret in (KEY, TOKEN, "PRIVATE-QUESTION"))
+    trace = json.loads(events.splitlines()[-1])
+    assert trace["status"] == "error"
+    assert trace["metadata"]["error_code"] == "schema_echo"
+    assert len(trace["metadata"]["generation_attempts"]) == len(calls)
+    issues = trace["metadata"]["validation_errors"]
+    assert {tuple(e["path"]) for e in issues if e["type"] == "missing"} == {
+        ("claims",),
+        ("complete",),
+    }
+    assert {tuple(e["path"]) for e in issues if e["type"] == "extra_forbidden"} == {
+        ("$defs",),
+        ("properties",),
+        ("additionalProperties",),
+    }
+    assert "output" not in trace
+    native.close()
+
+
+def test_validation_diagnostics_keep_safe_paths_but_not_values_or_unknown_keys(monkeypatch):
+    monkeypatch.setenv("TRACE_CONTENT", "false")
+    settings.cache_clear()
+    malformed = {
+        "claims": [{"text": "PRIVATE-CONTEXT", "evidence_ids": []}],
+        "complete": False,
+        TOKEN: KEY,
+    }
+    wrapper, native = client(
+        lambda req: auth_reply() if req.url.path.endswith("oauth") else completion(malformed)
+    )
+    with pytest.raises(LLMUnavailable, match="claims.0.evidence_ids") as caught:
+        wrapper.generate("cited_answer", {}, CitedAnswer)
+    events = settings().trace_file.read_text()
+    assert all(
+        secret not in events + str(caught.value) for secret in (KEY, TOKEN, "PRIVATE-CONTEXT")
+    )
+    trace = json.loads(events.splitlines()[-1])
+    assert trace["metadata"]["error_code"] == "schema_validation"
+    issues = trace["metadata"]["validation_errors"]
+    assert {"path": ["<unknown_field>"], "type": "extra_forbidden"} in issues
+    assert {"path": ["claims", 0, "evidence_ids"], "type": "too_short"} in issues
     native.close()
 
 
