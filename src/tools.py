@@ -3,7 +3,7 @@ from time import monotonic
 
 from ouroboros.tools.registry import ToolEntry, ToolRegistry
 from ouroboros.tools.tool_catalog import ToolCatalog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .calculations.forecast import forecast
 from .config import ROOT, settings
@@ -19,6 +19,7 @@ class ReportArgs(BaseModel):
 
 
 class WebArgs(ReportArgs):
+    query: str = Field(default="", max_length=2500)
     fresh: bool
     quotes: list[Grade]
     search: bool
@@ -27,6 +28,12 @@ class WebArgs(ReportArgs):
     start_date: str | None = None
     end_date: str | None = None
     search_depth: str = "basic"
+
+    @model_validator(mode="after")
+    def search_query_required(self):
+        if self.search and not self.query.strip():
+            raise ValueError("web_search requires a non-empty query when searching publications.")
+        return self
 
 
 class ReadWebArgs(BaseModel):
@@ -47,6 +54,14 @@ class ReadReportArgs(BaseModel):
     page: int | None = Field(default=None, ge=1)
     block_id: str = Field(default="", max_length=160)
     version_id: str = Field(default="", max_length=100)
+
+    @model_validator(mode="after")
+    def location_required(self):
+        if self.page is None and not self.block_id.strip():
+            raise ValueError(
+                "read_report requires a positive page or a block_id from retrieved sources."
+            )
+        return self
 
 
 def read_report(report: str, page: int | None = None, block_id="", version_id=""):

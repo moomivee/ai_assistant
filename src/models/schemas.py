@@ -188,9 +188,20 @@ class NextAction(StrictModel):
         "report_search", "read_report", "web_search", "read_web", "price_forecast", "finish"
     ]
     source_ids: list[str] = Field(default_factory=list, max_length=4)
-    query: str = Field(max_length=1500)
-    report: str = Field(max_length=100)
-    page: int | None
+    query: str = Field(
+        default="",
+        max_length=1500,
+        description="Поисковый запрос для report_search/web_search; для остальных действий можно не передавать.",
+    )
+    report: str = Field(
+        default="",
+        max_length=100,
+        description="ID найденного документа только для read_report; для остальных действий можно не передавать.",
+    )
+    page: int | None = Field(
+        default=None,
+        description="Положительный номер страницы для read_report; вместо него для Word/Excel допустим block_id.",
+    )
     block_id: str = Field(default="", max_length=160)
     version_id: str = Field(default="", max_length=100)
     url: str = Field(default="", max_length=2048)

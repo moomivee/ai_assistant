@@ -315,6 +315,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             args = {}
         elif name == "report_search":
             args = {"query": d["query"]}
+            if not d["query"].strip():
+                error = "report_search requires a non-empty query. Provide the search text."
         elif name == "read_report":
             args = {"report": d["report"], "page": d["page"]}
             if d.get("block_id"):
@@ -323,6 +325,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 args["version_id"] = d["version_id"]
             if d["report"] not in {s.get("report") for s in state["sources"]}:
                 error = "Use a registered report ID from retrieved sources."
+            elif (d["page"] is not None and d["page"] < 1) or (
+                d["page"] is None and not d.get("block_id", "").strip()
+            ):
+                error = "read_report requires a positive page or a block_id from retrieved sources."
             elif d.get("version_id") and not any(
                 s.get("report") == d["report"] and s.get("version_id") == d["version_id"]
                 for s in state["sources"]
@@ -335,6 +341,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "quotes": p["quotes"],
                 "search": p["news"] or p["wants_context"] or not p["quotes"],
             }
+            if args["search"] and not d["query"].strip():
+                error = "web_search requires a non-empty query when searching publications."
             for key in ("topic", "days", "start_date", "end_date", "search_depth"):
                 if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
