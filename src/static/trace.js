@@ -224,6 +224,9 @@ window.TraceView = (() => {
           const v = check.validation;
           item.append(node("p", `Модель предложила утверждений: ${v.candidate_claims}. Отклонено по ссылкам: ${v.citation_rejected || 0}, по числам: ${v.numeric_rejected || 0}, по смыслу: ${v.semantic_rejected || 0}.`, "small"));
         }
+        if (check.validation?.citation_repair_attempted) {
+          item.append(node("p", "Модели повторно переданы те же фрагменты для исправления ссылок.", "small"));
+        }
         const coverageLabels = { sufficient: "достаточно сведений", partial: "частичное", unverified: "не проверено" };
         if (check.validation?.coverage) item.append(node("p", "Покрытие вопроса: " + (coverageLabels[check.validation.coverage] || check.validation.coverage) + ".", "small"));
         if (check.validation?.missing_aspects?.length) item.append(node("p", "Не хватает: " + check.validation.missing_aspects.join("; "), "small"));

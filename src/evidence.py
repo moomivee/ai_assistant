@@ -1,11 +1,37 @@
 """Address original evidence by IDs: models select blocks; code supplies quotations."""
 
+from typing import Annotated
+
+from pydantic import Field, create_model
+
+from .budget import check_budget
 from .clock import clock_payload
 from .config import settings
-from .models.schemas import CitationReview, CitedAnswer
+from .models.schemas import CitationReview, CitedAnswer, CitedClaim
 from .progress import context_blocks
 from .request_context import scope_payload
 from .validation import numbers
+
+
+def _answer_schema(evidence):
+    # Advertise only this call's block IDs to both transports. Keep the local
+    # wire parser string-typed so an invalid ID can be diagnosed per claim.
+    # Actual membership is checked below before any claim reaches the reviewer.
+    block_id = Annotated[str, Field(json_schema_extra={"enum": list(evidence)})]
+    claim = create_model(
+        "CitedClaim",
+        __base__=CitedClaim,
+        evidence_ids=(list[block_id], CitedClaim.model_fields["evidence_ids"]),
+    )
+    return create_model(
+        "CitedAnswer",
+        __base__=CitedAnswer,
+        claims=(list[claim], CitedAnswer.model_fields["claims"]),
+    )
+
+
+def _references_exist(claim, evidence):
+    return bool(claim.evidence_ids) and all(key in evidence for key in claim.evidence_ids)
 
 
 def catalog(sources, limit=18000, *, priority_source_ids=()):
@@ -54,6 +80,7 @@ def generate_answer(
     report_only=False,
     priority_source_ids=(),
     diagnostics: dict | None = None,
+    allow_citation_repair=True,
 ):
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
@@ -66,6 +93,9 @@ def generate_answer(
         numeric_rejected=0,
         semantic_rejected=0,
         accepted_claims=0,
+        initial_citation_rejected=0,
+        citation_repair_attempted=False,
+        citation_repair_outcome="not_attempted",
         review_enabled=review_enabled,
         review_attempted=False,
         review_executed=False,
@@ -110,7 +140,42 @@ def generate_answer(
         "feedback": feedback,
     }
     checks["stage"] = "answer_generation"
-    raw = client.generate("cited_answer", payload, CitedAnswer)
+    schema = _answer_schema(evidence)
+    raw = client.generate("cited_answer", payload, schema)
+    invalid = sum(not _references_exist(claim, evidence) for claim in raw.claims)
+    checks["initial_citation_rejected"] = invalid
+    if allow_citation_repair and invalid and invalid == len(raw.claims):
+        check_budget()
+        checks.update(
+            stage="citation_repair",
+            candidate_claims=len(raw.claims),
+            candidate_complete=raw.complete,
+            citation_rejected=invalid,
+            citation_repair_attempted=True,
+            citation_repair_outcome="pending",
+        )
+        corrected_payload = dict(
+            payload,
+            citation_repair=(
+                "Все предыдущие утверждения содержали хотя бы один неизвестный адрес блока. "
+                "Повторно прочитай те же фрагменты. Для каждого подтверждённого утверждения "
+                "скопируй в evidence_ids точные ключи объекта evidence. Поле id в sources "
+                "обозначает документ или страницу и не адресует текстовый блок. "
+                "Если ни один блок не подтверждает утверждение, пропусти его."
+            ),
+        )
+        raw = client.generate("cited_answer", corrected_payload, schema)
+        invalid = sum(not _references_exist(claim, evidence) for claim in raw.claims)
+        if not raw.claims:
+            outcome = "empty"
+        elif invalid == 0:
+            outcome = "ids_valid"
+        elif invalid == len(raw.claims):
+            outcome = "invalid_ids"
+        else:
+            outcome = "partially_valid_ids"
+        checks["citation_repair_outcome"] = outcome
+    checks["citation_rejected"] = invalid
     checks["candidate_claims"] = len(raw.claims)
     checks["candidate_complete"] = raw.complete
     if not raw.claims:
@@ -125,8 +190,7 @@ def generate_answer(
     checks["stage"] = "local_validation"
     valid = []
     for claim in raw.claims:
-        if any(key not in evidence for key in claim.evidence_ids):
-            checks["citation_rejected"] += 1
+        if not _references_exist(claim, evidence):
             continue
         text = " ".join(
             evidence[key]["text"] + " " + (evidence[key]["date"] or "")
@@ -141,7 +205,11 @@ def generate_answer(
         return (
             CitedAnswer(claims=[], complete=False),
             evidence,
-            "No claims passed citation and numeric checks.",
+            "The proposed citations contained unknown block IDs. No claim had all its citations "
+            "in the supplied evidence. Do not repeat the same search; use a specific different "
+            "source or page if it addresses an evidence gap, otherwise finish with this limitation."
+            if invalid == len(raw.claims)
+            else "No claims passed citation and numeric checks.",
         )
     if not review_enabled:
         # Valid IDs and matching numbers cannot establish currency. A fetched

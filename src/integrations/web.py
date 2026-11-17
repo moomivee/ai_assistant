@@ -19,6 +19,12 @@ DAILY = {"Brent": "DCOILBRENTEU", "WTI": "DCOILWTICO"}
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
+SEARCH_DATE_NOTICE = (
+    "У части веб-источников дата публикации неизвестна; актуальность этих сведений не подтверждена."
+)
+PAGE_DATE_NOTICE = (
+    "Дата публикации страницы не установлена; время получения не является датой публикации."
+)
 
 
 def allowed(url: str, domains: tuple[str, ...]) -> bool:
@@ -401,9 +407,7 @@ def read_web(url: str, query: str = "") -> dict:
                 "Показаны фрагменты страницы, отобранные Tavily по запросу, до 5 фрагментов."
             )
         if row["date"] is None:
-            notices.append(
-                "Дата публикации страницы не установлена; время получения не является датой публикации."
-            )
+            notices.append(PAGE_DATE_NOTICE)
         break
     if data.get("failed_results"):
         notices.append("Tavily не смог полностью извлечь запрошенную страницу.")
@@ -444,9 +448,7 @@ def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **searc
         except (KeyError, TypeError):
             notices.append("Веб-поиск вернул некорректный ответ.")
     if any(row.get("content_type") == "snippet" and not row.get("date") for row in rows):
-        notices.append(
-            "У части веб-источников дата публикации неизвестна; актуальность этих сведений не подтверждена."
-        )
+        notices.append(SEARCH_DATE_NOTICE)
     if not rows and not notices:
         notices.append(
             "В доверенных источниках не найдено подходящей публикации с заданными параметрами."

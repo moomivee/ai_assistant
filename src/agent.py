@@ -23,6 +23,7 @@ from .evidence import generate_answer, render_claims
 from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
+from .integrations.web import PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import make_plan
@@ -486,6 +487,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 report_only=p["report_only"],
                 priority_source_ids=recent_source_ids(state),
                 diagnostics=validation,
+                allow_citation_repair=not any(
+                    previous.get("validation", {}).get("citation_repair_attempted")
+                    for previous in state["answer_checks"]
+                ),
             )
             # The latest validation replaces the candidate, including an empty
             # rejection. Restoring an old complete draft can resurrect stale facts.
@@ -522,6 +527,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         sources, claims, blocks = [], [], []
         intent = p["intent"] if p else "unknown"
         stop = state.get("stop_reason", "completed")
+        last_check = state["answer_checks"][-1] if state["answer_checks"] else {}
+        validation = last_check.get("validation", {})
+        citation_failure = (
+            not state.get("failure")
+            and validation.get("reason") == "local_validation_rejected"
+            and bool(validation.get("candidate_claims"))
+            and validation["candidate_claims"] == validation.get("citation_rejected")
+        )
         if state.get("failure") and not state["sources"] and not calc:
             status, blocks = "unavailable", [state["failure"]]
         elif p and p["intent"] == "outside":
@@ -573,9 +586,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 blocks.append("Не удалось завершить обработку запроса. " + state["failure"])
             else:
                 status = "ok" if complete else "partial"
-                if not blocks:
+                if citation_failure:
+                    blocks.append(
+                        "Источники найдены, но ссылки модели не совпали с фрагментами, "
+                        "переданными для подготовки ответа. Утверждения с такими ссылками исключены."
+                    )
+                elif not blocks:
                     blocks = ["Подтверждённых данных для ответа недостаточно."]
-            if not complete and not state.get("failure"):
+            if not complete and not state.get("failure") and not citation_failure:
                 blocks.append(
                     "Проверка смысла и полноты ответа отключена в настройках. "
                     "Утверждения проверены только по ссылкам и числам; полнота ответа не подтверждена."
@@ -587,10 +605,20 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "Использованы только загруженные отчёты; актуальность на сегодняшний день не проверялась."
                 )
             if not complete:
+                omit_date_notices = citation_failure and not any(
+                    s["kind"] == "web" and not s.get("date") for s in sources
+                )
                 for observation in state["observations"]:
                     if not observation.get("duplicate_of"):
-                        blocks.extend(observation.get("notices", []))
-        if stop == "no_progress":
+                        blocks.extend(
+                            notice
+                            for notice in observation.get("notices", [])
+                            if not (
+                                omit_date_notices
+                                and notice in (SEARCH_DATE_NOTICE, PAGE_DATE_NOTICE)
+                            )
+                        )
+        if stop == "no_progress" and not citation_failure:
             blocks.append("Поиск остановлен: повторные попытки не добавили новых данных.")
         elif stop == "time_budget_exhausted":
             blocks.append("Достигнут общий лимит времени запроса. Обработка остановлена.")
