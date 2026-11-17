@@ -58,6 +58,10 @@ window.TraceView = (() => {
       ["Актуальные данные", plan.fresh ? "Нужны" : "Не запрошены"],
     ];
     if (plan.quotes?.length) rows.push(["Котировки", plan.quotes.join(", ")]);
+    if (plan.quotes?.length && plan.context_request) {
+      rows.push(["Отдельный вопрос к источникам", plan.context_request]);
+      if (typeof plan.context_fresh === "boolean") rows.push(["Свежие данные для этой части", plan.context_fresh ? "Нужны" : "Можно использовать отчёт за подходящий период"]);
+    }
     if (plan.intent === "forecast") {
       for (const [key, label] of [["benchmark", "Сорт"], ["months", "Горизонт, мес."], ["discount", "Дисконт, USD/барр."], ["cut", "Сокращение, млн б/с"], ["sensitivity", "Чувствительность"]]) {
         if (plan[key] !== null && plan[key] !== undefined) rows.push([label, plan[key]]);
@@ -77,7 +81,10 @@ window.TraceView = (() => {
     const badgeText = state === "rejected" ? "Отклонён" : state === "error" ? "Ошибка" : state === "ok" ? duration(execution.ms) : decision.action === "finish" ? "Решение" : "Нет результата";
     title.append(node("span", badgeText, "step-state " + (state || "decision")));
     li.append(title);
-    if (decision.origin === "plan_policy") li.append(node("p", "Шаг по правилам контроллера. Запрос взят из плана; отдельного вызова LLM для выбора этого шага нет.", "small step-origin"));
+    if (decision.origin === "plan_policy") {
+      const message = decision.quote_lookup ? "Модель выбрала котировку в плане. Агент запросил дневной ряд EIA/FRED для указанного сорта." : "Агент взял поисковый запрос из плана и вызвал инструмент без отдельного вызова LLM.";
+      li.append(node("p", message, "small step-origin"));
+    }
     if (decision.purpose) li.append(node("p", "Цель по плану: " + decision.purpose, "step-purpose"));
     if (decision.controller_note) li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
     if (decision.missing_facts?.length || decision.evidence_checks?.length) {
@@ -91,6 +98,7 @@ window.TraceView = (() => {
       li.append(detail("Какие сведения найдены и чего не хватает", assessment, "step-detail"));
     }
     if (execution) {
+      if (execution.argument_repair?.mode === "plan_rag_query") li.append(node("p", "Модель оставила поисковую строку пустой. Агент взял из плана фразу «" + execution.argument_repair.after.query + "».", "small"));
       if (execution.error) li.append(node("p", errorText(execution.error), "step-error"));
       if (execution.duplicate_of) li.append(node("p", `Повтор шага ${execution.duplicate_of}. Ранее получено: ${execution.reused_source_ids?.join(", ") || "фрагментов нет"}.`, "step-result"));
       if (typeof execution.new_evidence === "boolean") li.append(node("p", `Новые данные: ${execution.new_evidence ? "да" : "нет"}. Попыток без новых данных подряд: ${execution.no_progress_steps ?? 0}.`, "small"));
@@ -153,6 +161,9 @@ window.TraceView = (() => {
     const plan = data.diagnostics?.plan;
     if (plan?.report_only) {
       box.append(node("p", "Область поиска: только база знаний. Интернет запрещён для этого запроса.", "small route-policy"));
+    } else if ((data.decisions || []).some(d => d.quote_lookup)) {
+      const context = plan?.wants_context ? " Для аналитической части модель выбирает источники отдельно." : "";
+      box.append(node("p", "Для запрошенной спотовой цены агент обращается к дневному ряду EIA/FRED." + context, "small route-policy"));
     } else if (data.agent_mode === "loop" && plan && plan.intent !== "outside") {
       box.append(node("p", "Источник выбирает модель по задаче: содержание отчётов — в базе знаний, внешние и свежие сведения — в интернете. Обязательной очереди нет; при нехватке данных можно сменить источник.", "small route-policy"));
     }

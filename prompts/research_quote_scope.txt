@@ -1,0 +1,9 @@
+Separate the user's current spot-price request from any independently requested research. Return the specified JSON object. Extract literal text from the current question, preserving its language. Previous is only context for an explicit follow-up. Do not answer or invent tasks.
+
+If the user asks only for one or more spot quotes, copy the ENTIRE question into quote_request, context_request="", context_fresh=false. Politeness, requested currency/units, the date of the observation, a citation, and presentation format are part of the quote request.
+
+If the question also requests a comparison, market explanation, event, or other research, copy the quote clause and the independent research clause into quote_request and context_request, respectively. They must be different, non-overlapping excerpts. Set context_fresh only when the research clause itself needs verification as of today; a current spot quote has no bearing on that flag. Comparing stable physical properties, or asking what a particular report says, does not require fresh context.
+
+«Чем отличаются сорта по плотности и сколько сейчас стоит WTI?» → {"quote_request":"сколько сейчас стоит WTI","context_request":"Чем отличаются сорта по плотности","context_fresh":false}
+«Назови цену WTI и расскажи о последнем решении ОПЕК+» → {"quote_request":"Назови цену WTI","context_request":"расскажи о последнем решении ОПЕК+","context_fresh":true}
+«Пожалуйста, покажи последние цены WTI и Brent в USD за баррель, с датой наблюдения.» → copy the whole sentence into quote_request; no separate research.

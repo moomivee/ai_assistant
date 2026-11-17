@@ -206,7 +206,8 @@ def test_quote_request_skips_unnecessary_synthesis():
             {"tool": name, "engine": "fixture", "status": "ok", "ms": 0},
         )
 
-    p = plan(quotes=["Brent"], fresh=True, wants_context=False)
-    response = ask("Последняя дневная цена Brent", client=QuoteClient(p), execute=quotes)
+    question = "Последняя дневная цена Brent"
+    p = plan(quotes=["Brent"], fresh=True, wants_context=False, quote_request=question)
+    response = ask(question, client=QuoteClient(p), execute=quotes)
     assert calls == ["plan"] and response["status"] == "ok"
     assert [t["tool"] for t in response["trace"]] == ["report_search", "web_search"]

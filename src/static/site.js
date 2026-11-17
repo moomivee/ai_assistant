@@ -354,12 +354,25 @@ $("ask").addEventListener("submit", async (e) => {
     if (!r.ok) throw new Error("Сервис вернул ошибку " + r.status + ".");
     const data = await r.json();
     render(q, data, Math.round(performance.now() - started));
-    previous = data.clarification ? data.question.slice(0, 2000) : null;
+    if (!data.clarification) {
+      previous = null;
+    } else if (data.intent === "research") {
+      // Keep the question that listed the options for replies like “the second one”.
+      const clarification = "\nУточнение агента: " + data.answer.slice(0, 500);
+      const userTurn = (previous ? "\nОтвет пользователя: " : "") + data.question;
+      const available = 2000 - clarification.length;
+      const retained = (previous || "").slice(0, Math.max(0, available - userTurn.length));
+      previous = retained + userTurn.slice(0, available) + clarification;
+    } else {
+      previous = data.question.slice(0, 2000);
+    }
     $("newquestion").hidden = !previous;
     if (previous) {
       $("question").value = "";
       $("question").placeholder = "Уточните параметры предыдущего запроса…";
       counter();
+    } else {
+      $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
     }
   } catch (err) {
     target.replaceChildren(element("p", "Не удалось получить ответ. " + err.message));

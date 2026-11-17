@@ -10,6 +10,7 @@ PROMPT_NAMES = (
     "plan",
     "forecast",
     "forecast_scope",
+    "research_quote_scope",
     "answer",
     "answer_review",
     "judge",

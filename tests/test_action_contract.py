@@ -174,7 +174,85 @@ def test_read_report_missing_required_arguments_is_rejected_then_replanned(missi
     assert result["decisions"][1]["report"] == missing.get("report", "")
 
 
-def test_report_query_is_not_fabricated_when_missing():
+@pytest.mark.parametrize("omitted", ["", " \t"])
+def test_initial_report_search_uses_model_planned_query_when_action_omits_it(omitted):
+    question = "Чем отличаются Urals и ESPO по плотности и содержанию серы?"
+    query = "плотность и содержание серы в Urals и ESPO"
+    calls = []
+
+    def execute(registry, name, **arguments):
+        calls.append((name, arguments))
+        return [REPORT], None, event(name)
+
+    client = Scripted([{"action": "report_search", "purpose": "Find comparison", "query": omitted}])
+    result = ask(
+        question,
+        client=client,
+        execute=execute,
+        planner=lambda *_: plan(rag_query=" " + query),
+    )
+    assert calls == [("report_search", {"query": query})]
+    assert result["rejected_actions"] == 0 and result["decisions"][0]["query"] == omitted
+    step = result["diagnostics"]["steps"][0]
+    assert step["arguments"] == {"query": query}
+    assert step["argument_repair"] == {
+        "mode": "plan_rag_query",
+        "before": {"query": omitted},
+        "after": {"query": query},
+    }
+
+
+def test_initial_repaired_report_query_is_deduplicated_like_an_explicit_query():
+    calls = []
+
+    def execute(registry, name, **arguments):
+        calls.append(arguments)
+        return [], None, event(name)
+
+    client = Scripted(
+        [
+            {"action": "report_search", "purpose": "Find comparison"},
+            {"action": "report_search", "purpose": "Retry", "query": "Sokol"},
+            {"action": "finish", "purpose": "No usable evidence"},
+        ]
+    )
+    result = ask("Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan())
+    assert calls == [{"query": "Sokol"}]
+    assert result["diagnostics"]["steps"][1]["duplicate_of"] == 1
+
+
+def test_price_observation_does_not_replace_first_context_search(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    query = "содержание серы в Sokol"
+    quote = {**WEB, "grade": "Brent", "price": 74.32, "text": "Brent 74.32 USD/барр."}
+    calls = []
+
+    def execute(registry, name, **arguments):
+        calls.append((name, arguments))
+        if name == "web_search":
+            return {"items": [quote], "notices": []}, None, event(name)
+        return [REPORT], None, event(name)
+
+    result = ask(
+        "Сколько серы в нефти Sokol и какова последняя цена Brent?",
+        planner=lambda *_: plan(
+            rag_query=query,
+            quotes=["Brent"],
+            fresh=True,
+            context_request="Сколько серы в нефти Sokol?",
+            context_fresh=False,
+        ),
+        client=Scripted([{"action": "report_search", "purpose": "Проверить серу"}]),
+        execute=execute,
+    )
+    assert [name for name, _ in calls] == ["web_search", "report_search"]
+    assert calls[1][1] == {"query": query}
+    assert result["diagnostics"]["steps"][1]["argument_repair"]["mode"] == "plan_rag_query"
+    assert result["status"] == "ok" and result["rejected_actions"] == 0
+    assert REPORT["text"] in result["answer"] and quote["text"] in result["answer"]
+
+
+def test_report_query_is_not_fabricated_when_both_action_and_plan_are_missing():
     calls = []
 
     def execute(registry, name, **arguments):
@@ -188,12 +266,40 @@ def test_report_query_is_not_fabricated_when_missing():
             {"action": "report_search", "purpose": "Specify query", "query": "Sokol sulfur"},
         ]
     )
-    result = ask("Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan())
+    result = ask(
+        "Сера Sokol?", client=client, execute=execute, planner=lambda *_: plan(rag_query=" ")
+    )
     # This transport fixture disables semantic review; no verified completeness is claimed.
     assert result["diagnostics"]["semantic_review_enabled"] is False
     assert result["status"] == "partial" and result["rejected_actions"] == 1
     assert len(calls) == 1
     assert result["decisions"][0]["query"] == ""
+
+
+def test_missing_query_on_followup_does_not_reuse_initial_broad_plan():
+    calls = []
+
+    def execute(registry, name, **arguments):
+        calls.append(arguments)
+        return [REPORT], None, event(name)
+
+    client = Scripted(
+        [
+            {"action": "report_search", "purpose": "Find sulfur", "query": "sulfur"},
+            {"action": "report_search", "purpose": "Find the missing density"},
+            {"action": "finish", "purpose": "Only partial evidence available"},
+        ],
+        complete=False,
+    )
+    result = ask(
+        "Сера и плотность Sokol?",
+        client=client,
+        execute=execute,
+        planner=lambda *_: plan(rag_query="broad properties"),
+    )
+    assert calls == [{"query": "sulfur"}]
+    step = result["diagnostics"]["steps"][1]
+    assert step["status"] == "rejected" and step.get("argument_repair") is None
 
 
 def test_quotes_only_action_needs_no_text_search_query_in_real_registry(monkeypatch):

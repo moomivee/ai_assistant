@@ -1,10 +1,12 @@
 import json
+import logging
 from time import monotonic
 
 from ouroboros.tools.registry import ToolEntry, ToolRegistry
 from ouroboros.tools.tool_catalog import ToolCatalog
 from pydantic import BaseModel, Field, model_validator
 
+from .budget import RequestBudgetExceeded
 from .calculations.forecast import forecast
 from .config import ROOT, settings
 from .integrations.telemetry import span
@@ -168,15 +170,24 @@ def make_registry() -> AnalystRegistry:
     registry = AnalystRegistry(ROOT, root)
     for name, (schema_cls, fn, description) in FUNCTIONS.items():
 
-        def handler(ctx, _fn=fn, _schema=schema_cls, **kwargs):
+        def handler(ctx, _fn=fn, _schema=schema_cls, _name=name, **kwargs):
             try:
                 if current_scope().report_only and _fn in (web_lookup, read_web):
                     raise ValueError("Web access is disabled by the user's report-only scope.")
                 args = _schema.model_validate(kwargs)
                 data = _fn(**args.model_dump())
-                return json.dumps({"data": data}, ensure_ascii=False)
-            except ValueError as exc:
+                error = data.get("error") if isinstance(data, dict) else None
+                return json.dumps({"data": data, "error": error}, ensure_ascii=False)
+            except (ValueError, RequestBudgetExceeded) as exc:
                 return json.dumps({"error": str(exc)}, ensure_ascii=False)
+            except Exception as exc:
+                # Ouroboros otherwise reduces handler exceptions to TOOL_ERROR. Keep
+                # the error class without exposing URLs, credentials or raw responses.
+                kind = type(exc).__name__
+                log("tool.handler_failed", logging.ERROR, tool=_name, error_type=kind)
+                return json.dumps(
+                    {"error": f"Инструмент {_name} недоступен ({kind})."}, ensure_ascii=False
+                )
 
         schema = {
             "type": "function",

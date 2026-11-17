@@ -23,7 +23,7 @@ from .evidence import generate_answer, render_claims
 from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
-from .integrations.web import PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE
+from .integrations.web import DAILY, PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import make_plan
@@ -51,6 +51,7 @@ class State(TypedDict, total=False):
     answer_attempts: int
     answer_context_ids: list
     answer_checks: list
+    direct_quotes_attempted: bool
     draft: dict
     evidence: dict
     failure: str
@@ -178,6 +179,12 @@ def allowed_actions(state):
     # A model may stop with a partial answer after an unsuccessful attempt.
     # Source order is its decision; completeness is checked against evidence.
     evidence_attempted = any(name in called for name in ("report_search", "web_search"))
+    if state.get("direct_quotes_attempted") and p["wants_context"]:
+        evidence_attempted = any(
+            o["tool"] == "report_search"
+            or (o["tool"] == "web_search" and o["arguments"].get("search"))
+            for o in state["observations"]
+        )
     required = (p["intent"] != "forecast" or bool(state["calc"])) and (
         not (p["wants_context"] or p["quotes"]) or evidence_attempted
     )
@@ -207,7 +214,15 @@ def answer_sources(state):
     # finish selection may narrow the sources sent to answer generation.
     decision = state.get("decision", {})
     selected = set(decision.get("source_ids", [])) if decision.get("action") == "finish" else set()
-    return [s for s in state["sources"] if s["id"] in selected] if selected else state["sources"]
+    sources = state["sources"]
+    if state.get("direct_quotes_attempted"):
+        # A quote alone cannot answer an additional research request. When the
+        # planner could not separate the clauses, evaluate all evidence together
+        # once some actual research material is available.
+        context_sources = [s for s in sources if "price" not in s]
+        if state["plan"].get("context_request") or not context_sources:
+            sources = context_sources
+    return [s for s in sources if s["id"] in selected] if selected else sources
 
 
 def needs_answer(state):
@@ -235,7 +250,7 @@ def can_finish_unreviewed(state):
         and bool(state["draft"]["claims"])
         and validation.get("candidate_complete") is True
         and validation.get("candidate_claims") == validation.get("accepted_claims")
-        and required_results_ready(state)
+        and (required_results_ready(state) or state.get("direct_quotes_attempted"))
     )
 
 
@@ -263,6 +278,19 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             value = planner(client, state["question"], state.get("previous"))
             if current_scope().report_only:
                 value = value.model_copy(update={"report_only": True})
+            if value.report_only and value.intent == "research" and value.quotes:
+                # Market feeds are out of scope. Search the allowed reports for
+                # the full request and retain the original freshness requirement.
+                value = value.model_copy(
+                    update={
+                        "wants_context": True,
+                        "quotes": [],
+                        "rag_query": state["question"],
+                        "quote_request": "",
+                        "context_request": "",
+                        "context_fresh": None,
+                    }
+                )
             return {"plan": value.model_dump()}
         except LLMUnavailable as exc:
             return {"failure": str(exc), "stop_reason": "llm_unavailable"}
@@ -270,7 +298,22 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def decide(state):
         try:
             actions = allowed_actions(state)
-            if state["attempts"] == 0 and actions == ["report_search"]:
+            p = state["plan"]
+            if (
+                state["attempts"] == 0
+                and p["intent"] == "research"
+                and p["quotes"]
+                and set(p["quotes"]) <= DAILY.keys()
+                and "web_search" in actions
+            ):
+                decision = NextAction(
+                    action="web_search",
+                    purpose="Получить последнее опубликованное наблюдение EIA/FRED для "
+                    + ", ".join(p["quotes"])
+                    + ".",
+                ).model_dump()
+                decision.update(origin="plan_policy", quote_lookup=True)
+            elif state["attempts"] == 0 and actions == ["report_search"]:
                 # Only an explicit reports-only scope leaves one evidence tool.
                 # Reuse the model's planned query without a redundant decision.
                 decision = NextAction(
@@ -336,13 +379,25 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         d, p = state["decision"], state["plan"]
         name = d["action"]
         error, data, event = None, None, None
+        argument_repair = d.get("argument_repair")
         if name not in allowed_actions(state):
             error = "Action rejected by policy; choose one of allowed_actions."
             args = {}
         elif name == "report_search":
             args = {"query": d["query"]}
             if not d["query"].strip():
-                error = "report_search requires a non-empty query. Provide the search text."
+                # The model already supplied a query for the initial report search.
+                # After text retrieval it must specify which remaining fact to look for.
+                planned = p["rag_query"].strip()
+                if planned and all("price" in source for source in state["sources"]):
+                    args = {"query": planned}
+                    argument_repair = {
+                        "mode": "plan_rag_query",
+                        "before": {"query": d["query"]},
+                        "after": args.copy(),
+                    }
+                else:
+                    error = "report_search requires a non-empty query. Provide the search text."
         elif name == "read_report":
             args = {"report": d["report"], "page": d["page"]}
             if d.get("block_id"):
@@ -364,9 +419,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             args = {
                 "query": d["query"],
                 "fresh": p["fresh"],
-                "quotes": p["quotes"],
-                "search": p["news"] or p["wants_context"] or not p["quotes"],
+                "quotes": [] if state.get("direct_quotes_attempted") else p["quotes"],
+                "search": not d.get("quote_lookup")
+                and (p["news"] or p["wants_context"] or not p["quotes"]),
             }
+            if state.get("direct_quotes_attempted") and p.get("context_fresh") is not None:
+                args["fresh"] = p["context_fresh"]
             if args["search"] and not d["query"].strip():
                 error = "web_search requires a non-empty query when searching publications."
             for key in ("topic", "days", "start_date", "end_date", "search_depth"):
@@ -387,11 +445,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if not error:
             data, error, event = execute(registry, name, **args)
         observation = {"tool": name, "arguments": args, "error": error}
-        if d.get("argument_repair"):
-            observation["argument_repair"] = d["argument_repair"]
+        if argument_repair:
+            observation["argument_repair"] = argument_repair
         update = {
             "trace": state["trace"] + ([event] if event else []),
         }
+        if d.get("quote_lookup"):
+            update["direct_quotes_attempted"] = True
         if name in ("report_search", "read_report") and data is not None:
             update["sources"] = merge_sources(state["sources"], data)
             observation["result_count"] = len(data)
@@ -403,6 +463,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         elif name == "price_forecast" and data:
             update["calc"] = data
             observation["result"] = {k: data[k] for k in ("benchmark", "as_of", "last")}
+        if d.get("quote_lookup") and error and not observation.get("notices"):
+            observation["notices"] = ["Не удалось получить котировку EIA/FRED. " + error]
         incoming = (
             data
             if name in ("report_search", "read_report")
@@ -478,12 +540,23 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
 
         try:
             validation = {}
+            question = state["question"]
+            fresh = p["fresh"]
+            if p["intent"] == "forecast":
+                question = p["rag_query"]
+            elif p.get("context_request"):
+                # A dated quote has its own source and is rendered separately.
+                # Review the remaining analytical question against its own period.
+                question = p["context_request"]
+                if p.get("context_fresh") is not None:
+                    fresh = p["context_fresh"]
             draft, evidence, feedback = generate_answer(
                 client,
-                p["rag_query"] if p["intent"] == "forecast" else state["question"],
+                question,
                 sources,
                 feedback=state["feedback"],
-                fresh=p["fresh"],
+                fresh=fresh,
+                previous=state.get("previous") if p["intent"] == "research" else None,
                 report_only=p["report_only"],
                 priority_source_ids=recent_source_ids(state),
                 diagnostics=validation,
@@ -694,6 +767,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_act(state):
         if state.get("failure"):
             return "finish"
+        if state["decision"].get("quote_lookup") and not state["plan"]["wants_context"]:
+            return "finish"
         # Every new evidence set reaches the answer node immediately. Another
         # planning decision is not required to unlock already retrieved facts.
         if needs_answer(state):
@@ -715,6 +790,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             and not state.get("research_stopped")
             and not task_complete(state)
             and not can_finish_unreviewed(state)
+            # A verified context answer can be returned alongside an explicit
+            # missing quote. More research cannot retry the already queried feed.
+            and not (
+                state.get("direct_quotes_attempted")
+                and state["draft"]["complete"]
+                and not state["feedback"]
+            )
             and state["attempts"] < settings().agent_max_steps
         ):
             return "decide"

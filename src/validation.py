@@ -32,16 +32,26 @@ def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Pla
     if p.intent == "research" and (not p.quotes or p.news):
         p.wants_context = True
     if p.intent != "forecast":
-        # Plan.clarify is reserved for missing calculation inputs. A model
-        # restating a research question must not prevent searching for it.
-        if p.clarify:
-            log("plan.unexpected_clarification_ignored", intent=p.intent)
-        p.clarify = ""
+        options = {normalized(option).strip(" .!?…") for option in p.research_options}
+        clarification = normalized(p.clarify).strip(" .!?…")
+        if (
+            p.intent == "research"
+            and len(options - {""}) >= 2
+            and clarification
+            and clarification != normalized(question).strip(" .!?…")
+        ):
+            p.clarify = p.clarify.strip()
+        else:
+            if p.clarify:
+                log("plan.unexpected_clarification_ignored", intent=p.intent)
+            p.clarify = ""
+            p.research_options = []
         p.parameters = []
         p.benchmark = p.months = p.discount = p.cut = p.sensitivity = None
         return p
     # Forecast clarification follows validated inputs, not free-form model text.
     p.clarify = ""
+    p.research_options = []
     combined = normalized((previous or "") + " " + question)
     evidence = {e.field: e.quote for e in p.parameters}
     for field in ("months", "discount", "cut", "sensitivity"):

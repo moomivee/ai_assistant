@@ -35,6 +35,20 @@ class Plan(StrictModel):
     wants_context: bool
     news: bool
     quotes: list[Grade] = Field(max_length=3)
+    quote_request: str = Field(
+        default="",
+        max_length=2000,
+        description="For research with current quotes, copy the price clause verbatim, or the whole question if only quotes are requested.",
+    )
+    context_request: str = Field(
+        default="",
+        max_length=2000,
+        description="For research with current quotes, copy the separate research clause verbatim. Empty for quotes only.",
+    )
+    context_fresh: bool | None = Field(
+        default=None,
+        description="Does the separate research clause need current verification independently of a spot quote? Null when inapplicable.",
+    )
     benchmark: Grade | None
     months: int | None
     discount: FiniteFloat | None
@@ -43,8 +57,26 @@ class Plan(StrictModel):
     parameters: list[ParameterEvidence] = Field(max_length=4)
     clarify: str = Field(
         max_length=500,
-        description="Уточнение только недостающих параметров forecast. Для research и outside всегда пустая строка.",
+        description=(
+            "Один вопрос пользователю по-русски при недостающем параметре прогноза "
+            "или существенной неоднозначности исследования, указанной в research_options. "
+            "В остальных случаях пустая строка."
+        ),
     )
+    research_options: list[Annotated[str, Field(max_length=180)]] = Field(
+        default_factory=list,
+        max_length=3,
+        description=(
+            "Для clarify в исследовании: 2–3 конкретные трактовки запроса, выбор между "
+            "которыми изменит искомый показатель или объект. Иначе пустой список."
+        ),
+    )
+
+
+class ResearchQuoteScope(StrictModel):
+    quote_request: str = Field(min_length=1, max_length=2000)
+    context_request: str = Field(max_length=2000)
+    context_fresh: bool
 
 
 class ForecastInputs(StrictModel):

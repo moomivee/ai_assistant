@@ -1,14 +1,14 @@
 import csv
-import io
 import ipaddress
 import math
 from datetime import UTC, date, datetime, timedelta
 from email.utils import parsedate_to_datetime
+from time import monotonic
 from urllib.parse import urlparse
 
 import httpx
 
-from ..budget import bounded_timeout, check_budget
+from ..budget import RequestBudgetExceeded, bounded_timeout, check_budget, remaining_seconds
 from ..clock import clock_today
 from ..config import settings
 from ..logging import log
@@ -17,6 +17,7 @@ from .feeds import search_feeds
 
 DAILY = {"Brent": "DCOILBRENTEU", "WTI": "DCOILWTICO"}
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+QUOTE_TIMEOUT = 8.0
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
 SEARCH_DATE_NOTICE = (
@@ -77,26 +78,55 @@ def web_date(raw: str | None) -> date | None:
 def latest_spot(grade: str) -> dict:
     log("web.quote_requested", provider="EIA/FRED", grade=grade)
     ticker = DAILY[grade]
-    response = httpx.get(
-        FRED_CSV,
-        params={"id": ticker},
-        timeout=bounded_timeout(settings().timeout),
-        follow_redirects=True,
-    )
-    response.raise_for_status()
-    reader = csv.DictReader(io.StringIO(response.text))
-    observations = []
-    for row in reader:
-        day = web_date(row.get("observation_date") or row.get("DATE") or "")
-        try:
-            price = float(row[ticker])
-        except (ValueError, TypeError, KeyError):
-            continue
-        if day and day <= clock_today() and math.isfinite(price):
-            observations.append((day, price))
-    if not observations:
+    today = clock_today()
+    quote_timeout = min(settings().timeout, QUOTE_TIMEOUT)
+    remaining = remaining_seconds()
+    if remaining is not None:
+        # A price is one piece of evidence. Leave time for other grades and sources.
+        quote_timeout = min(quote_timeout, remaining / 2)
+    deadline = monotonic() + bounded_timeout(quote_timeout)
+    # Request recent observations first. If the series has stopped publishing,
+    # its last dated observation can still be shown, subject to the same deadline.
+    latest = None
+    for start in (today - timedelta(days=45), None):
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise httpx.ReadTimeout("FRED quote deadline")
+        params = {"id": ticker, "coed": today.isoformat()}
+        if start:
+            params["cosd"] = start.isoformat()
+        with httpx.stream(
+            "GET",
+            FRED_CSV,
+            params=params,
+            timeout=bounded_timeout(remaining),
+            follow_redirects=True,
+        ) as response:
+            response.raise_for_status()
+            reader = csv.DictReader(response.iter_lines())
+            columns = set(reader.fieldnames or ())
+            if ticker not in columns or not columns.intersection(("observation_date", "DATE")):
+                raise ValueError("FRED вернул неизвестный формат ряда.")
+            for row in reader:
+                if monotonic() >= deadline:
+                    raise httpx.ReadTimeout("FRED quote deadline")
+                day = web_date(row.get("observation_date") or row.get("DATE"))
+                try:
+                    price = float(row[ticker])
+                except (ValueError, TypeError):
+                    continue
+                if (
+                    day
+                    and day <= today
+                    and math.isfinite(price)
+                    and (latest is None or day > latest[0])
+                ):
+                    latest = (day, price)
+        if latest:
+            break
+    if latest is None:
         raise ValueError("FRED не вернул наблюдений с датой.")
-    day, price = max(observations)
+    day, price = latest
     return {
         "kind": "web",
         "title": f"EIA через FRED · {grade} spot",
@@ -427,13 +457,29 @@ def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **searc
     rows, notices = [], []
     for grade in dict.fromkeys(quotes):
         if grade not in DAILY:
-            search = True
+            notices.append(f"У FRED нет дневного ряда для {grade}.")
+            search = search or bool(query.strip())
             continue
         try:
             rows.append(latest_spot(grade))
-        except (httpx.HTTPError, ValueError) as exc:
-            notices.append(f"Источник котировки {grade} недоступен ({type(exc).__name__}).")
-            search = True
+        except RequestBudgetExceeded as exc:
+            if not rows:
+                raise
+            notices.append(str(exc))
+            break
+        except (httpx.HTTPError, ValueError, csv.Error) as exc:
+            if isinstance(exc, httpx.TimeoutException):
+                reason = "истекло время ожидания"
+            elif isinstance(exc, httpx.HTTPStatusError):
+                reason = f"HTTP {exc.response.status_code}"
+            elif isinstance(exc, (ValueError, csv.Error)):
+                reason = "нет доступных наблюдений в ожидаемом формате"
+            else:
+                reason = f"ошибка соединения ({type(exc).__name__})"
+            notices.append(f"Не удалось получить котировку {grade} из EIA/FRED: {reason}.")
+            log("web.quote_failed", provider="EIA/FRED", grade=grade, reason=reason)
+    if quotes and not rows and not search:
+        return {"items": [], "notices": notices, "error": " ".join(notices)}
     if search:
         try:
             rows += search_web(query, fresh, **search_options)
@@ -441,12 +487,21 @@ def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **searc
                 notices.append(
                     "Доступен только ограниченный поиск по RSS EIA и Банка России; это не полный веб-поиск."
                 )
-        except ValueError as exc:
-            notices.append(str(exc))
-        except httpx.HTTPError as exc:
-            notices.append(_http_notice(exc, "Веб-поиск"))
-        except (KeyError, TypeError):
-            notices.append("Веб-поиск вернул некорректный ответ.")
+        except RequestBudgetExceeded as exc:
+            if not rows:
+                raise
+            if str(exc) not in notices:
+                notices.append(str(exc))
+        except (ValueError, httpx.HTTPError, KeyError, TypeError) as exc:
+            if isinstance(exc, httpx.HTTPError):
+                message = _http_notice(exc, "Веб-поиск")
+            elif isinstance(exc, ValueError):
+                message = str(exc)
+            else:
+                message = "Веб-поиск вернул некорректный ответ."
+            notices.append(message)
+            if not rows:
+                return {"items": [], "notices": notices, "error": " ".join(notices)}
     if any(row.get("content_type") == "snippet" and not row.get("date") for row in rows):
         notices.append(SEARCH_DATE_NOTICE)
     if not rows and not notices:

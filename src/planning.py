@@ -1,9 +1,11 @@
-"""Bounded structured checks of forecast inputs and explicitly requested context."""
+"""Bounded structured checks of forecast inputs and combined research requests."""
 
 from .clock import clock_payload
 from .integrations.agent_skills import get_skill_catalog
+from .integrations.llm import LLMUnavailable
+from .integrations.web import DAILY
 from .logging import log
-from .models.schemas import ForecastInputs, ForecastScope, Plan
+from .models.schemas import ForecastInputs, ForecastScope, Plan, ResearchQuoteScope
 from .request_context import current_scope, scope_payload
 from .validation import normalized, validate_plan
 
@@ -89,6 +91,100 @@ def merge_forecast_inputs(plan: Plan, extracted: ForecastInputs, question, previ
     return validate_plan(candidate, question, previous)
 
 
+def verified_quote_scope(
+    plan: Plan, scope: Plan | ResearchQuoteScope, question: str
+) -> Plan | None:
+    """Check grounding and independence before discarding either part of a request."""
+
+    def clause(text):
+        return normalized(text).strip(" .,:;!?…")
+
+    source = clause(question)
+    quote = clause(scope.quote_request)
+    context = clause(scope.context_request)
+    if not quote or quote not in source:
+        return None
+    if not context:
+        if quote != source or plan.news:
+            return None
+        return plan.model_copy(
+            update={
+                "wants_context": False,
+                "quote_request": question,
+                "context_request": "",
+                "context_fresh": False,
+            }
+        )
+
+    # Both clauses must occur at distinct positions in this user's question.
+    if not any(context in part for part in source.split(quote, 1)):
+        return None
+    if scope.context_fresh is None and not plan.news:
+        return None
+    return plan.model_copy(
+        update={
+            "wants_context": True,
+            "quote_request": scope.quote_request.strip(),
+            "context_request": scope.context_request.strip(),
+            "rag_query": scope.context_request.strip(),
+            "context_fresh": bool(scope.context_fresh or plan.news),
+        }
+    )
+
+
+def resolve_research_quotes(client, plan: Plan, payload: dict) -> Plan:
+    question = payload["question"]
+    if not set(plan.quotes) <= DAILY.keys():
+        # A published assessment (e.g. Urals) requires source research. Keep all
+        # requested grades in the same question so a Brent feed cannot satisfy it.
+        log("plan.quote_research_required", grades=plan.quotes)
+        return plan.model_copy(
+            update={
+                "wants_context": True,
+                "quotes": [],
+                "rag_query": question,
+                "context_request": "",
+                "quote_request": "",
+                "context_fresh": None,
+            }
+        )
+    resolved = verified_quote_scope(plan, plan, question)
+    if resolved is None:
+        # Older prompts and ambiguous extra text (e.g. units) need one independent reading.
+        try:
+            scope = client.generate(
+                "research_quote_scope",
+                {
+                    "question": question,
+                    "previous": payload["previous"],
+                    "quotes": plan.quotes,
+                    **clock_payload(),
+                },
+                ResearchQuoteScope,
+            )
+            resolved = verified_quote_scope(plan, scope, question)
+        except LLMUnavailable:
+            log("plan.quote_scope_unavailable")
+    if resolved is None:
+        # No grounded separation. Keep the original research question and quote available.
+        log("plan.quote_scope_unresolved")
+        return plan.model_copy(
+            update={
+                "wants_context": True,
+                "context_request": "",
+                "quote_request": "",
+                "context_fresh": None,
+                "rag_query": question,
+            }
+        )
+    log(
+        "plan.quote_scope",
+        wants_context=resolved.wants_context,
+        context_fresh=resolved.context_fresh,
+    )
+    return resolved
+
+
 def make_plan(client, question, previous=None) -> Plan:
     payload = {
         "question": question,
@@ -110,6 +206,12 @@ def make_plan(client, question, previous=None) -> Plan:
         months=plan.months,
         needs_clarification=bool(plan.clarify),
     )
+    if plan.intent == "research" and plan.quotes and not plan.clarify:
+        return resolve_research_quotes(client, plan, payload)
+    if plan.context_request or plan.quote_request or plan.context_fresh is not None:
+        plan = plan.model_copy(
+            update={"quote_request": "", "context_request": "", "context_fresh": None}
+        )
     if plan.intent != "forecast":
         return plan
 

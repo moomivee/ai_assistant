@@ -76,6 +76,7 @@ def generate_answer(
     sources,
     *,
     feedback="",
+    previous=None,
     fresh=False,
     report_only=False,
     priority_source_ids=(),
@@ -111,6 +112,7 @@ def generate_answer(
     temporal_requirements = {"fresh": fresh, "report_only": report_only}
     payload = {
         "question": question,
+        **({"previous": previous} if previous else {}),
         **clock_payload(),
         "temporal_requirements": temporal_requirements,
         "user_scope": scope_payload(),
@@ -236,6 +238,7 @@ def generate_answer(
         "citation_review",
         {
             "question": question,
+            **({"previous": previous} if previous else {}),
             **clock_payload(),
             "temporal_requirements": temporal_requirements,
             "user_scope": scope_payload(),
