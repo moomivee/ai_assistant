@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import unicodedata
 import warnings as python_warnings
 from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
@@ -27,8 +28,8 @@ from ..config import MAX_UPLOAD_MIB
 
 logger = logging.getLogger(__name__)
 
-PARSER_VERSION = "local-documents/1"
-MAX_PAGES = 100
+PARSER_VERSION = "local-documents/2"
+MAX_PAGES = 500
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_RENDER_EDGE = 20_000
 MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
@@ -353,6 +354,14 @@ def _pdf(path: Path, result: _Result) -> None:
                 result.warn(
                     f"Страница {number}: текстовый слой PDF не прочитан, предпринята попытка OCR."
                 )
+            if (
+                native
+                and not any(char.isalnum() for char in native)
+                and any(char == "\ufffd" or unicodedata.category(char) == "Co" for char in native)
+            ):
+                # Some embedded fonts render normally but map every glyph to a placeholder.
+                native = ""
+                result.warn(f"Страница {number}: повреждена кодировка текстового слоя PDF.")
             result.add(native, locator)
             if _has_raster(page) or (not native and page.get("/Contents")):
                 try:

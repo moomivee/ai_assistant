@@ -1,17 +1,29 @@
+from io import BytesIO
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pypdf import PdfReader, PdfWriter
+from test_extractors import text_pdf
 
 from src.knowledge import api, extractors
 from src.knowledge.store import KnowledgeStore
 
 
 @pytest.fixture
-def knowledge_api(tmp_path, monkeypatch):
+def ingestion_api(tmp_path, monkeypatch):
     store = KnowledgeStore(tmp_path / "knowledge")
     scheduled = []
     monkeypatch.setattr(api, "get_store", lambda: store)
     monkeypatch.setattr(api, "submit_ingestion", lambda store, version: scheduled.append(version))
+    app = FastAPI()
+    app.include_router(api.router)
+    with TestClient(app) as client:
+        yield client, store, scheduled
+
+
+@pytest.fixture
+def knowledge_api(ingestion_api, monkeypatch):
     monkeypatch.setattr(
         extractors,
         "extract",
@@ -29,10 +41,7 @@ def knowledge_api(tmp_path, monkeypatch):
             "parser_version": "test",
         },
     )
-    app = FastAPI()
-    app.include_router(api.router)
-    with TestClient(app) as client:
-        yield client, store, scheduled
+    return ingestion_api
 
 
 def upload(client, **kwargs):
@@ -144,6 +153,64 @@ def test_error_can_be_retried_but_ready_version_is_immutable(knowledge_api, monk
     assert retried.status_code == 202
     assert retried.json()["document"]["status"] == "queued"
     assert scheduled == [version, version]
+
+
+def test_retry_500_page_pdf_preserves_version_and_late_page_citations(
+    ingestion_api, tmp_path, monkeypatch
+):
+    client, store, scheduled = ingestion_api
+    writer = PdfWriter()
+    markers = {101: "Oil revenue in the first quarter.", 500: "Annual report appendix."}
+    for number in range(1, 501):
+        if number in markers:
+            path = text_pdf(tmp_path / f"page-{number}.pdf", markers[number])
+            writer.add_page(PdfReader(path).pages[0])
+        else:
+            writer.add_blank_page(width=595, height=842)
+    pdf = BytesIO()
+    writer.write(pdf)
+    uploaded = client.post(
+        "/api/knowledge/documents",
+        files={"file": ("annual.pdf", pdf.getvalue(), "application/pdf")},
+    )
+    assert uploaded.status_code == 202
+    document = uploaded.json()["document"]
+    version = document["current_version_id"]
+    assert scheduled == [version]
+    with monkeypatch.context() as previous_release:
+        previous_release.setattr(extractors, "MAX_PAGES", 100)
+        failed = store.process(version)
+    assert failed["status"] == "error"
+    assert "более 100 страниц" in failed["error"]
+
+    url = f"/api/knowledge/documents/{document['id']}/versions/{version}"
+    assert client.post(url + "/retry").status_code == 202
+    assert scheduled == [version, version]
+    ready = store.process(version)
+    assert (ready["status"], ready["active_version_id"], ready["versions_count"]) == (
+        "ready",
+        version,
+        1,
+    )
+    result = client.get(url + "/blocks").json()
+    assert [(b["page"], b["locator"]["page"], b["text"]) for b in result["blocks"]] == [
+        (page, page, text) for page, text in markers.items()
+    ]
+
+
+def test_501_page_pdf_is_rejected_before_publishing_blocks(tmp_path):
+    writer = PdfWriter()
+    for _ in range(501):
+        writer.add_blank_page(width=595, height=842)
+    pdf = BytesIO()
+    writer.write(pdf)
+    store = KnowledgeStore(tmp_path / "knowledge")
+    document = store.upload("oversized.pdf", pdf.getvalue())
+    failed = store.process(document["current_version_id"])
+    assert failed["status"] == "error"
+    assert "более 500 страниц" in failed["error"]
+    assert failed["active_version_id"] is None
+    assert store.blocks(document["id"], document["current_version_id"]) == []
 
 
 def test_upload_limits_validation_and_unknown_ids(knowledge_api, monkeypatch):

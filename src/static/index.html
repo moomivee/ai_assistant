@@ -52,7 +52,7 @@
         <h3 id="upload-title">Добавить документ</h3>
         <p id="version-notice" class="small" hidden></p>
         <label for="document-file">Файл</label><input id="document-file" name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.csv" required aria-describedby="formats-hint">
-        <p id="formats-hint" class="small">PDF, JPG, PNG, DOCX, XLSX, CSV. До 100 МБ на файл. Сканированные страницы и изображения распознаются через OCR. Качество таблиц зависит от исходного файла.</p>
+        <p id="formats-hint" class="small">PDF, JPG, PNG, DOCX, XLSX, CSV. До 100 МБ на файл. Для PDF — до 500 страниц. Текст со сканов распознаётся на русском и английском. Качество таблиц зависит от исходного файла.</p>
         <label for="document-title">Название <span class="optional">необязательно</span></label><input id="document-title" name="title" type="text" maxlength="300" placeholder="Например, обзор нефтяного рынка">
         <details class="upload-metadata"><summary>Источник и дата документа</summary><label for="document-publisher">Издатель</label><input id="document-publisher" name="publisher" type="text" maxlength="200" placeholder="OPEC, EIA или другой издатель"><label for="document-url">Ссылка на оригинал</label><input id="document-url" name="source_url" type="url" placeholder="https://…"><label for="document-date">Дата публикации</label><input id="document-date" name="published_date" type="date"></details>
         <p class="privacy-note">Распознавание локальное; выбранные фрагменты передаются GigaChat.</p>

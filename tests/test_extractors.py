@@ -65,6 +65,39 @@ def test_native_pdf_preserves_actual_page_and_stable_identity(tmp_path, monkeypa
     assert "Sulfur" in first["blocks"][0]["text"]
 
 
+def test_native_cyrillic_report_keeps_original_text_and_page(monkeypatch):
+    path = Path(__file__).resolve().parents[1] / "data/reports/CBR_2025-10-24.pdf"
+    monkeypatch.setattr(extractors, "_ocr", lambda image: ("", []))
+    result = extractors.extract(path, path.name)
+    assert any(
+        block["method"] == "native"
+        and block["page"] == 1
+        and "Среднесрочный прогноз Банка России" in " ".join(block["text"].split())
+        for block in result["blocks"]
+    )
+
+
+@pytest.mark.parametrize("placeholder", ["FFFD", "E000"])
+def test_broken_font_mapping_uses_ocr_without_a_raster_image(tmp_path, monkeypatch, placeholder):
+    writer = PdfWriter(clone_from=text_pdf(tmp_path / "clean.pdf", "Brent"))
+    font = writer.pages[0]["/Resources"]["/Font"]["/F1"]
+    mappings = "\n".join(f"<{byte:02X}> <{placeholder}>" for byte in b"Brent")
+    cmap = DecodedStreamObject()
+    cmap.set_data(
+        (
+            "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+            f"5 beginbfchar\n{mappings}\nendbfchar"
+        ).encode("ascii")
+    )
+    font[NameObject("/ToUnicode")] = writer._add_object(cmap)
+    path = tmp_path / "broken.pdf"
+    writer.write(path)
+    monkeypatch.setattr(extractors, "_ocr", lambda image: ("Brent", []))
+    result = extractors.extract(path, path.name)
+    assert [(b["method"], b["text"], b["page"]) for b in result["blocks"]] == [("ocr", "Brent", 1)]
+    assert any("кодировка" in warning for warning in result["warnings"])
+
+
 def test_scanned_pdf_renders_and_uses_local_ocr(tmp_path, monkeypatch):
     path = image_fixture(tmp_path / "scan", pdf=True)
     seen = []
@@ -427,7 +460,8 @@ def test_real_tesseract_generated_image_and_scan(tmp_path, pdf):
     assert all(block["method"] == "ocr" for block in result["blocks"])
 
 
-def test_real_tesseract_preserves_russian_text_and_number(tmp_path):
+@pytest.mark.parametrize("extension", ["png", "pdf"])
+def test_real_tesseract_preserves_russian_text_and_number(tmp_path, extension):
     """A Cyrillic OCR smoke regression, not an estimate of OCR dataset quality."""
     binary = shutil.which("tesseract")
     if binary is None:
@@ -441,12 +475,14 @@ def test_real_tesseract_preserves_russian_text_and_number(tmp_path):
         font = ImageFont.truetype("DejaVuSans.ttf", 44)
     except OSError:
         pytest.skip("DejaVuSans Cyrillic font not available")
-    path = tmp_path / "russian-scan.png"
+    path = tmp_path / f"russian-scan.{extension}"
     with Image.new("RGB", (1200, 250), "white") as image:
         ImageDraw.Draw(image).text((30, 75), "Содержание серы 1.5%", font=font, fill="black")
-        image.save(path, format="PNG")
-    result = extractors.extract(path, "russian-scan.png")
+        image.save(path)
+    result = extractors.extract(path, path.name)
     text = " ".join(block["text"] for block in result["blocks"]).casefold()
     assert "содержание серы" in text
     assert "1.5%" in text.replace(" ", "")
     assert all(block["method"] == "ocr" for block in result["blocks"])
+    if extension == "pdf":
+        assert all(block["page"] == 1 for block in result["blocks"])
