@@ -22,10 +22,12 @@ from zipfile import BadZipFile, ZipFile
 
 from PIL import Image, ImageOps
 
+from ..config import MAX_UPLOAD_BYTES as MAX_FILE_BYTES
+from ..config import MAX_UPLOAD_MIB
+
 logger = logging.getLogger(__name__)
 
 PARSER_VERSION = "local-documents/1"
-MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 100
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_RENDER_EDGE = 20_000
@@ -87,7 +89,7 @@ def extract(path: Path, filename: str) -> dict:
     if suffix not in SUPPORTED_EXTENSIONS:
         raise ValueError("Поддерживаются PDF, PNG, JPEG, DOCX, XLSX и CSV.")
     if not path.is_file() or not 0 < path.stat().st_size <= MAX_FILE_BYTES:
-        raise ValueError("Файл пуст, недоступен или превышает ограничение 20 МБ.")
+        raise ValueError(f"Файл пуст, недоступен или превышает ограничение {MAX_UPLOAD_MIB} МБ.")
     with path.open("rb") as stream:
         result = _Result(hashlib.file_digest(stream, "sha256").hexdigest())
     logger.info(

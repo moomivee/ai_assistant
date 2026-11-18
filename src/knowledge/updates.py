@@ -19,10 +19,10 @@ from urllib.parse import urlsplit
 import httpx
 
 from ..budget import bounded_timeout, check_budget
-from ..config import settings
+from ..config import MAX_UPLOAD_BYTES, MAX_UPLOAD_MIB, settings
 from ..logging import log
 from .jobs import submit_ingestion
-from .store import MAX_UPLOAD_BYTES, KnowledgeConflict, KnowledgeStore, UploadTooLarge
+from .store import KnowledgeConflict, KnowledgeStore, UploadTooLarge
 
 # Exact URLs are intentional. Editing a document's source_url never authorizes
 # arbitrary server-side downloads, even from another path on an allowed host.
@@ -166,14 +166,14 @@ def _download_pdf(url: str) -> bytes:
                             "Источник вернул некорректный размер файла."
                         ) from None
                     if expected > MAX_UPLOAD_BYTES:
-                        raise UploadTooLarge("Размер исходного PDF превышает 20 МБ.")
+                        raise UploadTooLarge(f"Размер исходного PDF превышает {MAX_UPLOAD_MIB} МБ.")
                 content = bytearray()
                 for chunk in response.iter_bytes(chunk_size=64 * 1024):
                     check_budget()
                     if monotonic() - started > MAX_DOWNLOAD_SECONDS:
                         raise UpdateFetchError("Превышено время загрузки исходного PDF.")
                     if len(content) + len(chunk) > MAX_UPLOAD_BYTES:
-                        raise UploadTooLarge("Размер исходного PDF превышает 20 МБ.")
+                        raise UploadTooLarge(f"Размер исходного PDF превышает {MAX_UPLOAD_MIB} МБ.")
                     content.extend(chunk)
                 if not content.startswith(b"%PDF-"):
                     raise UpdateFetchError("По исходной ссылке получен не PDF-документ.")

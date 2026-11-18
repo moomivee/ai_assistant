@@ -2,14 +2,18 @@
 
 import asyncio
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from test_agent import REPORT, WEB, plan
 from test_agent_loop import Scripted, action, event
+from test_extractors import text_pdf
 
 from src.agent import ask, decision_sources
 from src.api import app
 from src.evidence import catalog, render_claims
+from src.knowledge import api as knowledge_api
+from src.knowledge.store import KnowledgeStore
 from src.models.schemas import CitedAnswer
 from src.request_context import current_scope, request_scope
 from src.tools import read_report
@@ -167,6 +171,49 @@ def test_api_rejects_unknown_scope_before_llm(monkeypatch):
     monkeypatch.setattr("src.api.ask", lambda *_: pytest.fail("Must not call LLM"))
     response = TestClient(app).post("/api/ask", json={"question": "Q", "document_ids": ["missing"]})
     assert response.status_code == 422
+
+
+def test_100_mib_document_upload_and_extraction(tmp_path, monkeypatch):
+    limit = 100 * 1024 * 1024
+    store = KnowledgeStore(tmp_path / "knowledge")
+    queue = []
+    monkeypatch.setattr(knowledge_api, "get_store", lambda: store)
+    monkeypatch.setattr(
+        knowledge_api, "submit_ingestion", lambda store, version: queue.append(version)
+    )
+    pdf = text_pdf(tmp_path / "boundary.pdf", "Report at the upload limit.")
+    # PDF allows NUL whitespace. A sparse gap before startxref keeps object offsets valid.
+    prefix, marker, trailer = pdf.read_bytes().rpartition(b"\nstartxref")
+    assert marker
+    with pdf.open("wb") as stream:
+        stream.write(prefix)
+        stream.seek(limit - len(marker) - len(trailer))
+        stream.write(marker + trailer)
+
+    async def post_pdf():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+        ) as client:
+            with pdf.open("rb") as stream:
+                return await client.post(
+                    "/api/knowledge/documents",
+                    data={"title": "Size limit"},
+                    files={"file": (pdf.name, stream, "application/pdf")},
+                )
+
+    accepted = asyncio.run(post_pdf())
+    assert accepted.status_code == 202
+    document = accepted.json()["document"]
+    assert queue == [document["current_version_id"]]
+    assert store.process(queue[0])["status"] == "ready"
+    assert "Report at the upload limit." in store.blocks(document["id"])[0]["text"]
+
+    with pdf.open("ab") as stream:
+        stream.write(b"\n")
+    rejected = asyncio.run(post_pdf())
+    assert rejected.status_code == 413
+    assert "100 МБ" in rejected.json()["detail"]
+    assert len(queue) == len(store.list_documents()) == 1
 
 
 def test_api_unknown_note_has_clear_error():

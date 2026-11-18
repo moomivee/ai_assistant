@@ -231,7 +231,7 @@ def test_all_redirects_rejected_without_following(updater, monkeypatch, location
     "content, headers, status",
     [
         (b"<html>Access denied</html>", {}, 502),
-        (NEW, {"Content-Length": str(21 * 1024 * 1024)}, 413),
+        (NEW, {"Content-Length": str(100 * 1024 * 1024 + 1)}, 413),
         (NEW, {"Content-Length": "invalid"}, 502),
         (NEW, {"Content-Encoding": "gzip"}, 502),
     ],

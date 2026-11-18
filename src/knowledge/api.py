@@ -5,8 +5,9 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
+from ..config import MAX_UPLOAD_BYTES
 from .jobs import submit_ingestion
-from .store import MAX_UPLOAD_BYTES, KnowledgeConflict, UploadTooLarge, get_store
+from .store import KnowledgeConflict, UploadTooLarge, get_store
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 

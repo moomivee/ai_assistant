@@ -407,7 +407,7 @@ def test_file_size_limit(tmp_path, monkeypatch):
     path = tmp_path / "object"
     path.write_text("name,price\nBrent,80")
     monkeypatch.setattr(extractors, "MAX_FILE_BYTES", 5)
-    with pytest.raises(ValueError, match="20 МБ"):
+    with pytest.raises(ValueError, match="100 МБ"):
         extractors.extract(path, "prices.csv")
 
 

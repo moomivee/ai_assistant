@@ -19,10 +19,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from ..config import settings
+from ..config import MAX_UPLOAD_BYTES, MAX_UPLOAD_MIB, settings
 from ..logging import log
 
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MEDIA_TYPES = {
     ".pdf": "application/pdf",
     ".png": "image/png",
@@ -282,7 +281,7 @@ class KnowledgeStore:
         _builtin: bool = False,
     ) -> dict:
         if len(content) > MAX_UPLOAD_BYTES:
-            raise UploadTooLarge("Размер документа превышает 20 МБ.")
+            raise UploadTooLarge(f"Размер документа превышает {MAX_UPLOAD_MIB} МБ.")
         if not content:
             raise ValueError("Файл пуст.")
         metadata = _metadata(filename, title, date, source_url, publisher)

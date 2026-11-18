@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_UPLOAD_MIB = 100
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MIB * 1024 * 1024
 load_dotenv(ROOT / ".env")
 
 
