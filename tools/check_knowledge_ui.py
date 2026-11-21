@@ -212,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["documents"].append(doc)
             return self.respond({"document": doc}, 202)
         data = json.loads(body) if body else {}
-        if path == "/api/ask":
+        if path == "/api/ask/stream":
             STATE["asks"].append(data)
             if data["question"] == "http-error":
                 return self.respond({"detail": "Тестовая ошибка"}, 503)
@@ -257,7 +257,8 @@ class Handler(BaseHTTPRequestHandler):
                 response["sources"][0].update(
                     title=HOSTILE, url="javascript:window.injected=true", text=HOSTILE
                 )
-            return self.respond(response)
+            event = json.dumps({"type": "result", "result": response}, ensure_ascii=False)
+            return self.send_bytes((event + "\n").encode(), "application/x-ndjson")
         if path == "/api/notes":
             note = {
                 **data,

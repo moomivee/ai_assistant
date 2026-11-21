@@ -14,10 +14,12 @@ from ..config import settings
 from ..logging import log
 from . import web_cache
 from .feeds import search_feeds
+from .http_deadline import request_before
 
 DAILY = {"Brent": "DCOILBRENTEU", "WTI": "DCOILWTICO"}
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 QUOTE_TIMEOUT = 8.0
+QUOTE_FALLBACK_TIMEOUT = 15.0
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
 SEARCH_DATE_NOTICE = (
@@ -220,6 +222,7 @@ def search_web(
     query: str,
     fresh: bool,
     *,
+    quote_fallback: bool = False,
     topic: str = "general",
     days: int | None = None,
     start_date: str | None = None,
@@ -246,7 +249,15 @@ def search_web(
         max_results=max_results,
         search_depth=search_depth,
     )
-    log("web.search_requested", provider="tavily" if cfg.web_key else "rss", fresh=fresh)
+    deadline = None
+    if quote_fallback:
+        deadline = monotonic() + bounded_timeout(min(cfg.timeout, QUOTE_FALLBACK_TIMEOUT))
+    log(
+        "web.search_requested",
+        provider="tavily" if cfg.web_key else "rss",
+        fresh=fresh,
+        quote_fallback=quote_fallback,
+    )
     if not cfg.web_key:
         if fresh:
             retrieved = _retrieved_at()
@@ -258,7 +269,7 @@ def search_web(
                     provider="rss",
                     cache_hit=False,
                 )
-                for row in search_feeds(query, allowed, web_date)
+                for row in search_feeds(query, allowed, web_date, deadline)
                 if _within_window(web_date(row.get("date")), start, end)
             ][:max_results]
         raise ValueError(
@@ -295,12 +306,14 @@ def search_web(
         if isinstance(hits, list):
             log("web.cache_hit", operation="search", accepted=len(hits))
             return [dict(row, provider="tavily", cache_hit=True) for row in hits]
-    response = httpx.post(
-        "https://api.tavily.com/search",
-        json=payload,
-        headers={"Authorization": "Bearer " + cfg.web_key},
-        timeout=bounded_timeout(cfg.timeout),
-    )
+    url = "https://api.tavily.com/search"
+    headers = {"Authorization": "Bearer " + cfg.web_key}
+    if deadline is None:
+        response = httpx.post(
+            url, json=payload, headers=headers, timeout=bounded_timeout(cfg.timeout)
+        )
+    else:
+        response = request_before(deadline, "POST", url, json=payload, headers=headers)
     response.raise_for_status()
     data = response.json()
     if not isinstance(data, dict) or not isinstance(data.get("results"), list):
@@ -450,7 +463,15 @@ def read_web(url: str, query: str = "") -> dict:
     return result
 
 
-def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **search_options) -> dict:
+def web_lookup(
+    query: str,
+    fresh: bool,
+    quotes: list[str],
+    search: bool,
+    *,
+    quote_fallback=False,
+    **search_options,
+) -> dict:
     # Validate before the provider-error handlers below (and before FRED calls).
     # The tool registry must record invalid arguments as an error, not status=ok.
     validate_search_options(**search_options)
@@ -482,6 +503,8 @@ def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **searc
         return {"items": [], "notices": notices, "error": " ".join(notices)}
     if search:
         try:
+            if quote_fallback:
+                search_options["quote_fallback"] = True
             rows += search_web(query, fresh, **search_options)
             if fresh and not settings().web_key:
                 notices.append(
@@ -493,7 +516,9 @@ def web_lookup(query: str, fresh: bool, quotes: list[str], search: bool, **searc
             if str(exc) not in notices:
                 notices.append(str(exc))
         except (ValueError, httpx.HTTPError, KeyError, TypeError) as exc:
-            if isinstance(exc, httpx.HTTPError):
+            if quote_fallback and isinstance(exc, httpx.TimeoutException):
+                message = "Истекло время ожидания запасного поиска котировки."
+            elif isinstance(exc, httpx.HTTPError):
                 message = _http_notice(exc, "Веб-поиск")
             elif isinstance(exc, ValueError):
                 message = str(exc)

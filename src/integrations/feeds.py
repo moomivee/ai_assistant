@@ -12,6 +12,7 @@ from ..budget import bounded_timeout
 from ..clock import clock_today
 from ..config import settings
 from ..logging import log
+from .http_deadline import request_before
 
 FEEDS = {
     "EIA": "https://www.eia.gov/rss/todayinenergy.xml",
@@ -48,7 +49,7 @@ def _plain(x: str) -> str:
     return " ".join(" ".join(parser.parts).split())
 
 
-def search_feeds(query: str, trusted, parse_date) -> list[dict]:
+def search_feeds(query: str, trusted, parse_date, deadline=None) -> list[dict]:
     log("web.rss_fallback", feeds=len(FEEDS))
     cfg = settings()
     q = query.casefold()
@@ -70,7 +71,10 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
         if not trusted(feed, cfg.domains):
             return []
         try:
-            response = httpx.get(feed, timeout=request_timeout, follow_redirects=True)
+            if deadline is None:
+                response = httpx.get(feed, timeout=request_timeout, follow_redirects=True)
+            else:
+                response = request_before(deadline, "GET", feed, follow_redirects=True)
             response.raise_for_status()
             root = ElementTree.fromstring(response.content)
         except (httpx.HTTPError, ElementTree.ParseError) as exc:
@@ -80,6 +84,8 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
                 publisher=publisher,
                 error_type=type(exc).__name__,
             )
+            if deadline is not None and isinstance(exc, httpx.TimeoutException):
+                return exc
             return []
         found = []
         for row in root.findall("./channel/item"):
@@ -110,5 +116,8 @@ def search_feeds(query: str, trusted, parse_date) -> list[dict]:
         return found
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        hits = [r for batch in pool.map(fetch, feeds.items()) for r in batch]
+        batches = list(pool.map(fetch, feeds.items()))
+    if batches and all(isinstance(batch, httpx.TimeoutException) for batch in batches):
+        raise batches[0]
+    hits = [r for batch in batches if isinstance(batch, list) for r in batch]
     return sorted(hits, key=lambda r: r["date"], reverse=True)[:4]

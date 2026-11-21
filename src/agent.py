@@ -30,6 +30,7 @@ from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilte
 from .planning import make_plan
 from .progress import action_signature, check_assessment, context_blocks, evidence_key, source_key
 from .request_context import current_scope, scope_payload
+from .request_progress import announce_quote_fallback
 from .tools import make_registry, run_tool
 from .workflow import forecast_answer
 
@@ -53,6 +54,7 @@ class State(TypedDict, total=False):
     answer_context_ids: list
     answer_checks: list
     direct_quotes_attempted: bool
+    quote_fallback_source_ids: list[str]
     draft: dict
     evidence: dict
     failure: str
@@ -180,7 +182,11 @@ def allowed_actions(state):
     # A model may stop with a partial answer after an unsuccessful attempt.
     # Source order is its decision; completeness is checked against evidence.
     evidence_attempted = any(name in called for name in ("report_search", "web_search"))
-    if state.get("direct_quotes_attempted") and p["wants_context"]:
+    if (
+        state.get("direct_quotes_attempted")
+        and p["wants_context"]
+        and not quote_fallback_eligible(state)
+    ):
         evidence_attempted = any(
             o["tool"] == "report_search"
             or (o["tool"] == "web_search" and o["arguments"].get("search"))
@@ -227,19 +233,41 @@ def answer_sources(state):
 
 
 def needs_answer(state):
-    if not state.get("plan", {}).get("wants_context"):
+    if not (state.get("plan", {}).get("wants_context") or "quote_fallback_source_ids" in state):
         return False
     ids = [s["id"] for s in answer_sources(state)]
     return bool(ids) and ids != state.get("answer_context_ids", [])
 
 
 def required_results_ready(state):
-    """Calculation and quote obligations are independent of prose review."""
+    """Require a calculation and a direct quote or reviewed spot evidence when requested."""
     p = state.get("plan")
     if not p or (p["intent"] == "forecast" and not state["calc"]):
         return False
     web = [s for s in state["sources"] if s["kind"] == "web"]
-    return set(p["quotes"]) <= {s.get("grade") for s in web if "price" in s}
+    if set(p["quotes"]) <= {s.get("grade") for s in web if "price" in s}:
+        return True
+    # A publication can substantiate a dated spot observation through the same
+    # citation review as other prose. Keep its real source in the answer.
+    fallback_sources = state.get("quote_fallback_source_ids")
+    if not fallback_sources or not state["draft"]["complete"]:
+        return False
+    cited_sources = {
+        state["evidence"][eid]["source"]
+        for claim in state["draft"]["claims"]
+        for eid in claim["evidence_ids"]
+    }
+    return bool(cited_sources.intersection(fallback_sources))
+
+
+def quote_fallback_eligible(state):
+    plan = state["plan"]
+    return (
+        state.get("direct_quotes_attempted", False)
+        and not plan.get("context_request")
+        and not plan["news"]
+        and not required_results_ready(state)
+    )
 
 
 def can_finish_unreviewed(state):
@@ -421,15 +449,18 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             ):
                 error = "Use a version returned by report_search."
         elif name == "web_search":
+            fallback = quote_fallback_eligible(state)
             args = {
                 "query": d["query"],
                 "fresh": p["fresh"],
                 "quotes": [] if state.get("direct_quotes_attempted") else p["quotes"],
                 "search": not d.get("quote_lookup")
-                and (p["news"] or p["wants_context"] or not p["quotes"]),
+                and (p["news"] or p["wants_context"] or not p["quotes"] or fallback),
             }
             if state.get("direct_quotes_attempted") and p.get("context_fresh") is not None:
                 args["fresh"] = p["context_fresh"]
+            if args["search"] and fallback:
+                args.update(quote_fallback=True, fresh=True)
             if args["search"] and not d["query"].strip():
                 error = "web_search requires a non-empty query when searching publications."
             for key in ("topic", "days", "start_date", "end_date", "search_depth"):
@@ -448,6 +479,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if previous:
             error = "Duplicate action rejected. Reuse the existing result, change the arguments, or finish."
         if not error:
+            if args.get("quote_fallback"):
+                announce_quote_fallback()
             data, error, event = execute(registry, name, **args)
         observation = {"tool": name, "arguments": args, "error": error}
         if argument_repair:
@@ -477,6 +510,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         )
         keys = {source_key(s) for s in (incoming or [])}
         found_ids = [s["id"] for s in update.get("sources", []) if source_key(s) in keys]
+        if args.get("quote_fallback") and event is not None:
+            update["quote_fallback_source_ids"] = found_ids
         known_evidence = {evidence_key(s) for s in state["sources"]}
         new_ids = [
             s["id"]
@@ -531,7 +566,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
 
     def answer(state):
         p = state.get("plan")
-        if not p or p["clarify"] or p["intent"] == "outside" or not p["wants_context"]:
+        if not p or p["clarify"] or p["intent"] == "outside" or not needs_answer(state):
             return {}
         sources = answer_sources(state)
         ids = [s["id"] for s in sources]
@@ -560,7 +595,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 question,
                 sources,
                 feedback=state["feedback"],
-                fresh=fresh,
+                fresh=fresh or "quote_fallback_source_ids" in state,
+                spot_grades=p["quotes"] if "quote_fallback_source_ids" in state else (),
                 previous=state.get("previous") if p["intent"] == "research" else None,
                 report_only=p["report_only"],
                 priority_source_ids=recent_source_ids(state),
@@ -646,7 +682,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     sources.append(source)
             complete = task_complete(state)
             unreviewed = (
-                bool(p and p["wants_context"] and draft.claims) and not settings().answer_review
+                bool(
+                    p
+                    and (p["wants_context"] or "quote_fallback_source_ids" in state)
+                    and draft.claims
+                )
+                and not settings().answer_review
             )
             if unreviewed:
                 complete = False
@@ -772,14 +813,19 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_act(state):
         if state.get("failure"):
             return "finish"
-        if state["decision"].get("quote_lookup") and not state["plan"]["wants_context"]:
+        if (
+            state["decision"].get("quote_lookup")
+            and not state["plan"]["wants_context"]
+            and not quote_fallback_eligible(state)
+        ):
             return "finish"
         # Every new evidence set reaches the answer node immediately. Another
         # planning decision is not required to unlock already retrieved facts.
         if needs_answer(state):
             return "answer"
         if (
-            task_complete(state)
+            "quote_fallback_source_ids" in state
+            or task_complete(state)
             or can_finish_unreviewed(state)
             or state.get("research_stopped")
             or state.get("stop_reason") == "no_progress"
@@ -791,6 +837,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_answer(state):
         if (
             not state.get("failure")
+            and "quote_fallback_source_ids" not in state
             and state.get("stop_reason", "completed") == "completed"
             and not state.get("research_stopped")
             and not task_complete(state)

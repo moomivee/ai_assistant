@@ -25,6 +25,7 @@ class WebArgs(ReportArgs):
     fresh: bool
     quotes: list[Grade]
     search: bool
+    quote_fallback: bool = False
     topic: str = "general"
     days: int | None = None
     start_date: str | None = None

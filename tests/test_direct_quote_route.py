@@ -41,7 +41,7 @@ def test_latest_observation_uses_registry_without_requesting_publication_options
     assert result["decisions"][0]["origin"] == "plan_policy"
 
 
-def test_pure_quote_failure_stops_once_and_keeps_provider_reason():
+def test_model_can_finish_after_failed_direct_quote_and_keep_provider_reason():
     calls = []
 
     def execute(registry, name, **arguments):
@@ -49,11 +49,60 @@ def test_pure_quote_failure_stops_once_and_keeps_provider_reason():
         return {"items": [], "notices": []}, "HTTP 503", {**event(name), "status": "error"}
 
     result = ask(
-        "Спот Brent?", planner=lambda *_: quote_plan(), client=Scripted([]), execute=execute
+        "Спот Brent?",
+        planner=lambda *_: quote_plan(),
+        client=Scripted([action("finish")]),
+        execute=execute,
     )
     assert calls == ["web_search"] and result["status"] == "partial"
     assert "EIA/FRED" in result["answer"] and "HTTP 503" in result["answer"]
     assert result["sources"] == []
+
+
+@pytest.mark.parametrize("wants_context", [False, True])
+@pytest.mark.parametrize("has_observation", [False, True])
+def test_failed_quote_gets_one_optional_publication_search(
+    monkeypatch, wants_context, has_observation
+):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    calls = []
+    source = {
+        **WEB,
+        "text": "Последняя опубликованная спотовая цена Brent на 2025-03-04 — 74.32 USD/барр.",
+        "date": "2025-03-05",
+    }
+
+    def execute(registry, name, **args):
+        calls.append(args)
+        assert name == "web_search"
+        if args["quotes"]:
+            return {"items": [], "notices": ["EIA/FRED: таймаут."]}, "timeout", event(name)
+        assert args["quote_fallback"] and args["fresh"] and args["search"]
+        return {"items": [source] if has_observation else [], "notices": []}, None, event(name)
+
+    client = Scripted([action("web_search", "Brent spot latest observation")])
+    result = ask(
+        "Какая последняя опубликованная спотовая цена Brent? Укажи дату наблюдения и источник.",
+        client=client,
+        planner=lambda *_: quote_plan(wants_context=wants_context),
+        execute=execute,
+    )
+    assert len(calls) == 2
+    if has_observation:
+        assert result["status"] == "ok"
+        assert "74.32" in result["answer"] and "2025-03-04" in result["answer"]
+        assert [s["url"] for s in result["sources"]] == [source["url"]]
+        for stage, payload in client.payloads:
+            if stage in ("cited_answer", "citation_review"):
+                assert payload["temporal_requirements"] == {
+                    "fresh": True,
+                    "report_only": False,
+                    "required_spot_grades": ["Brent"],
+                }
+    else:
+        assert result["status"] == "partial" and not result["claims"] and not result["sources"]
+        assert "EIA/FRED" in result["answer"]
+        assert [stage for stage, _ in client.payloads] == ["decide"]
 
 
 def test_pure_quote_cannot_override_report_scope():
@@ -73,6 +122,41 @@ def test_pure_quote_cannot_override_report_scope():
         "report_search"
     ]
     assert "актуальность на сегодняшний день не проверялась" in result["answer"]
+
+
+def test_quote_fallback_excludes_a_futures_price_rejected_by_review(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+
+    class ReviewSpot(Scripted):
+        def generate(self, name, payload, schema):
+            if name == "citation_review":
+                assert payload["temporal_requirements"]["required_spot_grades"] == ["WTI"]
+                return schema.model_validate(
+                    {
+                        "supported": [],
+                        "complete": False,
+                        "coverage": "partial",
+                        "feedback": "Приведена фьючерсная цена.",
+                        "missing_aspects": ["Спотовая цена WTI с датой наблюдения."],
+                    }
+                )
+            return super().generate(name, payload, schema)
+
+    futures = {**WEB, "text": "Фьючерс WTI на закрытии стоил 74.32 USD/барр."}
+
+    def execute(registry, name, **args):
+        if args["quotes"]:
+            return {"items": [], "notices": ["EIA/FRED: таймаут."]}, "timeout", event(name)
+        return {"items": [futures], "notices": []}, None, event(name)
+
+    result = ask(
+        "Назови последний спот WTI.",
+        planner=lambda *_: quote_plan(quotes=["WTI"]),
+        client=ReviewSpot([action("web_search", "WTI spot last observation")]),
+        execute=execute,
+    )
+    assert result["status"] == "partial" and "74.32" not in result["answer"]
+    assert not result["claims"] and not result["sources"]
 
 
 @pytest.mark.parametrize("context_tool", ["report_search", "web_search"])

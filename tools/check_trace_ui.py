@@ -169,6 +169,13 @@ LEGACY = next(
 )
 
 
+FINISH_STREAM = threading.Event()
+
+
+def stream_event(kind, **fields):
+    return (json.dumps({"type": kind, **fields}, ensure_ascii=False) + "\n").encode()
+
+
 class Handler(BaseHTTPRequestHandler):
     def send(self, body, mime, status=200, *, cache_control=None):
         self.send_response(status)
@@ -240,6 +247,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send(b"Not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path != "/api/ask/stream":
+            return self.send(b"{}", "application/json", 404)
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         question = payload["question"]
         response = copy.deepcopy(RESPONSE)
@@ -359,10 +368,46 @@ class Handler(BaseHTTPRequestHandler):
             )
             response["diagnostics"]["retrieved_sources"] = response["sources"]
         response["question"] = question
-        self.send(json.dumps(response, ensure_ascii=False).encode(), "application/json")
+        final = stream_event("result", result=response)
+        if question not in {"quote-fallback", "direct-quote", "incomplete-stream"}:
+            return self.send(final, "application/x-ndjson")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        if question != "direct-quote":
+            self.wfile.write(stream_event("progress", stage="quote_fallback"))
+            self.wfile.flush()
+        if question != "incomplete-stream":
+            FINISH_STREAM.wait(timeout=10)
+            self.wfile.write(final)
 
     def log_message(self, *_):
         pass
+
+
+async def check_quote_progress(page):
+    status = page.locator("#ask-status")
+    for question, pending in [
+        ("quote-fallback", "Проверяю другие источники"),
+        ("direct-quote", "Агент готовит ответ"),
+    ]:
+        FINISH_STREAM.clear()
+        try:
+            await page.locator("#question").fill(question)
+            await page.locator("#question").press("Control+Enter")
+            await status.filter(has_text=pending).wait_for(timeout=5000)
+            assert await page.locator("button.submit").is_disabled()
+            assert await page.locator(".answer-panel").count() == 0
+        finally:
+            FINISH_STREAM.set()
+        await page.locator(".answer-panel").wait_for()
+        assert await status.is_hidden()
+    await page.locator("#question").fill("incomplete-stream")
+    await page.locator("#question").press("Control+Enter")
+    await page.locator("#result").filter(has_text="Соединение закрылось").wait_for()
+    assert await status.is_hidden()
+    assert not await page.locator("button.submit").is_disabled()
 
 
 async def check_forecast_dialogue(page):
@@ -375,7 +420,12 @@ async def check_forecast_dialogue(page):
         question = payload["question"]
         if question in {"busy", "stale"}:
             code = "dialogue_busy" if question == "busy" else "dialogue_conflict"
-            return await route.fulfill(status=409, json={"detail": {"code": code}})
+            if question == "stale":
+                return await route.fulfill(status=409, json={"detail": {"code": code}})
+            return await route.fulfill(
+                content_type="application/x-ndjson",
+                body=stream_event("error", status=409, detail={"code": code}),
+            )
         pending = question in {"Рассчитай Urals", "На три месяца"}
         response = dict(
             status="clarification" if pending else "unavailable" if question == "retry" else "ok",
@@ -388,7 +438,9 @@ async def check_forecast_dialogue(page):
             response["dialogue_token"] = (
                 token + str(len(requests)) if pending else payload["dialogue_token"]
             )
-        await route.fulfill(json=response)
+        await route.fulfill(
+            content_type="application/x-ndjson", body=stream_event("result", result=response)
+        )
 
     async def send(question):
         await page.locator("#question").fill(question)
@@ -396,7 +448,7 @@ async def check_forecast_dialogue(page):
         await page.locator('#result[aria-busy="false"]').wait_for()
         return requests[-1]
 
-    await page.route("**/api/ask", reply)
+    await page.route("**/api/ask/stream", reply)
     first = await send("Рассчитай Urals")
     assert first["remember_clarification"] and "dialogue_token" not in first
     second = await send("На три месяца")
@@ -425,7 +477,7 @@ async def check_forecast_dialogue(page):
     legacy = await send("На три месяца")
     assert not legacy["remember_clarification"] and legacy["previous"] == "Рассчитай Urals"
     assert "dialogue_token" not in legacy
-    await page.unroute("**/api/ask", reply)
+    await page.unroute("**/api/ask/stream", reply)
 
 
 async def check_cached_workbench(page, url, *, capture=False):
@@ -502,6 +554,7 @@ async def check_warm_cache_webkit(url):
         try:
             page = await browser.new_page()
             await check_cached_workbench(page, url)
+            await check_quote_progress(page)
         finally:
             await browser.close()
     print("WebKit: previous stylesheet superseded on desktop and mobile.")
@@ -699,6 +752,7 @@ async def check(url):
         assert "503" in await page.locator("#result").inner_text()
         assert await page.locator(".trace-panel").count() == 0
         assert not await page.locator("button.submit").is_disabled()
+        await check_quote_progress(page)
         await check_forecast_dialogue(page)
         assert not errors, errors
         await browser.close()
@@ -728,6 +782,7 @@ async def check(url):
             "source route summary: reports, web and failed attempts",
             "used web source caveats and disabled semantic review",
             "clarification",
+            "quote fallback visible during search, direct quote and interrupted stream",
             "forecast dialogue continuation, retry, scope reset and opt-out",
             "unavailable",
             "outside",

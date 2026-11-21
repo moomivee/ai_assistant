@@ -1,12 +1,16 @@
+import asyncio
 from contextlib import contextmanager
 from datetime import date
+from time import monotonic
 
 import httpx
 import pytest
 
 from src import tools
 from src.budget import ResearchBudgetExceeded, request_budget, research_phase
-from src.integrations import web
+from src.config import settings
+from src.integrations import feeds, web
+from src.integrations.http_deadline import request_before
 
 
 def quote(*grades, publications=False):
@@ -107,3 +111,80 @@ def test_quote_survives_exhausted_publication_budget(monkeypatch):
     assert error is None and event["status"] == "ok"
     assert data["items"][0]["price"] == 69.5
     assert data["notices"] == [str(ResearchBudgetExceeded())]
+
+
+@pytest.mark.parametrize("research_seconds,expected", [(120, 15), (3, 3)])
+def test_fallback_tavily_timeout_respects_research_and_does_not_change_normal_search(
+    monkeypatch, research_seconds, expected
+):
+    monkeypatch.setenv("TAVILY_API_KEY", "fixture")
+    monkeypatch.setenv("HTTP_TIMEOUT", "90")
+    settings.cache_clear()
+    timeouts = []
+
+    def fallback(deadline, method, url, **kwargs):
+        timeouts.append(deadline - monotonic())
+        raise httpx.ReadTimeout("provider details")
+
+    def general(url, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        return httpx.Response(200, request=httpx.Request("POST", url), json={"results": []})
+
+    monkeypatch.setattr(web, "request_before", fallback)
+    monkeypatch.setattr(web.httpx, "post", general)
+    with request_budget(research_seconds), research_phase():
+        data, error, event = tools.run_tool(
+            tools.make_registry(),
+            "web_search",
+            query="Brent price",
+            fresh=True,
+            quotes=[],
+            search=True,
+            quote_fallback=True,
+        )
+    assert event["status"] == "error" and data["items"] == []
+    assert "запасного поиска котировки" in error and "provider details" not in error
+    assert 0 < timeouts[0] <= expected
+    assert web.search_web("other research", True) == [] and timeouts[1] == 90
+
+
+def test_fallback_feeds_share_deadline_and_keep_successful_feed(monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "")
+    settings.cache_clear()
+    deadlines = {}
+
+    def feed(deadline, method, url, **kwargs):
+        deadlines[url] = deadline
+        if url == feeds.FEEDS["Банк России"]:
+            raise httpx.ReadTimeout("slow feed")
+        xml = (
+            "<rss><channel><item><title>Oil prices</title>"
+            f"<pubDate>{web.clock_today().isoformat()}</pubDate>"
+            "<link>https://www.eia.gov/news</link></item></channel></rss>"
+        )
+        return httpx.Response(200, text=xml, request=httpx.Request(method, url))
+
+    monkeypatch.setattr(feeds, "request_before", feed)
+    result = web.web_lookup("oil", True, [], True, quote_fallback=True)
+    assert set(deadlines) == set(feeds.FEEDS.values()) and len(set(deadlines.values())) == 1
+    assert len(result["items"]) == 1 and result["items"][0]["provider"] == "rss"
+
+
+def test_fallback_deadline_cancels_in_flight_body_read(monkeypatch):
+    cancelled = []
+
+    class SlowBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            try:
+                while True:
+                    yield b"data"
+                    await asyncio.sleep(0.005)
+            finally:
+                cancelled.append(True)
+
+    transport = httpx.MockTransport(lambda req: httpx.Response(200, stream=SlowBody()))
+    client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: client(transport=transport, **kw))
+    with pytest.raises(httpx.ReadTimeout, match="deadline"):
+        request_before(monotonic() + 0.1, "GET", "https://example.test/test")
+    assert cancelled

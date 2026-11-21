@@ -79,6 +79,7 @@ def generate_answer(
     previous=None,
     fresh=False,
     report_only=False,
+    spot_grades=(),
     priority_source_ids=(),
     diagnostics: dict | None = None,
     allow_citation_repair=True,
@@ -110,6 +111,8 @@ def generate_answer(
         checks["reason"] = "no_evidence"
         return CitedAnswer(claims=[], complete=False), evidence, "No evidence available"
     temporal_requirements = {"fresh": fresh, "report_only": report_only}
+    if spot_grades:
+        temporal_requirements["required_spot_grades"] = list(spot_grades)
     payload = {
         "question": question,
         **({"previous": previous} if previous else {}),

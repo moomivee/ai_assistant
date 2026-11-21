@@ -10,6 +10,7 @@ from test_gigachat_client import auth_reply, completion, empty_completion
 from test_gigachat_client import client as gigachat_client
 
 from src.budget import RequestBudgetExceeded
+from src.clock import request_clock
 from src.evidence import generate_answer
 from src.integrations.llm import LLMClient, LLMUnavailable
 
@@ -50,7 +51,8 @@ def test_gigachat_repairs_on_original_catalog_and_reviews_exact_block(fallback, 
     client, native = gigachat_client(reply)
     checks = {}
     try:
-        draft, evidence, _ = generate_answer(client, QUESTION, [SOURCE], diagnostics=checks)
+        with request_clock():
+            draft, evidence, _ = generate_answer(client, QUESTION, [SOURCE], diagnostics=checks)
     finally:
         native.close()
     assert draft.complete and draft.claims[0].evidence_ids == ["W5:B2"]

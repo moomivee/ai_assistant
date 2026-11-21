@@ -1,4 +1,6 @@
+import asyncio
 import csv
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,8 +8,9 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from .agent import ask
 from .config import manifest, settings
@@ -28,6 +31,7 @@ from .knowledge.updates_api import router as updates_router
 from .logging import configure_logging, log, request_id
 from .models.schemas import AgentResponse, Question
 from .request_context import request_scope
+from .request_progress import report_progress_to
 from .upload_limits import UploadLimitMiddleware
 
 STATIC = Path(__file__).parent / "static"
@@ -246,3 +250,49 @@ def query(body: Question):
         raise HTTPException(404, "Выбранная заметка не найдена.") from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+async def _answer_events(body: Question):
+    events = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def notify(stage):
+        loop.call_soon_threadsafe(events.put_nowait, {"type": "progress", "stage": stage})
+
+    async def run():
+        try:
+            with report_progress_to(notify):
+                response = await run_in_threadpool(query, body)
+            result = AgentResponse.model_validate(response).model_dump(mode="json")
+            final = {"type": "result", "result": result}
+        except HTTPException as exc:
+            final = {"type": "error", "status": exc.status_code, "detail": exc.detail}
+        except Exception as exc:
+            log("ask.stream_failed", logging.ERROR, error_type=type(exc).__name__)
+            final = {"type": "error", "status": 500, "detail": "Не удалось обработать запрос."}
+        events.put_nowait(final)
+
+    worker = asyncio.create_task(run())
+    try:
+        while True:
+            event = await events.get()
+            yield json.dumps(event, ensure_ascii=False) + "\n"
+            if event["type"] != "progress":
+                break
+    finally:
+        # A disconnected client must not release a synchronous agent's thread slot
+        # or interrupt dialogue-state cleanup while its turn is still running.
+        await asyncio.shield(worker)
+
+
+@app.post("/api/ask/stream", response_class=StreamingResponse)
+async def query_stream(body: Question):
+    return StreamingResponse(
+        _answer_events(body),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Accel-Buffering": "no",
+        },
+    )

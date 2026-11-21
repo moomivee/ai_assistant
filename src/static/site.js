@@ -334,6 +334,49 @@ function render(q, data, elapsed) {
   grid.append(answer, TraceView.render(data, elapsed));
   out.replaceChildren(grid);
 }
+function requestError(status, detail) {
+  if (status === 409 && dialogueToken) {
+    if (detail?.code === "dialogue_busy") return new Error("Предыдущая реплика ещё обрабатывается. Повторите уточнение позже.");
+    resetClarification();
+    return new Error("Это уточнение уже завершено или устарело. Задайте вопрос о прогнозе целиком.");
+  }
+  return new Error("Сервис вернул ошибку " + status + ".");
+}
+
+async function askWithProgress(payload, onQuoteFallback) {
+  const response = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw requestError(response.status, error.detail);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = done ? "" : lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "result") return event.result;
+        if (event.type === "error") throw requestError(event.status, event.detail);
+        if (event.type === "progress" && event.stage === "quote_fallback") onQuoteFallback();
+      }
+      if (done) throw new Error("Соединение закрылось до получения ответа. Попробуйте ещё раз.");
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
 $("ask").addEventListener("submit", async (e) => {
   e.preventDefault();
   const q = $("question").value.trim(),
@@ -353,23 +396,17 @@ $("ask").addEventListener("submit", async (e) => {
   $("result").setAttribute("aria-busy", "true");
   const target = $("result");
   target.hidden = false;
-  target.replaceChildren(element("p", "Агент готовит ответ…", "busy"));
+  target.replaceChildren();
+  const status = $("ask-status");
+  status.hidden = false;
+  status.textContent = "Агент готовит ответ…";
   const started = performance.now();
   try {
-    const r = await fetch("/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q, ...scope, remember_clarification: remember, ...(dialogueToken ? { dialogue_token: dialogueToken } : { previous }) }),
-    });
-    if (r.status === 409 && dialogueToken) {
-      const error = await r.json().catch(() => ({}));
-      if (error.detail?.code === "dialogue_busy") throw new Error("Предыдущая реплика ещё обрабатывается. Повторите уточнение позже.");
-      resetClarification();
-      throw new Error("Это уточнение уже завершено или устарело. Задайте вопрос о прогнозе целиком.");
-    }
-    if (!r.ok) throw new Error("Сервис вернул ошибку " + r.status + ".");
+    const payload = { question: q, ...scope, remember_clarification: remember, ...(dialogueToken ? { dialogue_token: dialogueToken } : { previous }) };
     // The continuation token grants access to the dialogue. Keep it out of shared traces.
-    const { dialogue_token: nextToken, ...data } = await r.json();
+    const { dialogue_token: nextToken, ...data } = await askWithProgress(payload, () => {
+      status.textContent = "Не удалось получить котировку через FRED. Проверяю другие источники…";
+    });
     render(q, data, Math.round(performance.now() - started));
     if (remember && nextToken && (data.clarification || data.status === "unavailable")) {
       dialogueToken = nextToken;
@@ -403,6 +440,8 @@ $("ask").addEventListener("submit", async (e) => {
   } catch (err) {
     target.replaceChildren(element("p", "Не удалось получить ответ. " + err.message));
   } finally {
+    status.hidden = true;
+    status.textContent = "";
     button.disabled = false;
     $("question").disabled = false;
     controls.forEach(b => b.disabled = false);
