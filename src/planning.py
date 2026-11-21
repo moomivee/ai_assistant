@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 from .clock import clock_payload
+from .forecast_memory import ForecastFollowup, PendingForecast, merge_followup, pending_forecast
 from .integrations.agent_skills import get_skill_catalog
 from .integrations.llm import LLMUnavailable
 from .integrations.web import DAILY
@@ -256,7 +257,37 @@ def make_plan(client, question, previous=None) -> Plan:
             s for s in get_skill_catalog() if s.get("enabled") and s.get("available", True)
         ],
     }
-    raw = client.generate("plan", payload, Plan)
+    pending = pending_forecast()
+    withdrawn = set()
+    if pending:
+        snapshot = pending.snapshot
+        payload["pending_forecast"] = {
+            "confirmed": snapshot["confirmed"],
+            "last_clarification": snapshot["clarification"],
+        }
+        followup = client.generate("plan", payload, ForecastFollowup)
+        pending.new_task = getattr(followup, "new_task", False) or followup.intent != "forecast"
+        pending.benchmark_change_quote = getattr(followup, "benchmark_change_quote", "")
+        withdrawn = {
+            p.field
+            for p in getattr(followup, "withdrawn", [])
+            if normalized(p.quote) and normalized(p.quote) in normalized(question)
+        }
+        raw = Plan.model_validate(followup.model_dump(include=set(Plan.model_fields)))
+        if pending.new_task:
+            previous = payload["previous"] = None
+            payload.pop("pending_forecast")
+            if raw.intent == "forecast":
+                # Confirm every input against the new task, including the grade and
+                # horizon, which the ordinary single-turn validator allows to be implicit.
+                if raw.benchmark not in named_grades(question):
+                    raw.benchmark = None
+                raw = merge_followup(
+                    raw, question, PendingForecast({"confirmed": {}, "evidence": {}}), set()
+                )
+        raw = merge_followup(raw, question, pending, withdrawn)
+    else:
+        raw = client.generate("plan", payload, Plan)
     plan = validate_plan(raw, question, previous)
     if current_scope().report_only:
         plan = plan.model_copy(update={"report_only": True})
@@ -290,12 +321,24 @@ def make_plan(client, question, previous=None) -> Plan:
         extracted = client.generate(
             "forecast", {**payload, "review_discount_target": review_target}, ForecastInputs
         )
-        if raw.clarify and not plan.clarify and not review_target:
-            # Recheck a possible ambiguity before dismissing the clarification.
+        if (
+            raw.clarify
+            and not plan.clarify
+            and not review_target
+            and (not pending or pending.new_task)
+        ):
+            # Without a pending clarification, recheck a possible ambiguity before
+            # dismissing the model's question. A continuation already reconciled
+            # the latest grounded corrections with previously supplied inputs.
             plan = plan.model_copy(update={**{f: None for f in FORECAST_FIELDS}, "parameters": []})
         plan = merge_forecast_inputs(
             plan, extracted, question, previous, review_target=review_target
         )
+        if pending and not pending.new_task:
+            # A second reading cannot revive a superseded value from an old turn.
+            plan = validate_plan(
+                merge_followup(plan, question, pending, withdrawn), question, previous
+            )
         log(
             "plan.repaired",
             benchmark=plan.benchmark,

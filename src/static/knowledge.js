@@ -47,6 +47,7 @@
     $(id).classList.toggle("is-error", error);
   }
   function updateSelection() {
+    window.Workbench.checkDialogueScope();
     const count = selected.size;
     $("scope-summary").textContent = count ? "Выбрано документов: " + count : "Все активные документы";
     $("selection-label").textContent = count ? "Для вопроса выбрано: " + count : "Документы для вопроса не выбраны";
@@ -277,6 +278,7 @@
   }
   function clearContext() {
     noteId = null; $("note-context").hidden = true;
+    window.Workbench.checkDialogueScope();
     $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
   }
   async function refresh() {

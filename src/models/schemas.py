@@ -217,6 +217,7 @@ class AgentResponse(StrictModel):
     agent_mode: str = "workflow"
     rejected_actions: int = 0
     diagnostics: AgentDiagnostics | None = None
+    dialogue_token: str | None = Field(default=None, repr=False)
 
 
 class EvidenceCheck(StrictModel):
@@ -324,6 +325,8 @@ class CitationReview(StrictModel):
 class Question(StrictModel):
     question: str = Field(min_length=1, max_length=2000)
     previous: str | None = Field(default=None, max_length=2000)
+    remember_clarification: bool = False
+    dialogue_token: str | None = Field(default=None, max_length=128, repr=False)
     document_ids: list[str] = Field(default_factory=list, max_length=30)
     report_only: bool = False
     note_id: str | None = Field(default=None, max_length=100)

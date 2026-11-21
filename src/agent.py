@@ -20,6 +20,7 @@ from .budget import (
 from .clock import clock_payload, request_clock
 from .config import settings
 from .evidence import generate_answer, render_claims
+from .forecast_memory import pending_forecast
 from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
@@ -291,7 +292,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "context_fresh": None,
                     }
                 )
-            return {"plan": value.model_dump()}
+            pending = pending_forecast()
+            return {
+                "plan": value.model_dump(),
+                "previous": None if pending and pending.new_task else state.get("previous"),
+            }
         except LLMUnavailable as exc:
             return {"failure": str(exc), "stop_reason": "llm_unavailable"}
 

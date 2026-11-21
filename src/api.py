@@ -11,6 +11,14 @@ from fastapi.staticfiles import StaticFiles
 
 from .agent import ask
 from .config import manifest, settings
+from .forecast_memory import forecast_memory, next_snapshot, previous_text
+from .integrations.dialogue_memory import (
+    DialogueBusy,
+    DialogueConflict,
+    DialogueStorageError,
+    open_dialogue,
+    resume_dialogue,
+)
 from .integrations.llm import LLMUnavailable
 from .integrations.telemetry import flush
 from .knowledge.api import router as knowledge_router
@@ -160,23 +168,75 @@ def pdf(filename: str):
     return FileResponse(settings().data / "reports" / filename, media_type="application/pdf")
 
 
+def _answer(body: Question, previous: str | None):
+    from .integrations.research_notes import load_note_context
+    from .knowledge.store import get_store
+
+    if body.document_ids:
+        store = get_store()
+        for identifier in body.document_ids:
+            document = store.document(identifier)
+            if not document or document["archived"] or not document["active_version_id"]:
+                raise ValueError("Один из выбранных документов отсутствует или ещё не обработан.")
+    note = load_note_context(body.note_id) if body.note_id else None
+    with request_scope(body.document_ids, body.report_only, note):
+        return ask(body.question, previous)
+
+
+def _pending_forecast(response):
+    if response["status"] == "clarification" and response["intent"] == "forecast":
+        return (response.get("diagnostics") or {}).get("plan")
+    return None
+
+
 @app.post("/api/ask", response_model=AgentResponse)
 def query(body: Question):
+    scope = {
+        "document_ids": sorted(set(body.document_ids)),
+        "report_only": body.report_only,
+        "note_id": body.note_id,
+    }
     try:
-        from .integrations.research_notes import load_note_context
-        from .knowledge.store import get_store
-
-        if body.document_ids:
-            store = get_store()
-            for identifier in body.document_ids:
-                document = store.document(identifier)
-                if not document or document["archived"] or not document["active_version_id"]:
-                    raise ValueError(
-                        "Один из выбранных документов отсутствует или ещё не обработан."
-                    )
-        note = load_note_context(body.note_id) if body.note_id else None
-        with request_scope(body.document_ids, body.report_only, note):
-            return ask(body.question, body.previous)
+        if body.dialogue_token is not None:
+            if body.previous is not None:
+                raise ValueError("При продолжении по токену передайте только новую реплику.")
+            with resume_dialogue(body.dialogue_token, scope) as turn:
+                with forecast_memory(turn.snapshot):
+                    response = _answer(body, previous_text(turn.snapshot))
+                    if plan := _pending_forecast(response):
+                        response["dialogue_token"] = turn.advance(
+                            next_snapshot(turn.snapshot, body.question, plan)
+                        )
+                    elif response["status"] == "unavailable":
+                        response["dialogue_token"] = body.dialogue_token
+                    else:
+                        turn.close()
+                return response
+        response = _answer(body, body.previous)
+        if (
+            body.remember_clarification
+            and body.previous is None
+            and (plan := _pending_forecast(response))
+        ):
+            response["dialogue_token"] = open_dialogue(
+                next_snapshot(None, body.question, plan), scope
+            )
+        return response
+    except DialogueBusy:
+        raise HTTPException(
+            409, {"code": "dialogue_busy", "message": "Предыдущее уточнение ещё обрабатывается."}
+        ) from None
+    except DialogueConflict:
+        raise HTTPException(
+            409,
+            {
+                "code": "dialogue_conflict",
+                "message": "Это уточнение больше недоступно. Начните новый прогноз.",
+            },
+        ) from None
+    except DialogueStorageError:
+        log("dialogue.storage_error", logging.ERROR)
+        raise HTTPException(503, "Хранилище уточнений временно недоступно.") from None
     except LLMUnavailable as exc:
         raise HTTPException(503, str(exc)) from None
     except FileNotFoundError:

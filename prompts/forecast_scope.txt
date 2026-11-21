@@ -19,3 +19,5 @@ Question: «Спрогнозируй Brent на 3 месяца. По загру�
 {"context_request":"По загруженному отчёту объясни влияние санкций","fresh":false,"news":false,"quote_request":"","quotes":[]}
 Question: «Спрогнозируй Brent на 3 месяца и покажи последнюю опубликованную цену Brent»
 {"context_request":"","fresh":false,"news":false,"quote_request":"покажи последнюю опубликованную цену Brent","quotes":["Brent"]}
+
+For a pending forecast clarification, verify the retained request against user turns in previous and question. Carry forward an earlier additional market or spot-price clause if it still applies. Honor an explicit cancellation or replacement in the latest reply. A clarification of numerical inputs alone adds no research request.

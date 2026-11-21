@@ -236,10 +236,16 @@ def saved_answers(directory):
     return answers
 
 
-def ask_api(base_url, question, previous=None):
+def ask_api(
+    base_url, question, previous=None, *, remember_clarification=False, dialogue_token=None
+):
     payload = {"question": question}
     if previous is not None:
         payload["previous"] = previous
+    if remember_clarification:
+        payload["remember_clarification"] = True
+    if dialogue_token is not None:
+        payload["dialogue_token"] = dialogue_token
     request = Request(
         base_url.rstrip("/") + "/api/ask",
         json.dumps(payload).encode(),

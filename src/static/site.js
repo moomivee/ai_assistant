@@ -1,6 +1,8 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let previous = null;
+let dialogueToken = null;
+let dialogueScope = null;
 let historyRows = [];
 let chartRendered = false;
 const scenarios = [
@@ -46,11 +48,29 @@ for (const tab of document.querySelectorAll('.workspace-tabs [role="tab"]')) {
     if (next !== null) { event.preventDefault(); showTab(tabs[next].id.slice(4), true); }
   });
 }
-function selectQuery(question, keepScope = false) {
-  if ($("question").disabled) return;
+function resetClarification() {
   previous = null;
+  dialogueToken = null;
+  dialogueScope = null;
   $("newquestion").hidden = true;
   $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
+}
+function requestScope() {
+  return {
+    document_ids: (window.KnowledgeUI?.selectedIds() || []).sort(),
+    report_only: $("report-only").checked,
+    note_id: window.ResearchNotes?.selectedId() || null,
+  };
+}
+function checkDialogueScope() {
+  if (dialogueToken && dialogueScope !== JSON.stringify(requestScope())) {
+    resetClarification();
+    $("result").replaceChildren(element("p", "Источники для запроса изменились. Для нового прогноза укажите его параметры заново."));
+  }
+}
+function selectQuery(question, keepScope = false) {
+  if ($("question").disabled) return;
+  resetClarification();
   $("question").value = question;
   if (!keepScope) {
     window.KnowledgeUI?.clearSelection();
@@ -81,11 +101,17 @@ function locatorLabel(locator = {}, page = null) {
   if (where.region === "whole_image" && !where.part) parts.push("Изображение целиком");
   return parts.join(" · ");
 }
-$("report-only").addEventListener("change", updateScopeHint);
+$("report-only").addEventListener("change", () => { updateScopeHint(); checkDialogueScope(); });
+$("remember-forecast").addEventListener("change", () => {
+  if (dialogueToken) {
+    resetClarification();
+    $("result").replaceChildren(element("p", "Запоминание уточнений выключено. Задайте вопрос о прогнозе целиком."));
+  }
+});
 $("choose-documents").addEventListener("click", () => {
   showTab("knowledge"); $("document-filter").focus();
 });
-window.Workbench = { showTab, selectQuery, updateScopeHint, locatorLabel };
+window.Workbench = { showTab, selectQuery, updateScopeHint, checkDialogueScope, locatorLabel };
 function counter() {
   $("counter").textContent = $("question").value.length + " / 2000";
 }
@@ -336,9 +362,13 @@ $("ask").addEventListener("submit", async (e) => {
   const q = $("question").value.trim(),
     button = $("ask").querySelector(".submit");
   if (!q || button.disabled) return;
+  checkDialogueScope();
+  const scope = requestScope();
+  const remember = $("remember-forecast").checked;
   button.disabled = true;
   $("question").disabled = true;
-  document.querySelectorAll(".sample, .capability-query, #newquestion, #report-only, #choose-documents").forEach(b => b.disabled = true);
+  const controls = document.querySelectorAll(".sample, .capability-query, #newquestion, #report-only, #choose-documents, #remember-forecast");
+  controls.forEach(b => b.disabled = true);
   button.textContent = "Готовим ответ…";
   $("result").setAttribute("aria-busy", "true");
   const target = $("result");
@@ -349,14 +379,28 @@ $("ask").addEventListener("submit", async (e) => {
     const r = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q, previous, document_ids: window.KnowledgeUI?.selectedIds() || [], report_only: $("report-only").checked, note_id: window.ResearchNotes?.selectedId() || null }),
+      body: JSON.stringify({ question: q, ...scope, remember_clarification: remember, ...(dialogueToken ? { dialogue_token: dialogueToken } : { previous }) }),
     });
+    if (r.status === 409 && dialogueToken) {
+      const error = await r.json().catch(() => ({}));
+      if (error.detail?.code === "dialogue_busy") throw new Error("Предыдущая реплика ещё обрабатывается. Повторите уточнение позже.");
+      resetClarification();
+      throw new Error("Это уточнение уже завершено или устарело. Задайте вопрос о прогнозе целиком.");
+    }
     if (!r.ok) throw new Error("Сервис вернул ошибку " + r.status + ".");
-    const data = await r.json();
+    // The continuation token grants access to the dialogue. Keep it out of shared traces.
+    const { dialogue_token: nextToken, ...data } = await r.json();
     render(q, data, Math.round(performance.now() - started));
-    if (!data.clarification) {
+    if (remember && nextToken && (data.clarification || data.status === "unavailable")) {
+      dialogueToken = nextToken;
+      dialogueScope = JSON.stringify(scope);
       previous = null;
+      checkDialogueScope();
+    } else if (!data.clarification) {
+      resetClarification();
     } else if (data.intent === "research") {
+      dialogueToken = null;
+      dialogueScope = null;
       // Keep the question that listed the options for replies like “the second one”.
       const clarification = "\nУточнение агента: " + data.answer.slice(0, 500);
       const userTurn = (previous ? "\nОтвет пользователя: " : "") + data.question;
@@ -364,12 +408,14 @@ $("ask").addEventListener("submit", async (e) => {
       const retained = (previous || "").slice(0, Math.max(0, available - userTurn.length));
       previous = retained + userTurn.slice(0, available) + clarification;
     } else {
+      dialogueToken = null;
+      dialogueScope = null;
       previous = data.question.slice(0, 2000);
     }
-    $("newquestion").hidden = !previous;
-    if (previous) {
-      $("question").value = "";
-      $("question").placeholder = "Уточните параметры предыдущего запроса…";
+    $("newquestion").hidden = !(previous || dialogueToken);
+    if (previous || dialogueToken) {
+      if (data.clarification) $("question").value = "";
+      $("question").placeholder = dialogueToken ? "Продолжите текущий прогноз…" : "Уточните параметры предыдущего запроса…";
       counter();
     } else {
       $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
@@ -379,10 +425,10 @@ $("ask").addEventListener("submit", async (e) => {
   } finally {
     button.disabled = false;
     $("question").disabled = false;
-    document.querySelectorAll(".sample, .capability-query, #newquestion, #report-only, #choose-documents").forEach(b => b.disabled = false);
+    controls.forEach(b => b.disabled = false);
     button.textContent = "Получить ответ ↗";
     target.setAttribute("aria-busy", "false");
-    if (previous) $("question").focus();
+    if (previous || dialogueToken) $("question").focus();
   }
 });
 fetch("/api/status")
@@ -417,10 +463,6 @@ $("market").addEventListener("toggle", () => {
   }
 });
 $("newquestion").addEventListener("click", () => {
-  previous = null;
-  $("question").value = "";
-  $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
-  $("newquestion").hidden = true;
-  counter();
-  $("question").focus();
+  selectQuery("", true);
+  $("result").hidden = true;
 });

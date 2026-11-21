@@ -11,3 +11,5 @@ Example: question «Спрогнозируй Brent на 3 месяца. Толь
 {"benchmark":"Brent","benchmark_quote":"Brent","months":3,"discount":null,"cut":null,"sensitivity":null,"parameters":[{"field":"months","quote":"на 3 месяца"}]}
 Example: question «Спрогнозируй цену нефти на 2 месяца»
 {"benchmark":null,"benchmark_quote":"","months":2,"discount":null,"cut":null,"sensitivity":null,"parameters":[{"field":"months","quote":"на 2 месяца"}]}
+
+When pending_forecast is present, read this as a clarification dialogue. Use the last clarification to interpret the latest reply and confirmed inputs for context. Latest corrections take precedence. Only user text may supply evidence. An example number or grade in the assistant's clarification supplies no value.

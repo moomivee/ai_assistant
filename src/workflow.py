@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 from .answering import verified_answer
 from .clock import clock_payload, clock_today, request_clock
 from .config import settings
+from .forecast_memory import pending_forecast
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
 from .logging import log
@@ -69,7 +70,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def route(s):
         try:
             plan = planner(client, s["question"], s.get("previous"))
-            return {"plan": plan.model_dump()}
+            pending = pending_forecast()
+            return {
+                "plan": plan.model_dump(),
+                "previous": None if pending and pending.new_task else s.get("previous"),
+            }
         except LLMUnavailable as exc:
             return {"failure": str(exc)}
 
@@ -260,6 +265,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "claims": claims,
                 "trace": s["trace"],
                 "forecast": calc,
+                "diagnostics": {"plan": p}
+                if status == "clarification" and intent == "forecast"
+                else None,
             }
         }
 

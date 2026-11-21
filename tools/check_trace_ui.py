@@ -325,6 +325,68 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+async def check_forecast_dialogue(page):
+    requests = []
+    token = "fixture-only-secret"
+
+    async def reply(route):
+        payload = route.request.post_data_json
+        requests.append(payload)
+        question = payload["question"]
+        if question in {"busy", "stale"}:
+            code = "dialogue_busy" if question == "busy" else "dialogue_conflict"
+            return await route.fulfill(status=409, json={"detail": {"code": code}})
+        pending = question in {"Рассчитай Urals", "На три месяца"}
+        response = dict(
+            status="clarification" if pending else "unavailable" if question == "retry" else "ok",
+            clarification=pending,
+            intent="forecast",
+            question=question,
+            answer="Уточните параметры." if pending else "Результат",
+        )
+        if payload["remember_clarification"] and (pending or question == "retry"):
+            response["dialogue_token"] = (
+                token + str(len(requests)) if pending else payload["dialogue_token"]
+            )
+        await route.fulfill(json=response)
+
+    async def send(question):
+        await page.locator("#question").fill(question)
+        await page.locator("#question").press("Control+Enter")
+        await page.locator('#result[aria-busy="false"]').wait_for()
+        return requests[-1]
+
+    await page.route("**/api/ask", reply)
+    first = await send("Рассчитай Urals")
+    assert first["remember_clarification"] and "dialogue_token" not in first
+    second = await send("На три месяца")
+    assert second["dialogue_token"] == token + "1" and "previous" not in second
+    assert token not in await page.locator("#result").text_content()
+    for question in ("busy", "retry", "12 долларов за баррель"):
+        assert (await send(question))["dialogue_token"] == token + "2"
+        if question == "busy":
+            assert "ещё обрабатывается" in await page.locator("#result").inner_text()
+    assert await page.locator("#newquestion").is_hidden()
+    fresh = await send("Рассчитай Urals")
+    assert "dialogue_token" not in fresh and not fresh.get("previous")
+    await send("stale")
+    assert "устарело" in await page.locator("#result").inner_text()
+    assert await page.locator("#newquestion").is_hidden()
+    await send("Рассчитай Urals")
+    await page.locator("#newquestion").click()
+    assert "dialogue_token" not in await send("Рассчитай Urals")
+    await page.locator("#report-only").check()
+    assert await page.locator("#newquestion").is_hidden()
+    scoped = await send("Рассчитай Urals")
+    assert scoped["report_only"] and "dialogue_token" not in scoped
+    await page.locator("#remember-forecast").uncheck()
+    await send("Рассчитай Urals")
+    legacy = await send("На три месяца")
+    assert not legacy["remember_clarification"] and legacy["previous"] == "Рассчитай Urals"
+    assert "dialogue_token" not in legacy
+    await page.unroute("**/api/ask", reply)
+
+
 async def check(url):
     OUT.mkdir(exist_ok=True)
     async with async_playwright() as p:
@@ -516,6 +578,7 @@ async def check(url):
         assert "503" in await page.locator("#result").inner_text()
         assert await page.locator(".trace-panel").count() == 0
         assert not await page.locator("button.submit").is_disabled()
+        await check_forecast_dialogue(page)
         assert not errors, errors
         await browser.close()
     archive = ROOT / "archive/user-interface-2026-11-11"
@@ -543,6 +606,7 @@ async def check(url):
             "source route summary: reports, web and failed attempts",
             "used web source caveats and disabled semantic review",
             "clarification",
+            "forecast dialogue continuation, retry, scope reset and opt-out",
             "unavailable",
             "outside",
             "legacy forecast",
