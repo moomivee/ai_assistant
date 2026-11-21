@@ -333,7 +333,7 @@ function render(q, data, elapsed) {
     answer.append(save, feedback);
   }
   const grid = element("div", undefined, "result-grid");
-  grid.append(answer, TraceView.render(data, elapsed));
+  grid.append(answer, RequestJourney.render(data), TraceView.render(data, elapsed));
   out.replaceChildren(grid);
 }
 function requestError(status, detail) {

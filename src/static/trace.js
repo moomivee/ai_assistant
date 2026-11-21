@@ -37,6 +37,7 @@ window.TraceView = (() => {
   };
   const duration = ms => Number.isFinite(ms) ? (ms < 1000 ? `${ms} мс` : `${(ms / 1000).toFixed(1)} с`) : "—";
   function safeURL(value) {
+    if (typeof value !== "string" || !value.trim()) return null;
     try {
       const url = new URL(value, location.origin);
       return ["http:", "https:"].includes(url.protocol) ? url.href : null;
@@ -192,11 +193,8 @@ window.TraceView = (() => {
     return box;
   }
   function render(data, elapsed) {
-    const box = node("aside", undefined, "trace-panel");
-    box.setAttribute("aria-label", "Ход запроса");
-    const heading = node("div", undefined, "trace-heading");
-    heading.append(node("h2", "Ход запроса"));
-    box.append(heading);
+    const box = node("details", undefined, "trace-panel trace-technical");
+    box.append(node("summary", "Подробности трейса", "trace-technical-heading"));
     const directHelp = data.intent === "capabilities" && data.status === "ok" &&
       !data.trace?.length && !data.sources?.length && !data.decisions?.length;
     if (directHelp) {

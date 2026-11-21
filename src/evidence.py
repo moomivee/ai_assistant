@@ -37,6 +37,24 @@ def _references_exist(claim, evidence):
     return bool(claim.evidence_ids) and all(key in evidence for key in claim.evidence_ids)
 
 
+def _claim_rows(claims, evidence, *, accepted=False):
+    # Use positions and catalog IDs only. Rejected drafts can contain private
+    # text, invented block addresses or unsupported numbers.
+    return [
+        {
+            "index": i,
+            "evidence_ids": list(
+                dict.fromkeys(key for key in claim.evidence_ids if key in evidence)
+            ),
+            "citation": "not_checked",
+            "numeric": "not_checked",
+            "semantic": "not_checked",
+            "accepted": accepted,
+        }
+        for i, claim in enumerate(claims, 1)
+    ]
+
+
 def _requested_event_context(chronology):
     """Render requested comparison dates from verified occurrences, preserving their roles."""
     result, gaps = [], []
@@ -188,6 +206,7 @@ def generate_answer(
     spot_grades=(),
     priority_source_ids=(),
     diagnostics: dict | None = None,
+    claim_results: list | None = None,
     allow_citation_repair=True,
     allow_research_clarification=False,
     latest_completed_event=False,
@@ -200,6 +219,8 @@ def generate_answer(
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
     checks = diagnostics if diagnostics is not None else {}
+    rows = claim_results if claim_results is not None else []
+    rows.clear()
     review_enabled = settings().answer_review
     checks.update(
         candidate_claims=None,
@@ -302,6 +323,7 @@ def generate_answer(
                     "Не удалось подтвердить дату состоявшегося события. Проверьте итоговое "
                     "сообщение организатора или публикацию после назначенной даты."
                 )
+            rows[:] = _claim_rows(related, evidence, accepted=True)
             return (
                 CitedAnswer(claims=related, complete=False),
                 evidence,
@@ -389,6 +411,7 @@ def generate_answer(
             if related:
                 raw = _attach_event_context(raw, related, chronology)
         if not _matches_latest_event(raw.claims, evidence, chronology, related):
+            rows[:] = _claim_rows(raw.claims, evidence)
             checks.update(
                 stage="finished",
                 reason="event_chronology_mismatch",
@@ -418,6 +441,9 @@ def generate_answer(
             citation_repair_attempted=True,
             citation_repair_outcome="pending",
         )
+        rows[:] = _claim_rows(raw.claims, evidence)
+        for row in rows:
+            row["citation"] = "failed"
         corrected_payload = dict(
             payload,
             citation_repair=(
@@ -443,6 +469,7 @@ def generate_answer(
     checks["candidate_claims"] = len(raw.claims)
     checks["candidate_complete"] = raw.complete
     if not raw.claims:
+        rows.clear()
         checks["reason"] = "no_candidate_claims"
         return (
             CitedAnswer(claims=[], complete=False),
@@ -452,10 +479,13 @@ def generate_answer(
             "to address a specific gap, or finish with the limitation; do not repeat the same search.",
         )
     checks["stage"] = "local_validation"
-    valid = []
-    for claim in raw.claims:
+    rows[:] = _claim_rows(raw.claims, evidence)
+    valid, valid_rows = [], []
+    for claim, row in zip(raw.claims, rows, strict=True):
         if not _references_exist(claim, evidence):
+            row["citation"] = "failed"
             continue
+        row["citation"] = "passed"
         text = " ".join(
             evidence[key]["text"] + " " + (evidence[key]["date"] or "")
             for key in claim.evidence_ids
@@ -466,9 +496,13 @@ def generate_answer(
                 chronology["latest_evidence_ids"]
             ) and winner in mentioned_dates(claim.text):
                 text += f" {winner.isoformat()} {winner:%d.%m.%Y}"
-        if numbers(claim.text) <= numbers(text) or claim in related:
+        missing = numbers(claim.text) - numbers(text)
+        if not missing or claim in related:
+            row["numeric"] = "event_context" if missing else "passed"
             valid.append(claim)
+            valid_rows.append(row)
         else:
+            row.update(numeric="failed", missing_number_count=len(missing))
             checks["numeric_rejected"] += 1
     if not valid:
         checks["reason"] = "local_validation_rejected"
@@ -489,6 +523,8 @@ def generate_answer(
             ("После проверки чисел не осталось утверждения с подтверждённой датой события."),
         )
     if not review_enabled:
+        for row in valid_rows:
+            row["accepted"] = True
         # Valid IDs and matching numbers cannot establish currency. A fetched
         # web result may itself be old or unrelated to the claim.
         complete = (
@@ -541,6 +577,8 @@ def generate_answer(
     indexes = review.supported
     well_formed = len(set(indexes)) == len(indexes) and all(0 <= i < len(valid) for i in indexes)
     if not well_formed:
+        for row in valid_rows:
+            row["semantic"] = "invalid_review"
         checks.update(semantic_rejected=len(valid), reason="invalid_review_indexes")
         return (
             CitedAnswer(claims=[], complete=False),
@@ -548,6 +586,8 @@ def generate_answer(
             "Citation review returned invalid or duplicate claim indexes. "
             "No claims passed semantic validation.",
         )
+    for i, row in enumerate(valid_rows):
+        row["semantic"] = "passed" if i in indexes else "failed"
     supported = [c for i, c in enumerate(valid) if i in indexes]
     if (
         chronology is not None
@@ -560,6 +600,9 @@ def generate_answer(
         chronology_gap = (
             "При смысловой проверке не подтверждена дата события и его связь с выводами."
         )
+    if supported:
+        for i in indexes:
+            valid_rows[i]["accepted"] = True
     if chronology is not None and any(item not in supported for item in related):
         chronology_gap += " Требуется проверить запрошенные даты связанных событий."
     if chronology_gap:

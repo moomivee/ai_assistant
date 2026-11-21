@@ -238,6 +238,7 @@ class Handler(BaseHTTPRequestHandler):
             "/": ("index.html", "text/html"),
             "/static/site.js": ("site.js", "application/javascript"),
             "/static/trace.js": ("trace.js", "application/javascript"),
+            "/static/journey.js": ("journey.js", "application/javascript"),
             "/static/knowledge.js": ("knowledge.js", "application/javascript"),
             "/static/site.css": ("site.css", "text/css"),
         }
@@ -382,6 +383,64 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 ],
             )
+        elif question in {"two-checks", "answer-refusal"}:
+            diagnostics = response["diagnostics"]
+            source = dict(SOURCE, evidence={"R1:B1": TEXT})
+            response["sources"] = [source]
+            response["claims"] = [
+                dict(source="R1", text="Orion легче Vega.", quote=TEXT, evidence_ids=["R1:B1"])
+            ]
+            diagnostics["retrieved_sources"] = [source]
+            diagnostics["answer_checks"].insert(
+                0,
+                dict(
+                    after_step=1,
+                    source_ids=[],
+                    status="ok",
+                    complete=False,
+                    claims=0,
+                    validation={"reason": "no_evidence"},
+                ),
+            )
+            final_check = diagnostics["answer_checks"][-1]
+            final_check.update(
+                supplied_source_ids=["R1"],
+                evidence_ids=["R1:B1"],
+                claim_results=[
+                    dict(
+                        index=1,
+                        evidence_ids=["R1:B1"],
+                        citation="passed",
+                        numeric="passed",
+                        semantic="passed",
+                        accepted=True,
+                    ),
+                    dict(
+                        index=2,
+                        evidence_ids=["R1:B1"],
+                        citation="passed",
+                        numeric="failed",
+                        semantic="not_checked",
+                        missing_number_count=1,
+                        accepted=False,
+                    ),
+                ],
+            )
+            final_check["validation"].update(candidate_claims=2, numeric_rejected=1)
+            if question == "answer-refusal":
+                reason = "GigaChat отказался обрабатывать этот запрос."
+                response.update(
+                    answer=reason,
+                    status="unavailable",
+                    stop_reason="llm_unavailable",
+                    claims=[],
+                    sources=[],
+                )
+                diagnostics["failure"] = reason
+                diagnostics["retrieved_sources"] = [dict(source, used_in_answer=False)]
+                diagnostics["answer_checks"][-1] = dict(
+                    after_step=3, source_ids=["R1"], status="error", error=reason, claim_results=[]
+                )
         elif question == "failed-only":
             response.update(
                 status="unavailable",
@@ -461,6 +520,10 @@ class Handler(BaseHTTPRequestHandler):
                 title=text, url="javascript:window.injected=true", text=text
             )
             response["diagnostics"]["retrieved_sources"] = response["sources"]
+            response["diagnostics"]["steps"][0].update(
+                purpose=text, arguments={"query": text}, notices=[text]
+            )
+            response["diagnostics"]["answer_checks"][0]["feedback"] = text
         response["question"] = question
         final = stream_event("result", result=response)
         if question not in {"quote-fallback", "direct-quote", "incomplete-stream"}:
@@ -587,6 +650,7 @@ async def check_dialogue_continuations(page):
     assert "dialogue_token" not in legacy
     await page.locator("#newquestion").click()
     await send(ranking)
+    await page.locator("details.trace-panel > summary").click()
     assert await page.locator(".response-status").inner_text() == "Нужно уточнение"
     assert "После проверки источников" in await page.locator(".trace-stop").inner_text()
     assert (
@@ -642,6 +706,7 @@ async def check_cached_workbench(page, url, *, capture=False):
         "/static/site.css",
         "/static/site.js",
         "/static/trace.js",
+        "/static/journey.js",
         "/static/knowledge.js",
         "/static/gigachat-mark.png",
     }
@@ -665,6 +730,99 @@ async def check_cached_workbench(page, url, *, capture=False):
     )
     if capture:
         await page.screenshot(path=str(OUT / "trace-workbench-home-mobile.jpg"), quality=85)
+
+
+async def expand_detail(details):
+    """Exercise native disclosure controls through the keyboard."""
+    if not await details.evaluate("element => element.open"):
+        await details.locator(":scope > summary").press("Enter")
+    assert await details.evaluate("element => element.open")
+
+
+async def check_journey(page, submit):
+    journey = page.locator("details.request-journey")
+    stages = journey.locator("ol.journey-timeline > li.journey-stage")
+
+    def stage(kind, attrs=""):
+        return journey.locator(f'.journey-timeline > li[data-kind="{kind}"]{attrs}')
+
+    async def open_stage(kind, attrs=""):
+        entry = stage(kind, attrs)
+        await expand_detail(entry.locator("details.journey-node").first)
+        return entry
+
+    await submit("two-checks", open_technical=False)
+    assert await journey.count() == 1
+    assert not await journey.evaluate("element => element.open")
+    await expand_detail(journey)
+    assert await journey.locator(".journey-summary").evaluate("el => el === document.activeElement")
+    kinds = await stages.evaluate_all(
+        "rows => rows.map(r => [r.dataset.kind, r.dataset.step, r.dataset.afterStep])"
+    )
+    assert kinds[0][0] == "plan" and kinds[-1][0] == "finish", kinds
+    for anchor in ["1", "3"]:
+        index = kinds.index(["action", anchor, None])
+        assert kinds[index + 1] == ["check", None, anchor], kinds
+    await open_stage("plan")
+    assert "Только загруженные отчёты" in await stage("plan").inner_text()
+    rejected = await open_stage("action", '[data-step="2"]')
+    assert "повтор" in (await rejected.inner_text()).lower()
+    assert "отклон" in (await rejected.inner_text()).lower()
+    retrieved = await open_stage("action", '[data-step="3"]')
+    evidence = retrieved.locator('details.journey-source[data-source-id="R1"]')
+    await expand_detail(evidence)
+    assert TEXT in await evidence.inner_text()
+    verified = await open_stage("check", '[data-after-step="3"]')
+    claims = verified.locator("details.journey-claim")
+    assert await claims.count() == 2
+    assert "1 · принято" in await claims.first.inner_text()
+    assert "2 · не принято" in await claims.last.inner_text()
+    await expand_detail(claims.last)
+    rejected_numbers = claims.last.locator("dt").filter(has_text="Проверка чисел")
+    numeric_verdict = rejected_numbers.locator("xpath=following-sibling::dd[1]")
+    assert await numeric_verdict.inner_text() == "Отклонено"
+    assert "R1:B1" in await claims.last.inner_text()
+    first_check = await open_stage("check", '[data-after-step="1"]')
+    assert await first_check.locator("details.journey-claim").count() == 0
+    finish = await open_stage("finish")
+    answer_claim = finish.locator("details.journey-claim")
+    await expand_detail(answer_claim)
+    citation = answer_claim.locator('details.journey-source[data-source-id="R1"]')
+    await expand_detail(citation)
+    assert TEXT in await citation.inner_text()
+    assert not await page.locator("details.trace-panel").evaluate("element => element.open")
+
+    await page.set_viewport_size({"width": 390, "height": 844})
+    assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    await journey.locator(":scope > summary").press("Space")
+    assert not await journey.evaluate("element => element.open")
+    await expand_detail(journey)
+    assert await evidence.evaluate("element => element.open")
+
+    await submit("answer-refusal", open_technical=False)
+    await expand_detail(journey)
+    succeeded = stage("action", '[data-step="3"]')
+    assert await succeeded.locator('summary.journey-node-heading [data-tone="error"]').count() == 0
+    failed = await open_stage("check", '[data-after-step="3"]')
+    assert "GigaChat отказался" in await failed.inner_text()
+    assert await failed.locator('summary.journey-node-heading [data-tone="error"]').count() == 1
+    finish_badge = stage("finish").locator("summary.journey-node-heading .journey-badge")
+    assert await finish_badge.get_attribute("data-tone") == "error"
+
+    await submit("web-only", open_technical=False)
+    await expand_detail(journey)
+    web = await open_stage("action", '[data-step="2"]')
+    snippet = web.locator('details.journey-source[data-source-id="W4"]')
+    await expand_detail(snippet)
+    assert "Orion и Vega" in await snippet.inner_text()
+    assert await snippet.locator('a[href="https://example.invalid/web-fixture"]').count() == 1
+    assert await finish_badge.get_attribute("data-tone") == "warning"
+
+    await submit("legacy", open_technical=False)
+    await expand_detail(journey)
+    assert await stage("legacy").count() >= 1
+    assert await stage("check").count() == 0
+    await page.set_viewport_size({"width": 1280, "height": 1000})
 
 
 async def check_warm_cache_webkit(url):
@@ -700,13 +858,20 @@ async def check(url):
         await check_cached_workbench(page, url, capture=True)
         await page.set_viewport_size({"width": 1280, "height": 1000})
 
-        async def submit(question):
+        async def submit(question, *, open_technical=True):
             if await page.locator("#newquestion").is_visible():
                 await page.locator("#newquestion").click()
             await page.locator("#question").fill(question)
             await page.locator("#question").press("Control+Enter")
             await page.locator('#result[aria-busy="false"]').wait_for()
+            if question != "http-error":
+                technical = page.locator("details.trace-panel")
+                assert await technical.count() == 1
+                assert not await technical.evaluate("panel => panel.open")
+                if open_technical:
+                    await technical.locator(":scope > summary").click()
 
+        await check_journey(page, submit)
         await submit(QUESTION)
         assert "база знаний (1)" in await page.locator(".route-used-sources").inner_text()
         assert "только база знаний" in await page.locator(".route-policy").inner_text()
@@ -823,7 +988,7 @@ async def check(url):
         assert not await page.locator(".route-summary, .trace-footnote, .save-note").count()
         assert "встроенную справку" in await page.locator(".trace-panel").inner_text()
         assert await page.locator(".trace-metrics strong").nth(1).inner_text() == "0"
-        await page.get_by_text("Как понят запрос", exact=True).click()
+        await page.locator(".trace-panel").get_by_text("Как понят запрос", exact=True).click()
         assert "Вопрос о возможностях агента" in await page.locator(".trace-fields").inner_text()
         assert await page.locator(".download-button").count() == 1
         await submit("web-only")
@@ -896,12 +1061,17 @@ async def check(url):
         )
         assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         await submit("hostile")
+        hostile_journey = page.locator("details.request-journey")
+        await expand_detail(hostile_journey)
+        for detail in await hostile_journey.locator("details.journey-node").all():
+            await expand_detail(detail)
+        assert "<img src=x" in await hostile_journey.inner_text()
         assert await page.locator("#result img, #result script").count() == 0
         assert not await page.evaluate("window.injected === true")
         assert await page.locator('a[href^="javascript:"]').count() == 0
         await submit("http-error")
         assert "503" in await page.locator("#result").inner_text()
-        assert await page.locator(".trace-panel").count() == 0
+        assert await page.locator(".trace-panel, .request-journey").count() == 0
         assert not await page.locator("button.submit").is_disabled()
         await check_quote_progress(page)
         await check_dialogue_continuations(page)
@@ -918,6 +1088,8 @@ async def check(url):
         new_llm_run=False,
         scenarios=[
             "new stylesheet and scripts with a cached previous stylesheet",
+            "interactive request journey: chronology, keyboard, sources and claim verdicts",
+            "model refusal after successful retrieval, partial response and legacy journey",
             "steps and duplicate rejection",
             "plan and arguments",
             "retrieved evidence",

@@ -617,7 +617,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         sources = answer_sources(state)
         ids = [s["id"] for s in sources]
         start = perf_counter()
-        check = {"after_step": state["attempts"], "source_ids": ids}
+        # Claim-level outcomes are for the inspector only. Only validation is
+        # reused as planning context on subsequent steps.
+        claim_results = []
+        check = {"after_step": state["attempts"], "source_ids": ids, "claim_results": claim_results}
 
         def result_check(**values):
             return state["answer_checks"] + [
@@ -673,6 +676,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 report_only=p["report_only"],
                 priority_source_ids=recent_source_ids(state),
                 diagnostics=validation,
+                claim_results=claim_results,
                 allow_citation_repair=not any(
                     previous.get("validation", {}).get("citation_repair_attempted")
                     for previous in state["answer_checks"]

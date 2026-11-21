@@ -158,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
                 (ROOT / "src/static/gigachat-mark.png").read_bytes(), "image/png"
             )
         file = "index.html" if path == "/" else path.removeprefix("/static/")
-        if file in {"index.html", "site.js", "site.css", "trace.js", "knowledge.js"}:
+        if file in {"index.html", "site.js", "site.css", "trace.js", "journey.js", "knowledge.js"}:
             mime = (
                 "text/html"
                 if file.endswith("html")

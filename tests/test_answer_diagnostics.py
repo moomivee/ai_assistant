@@ -126,9 +126,12 @@ def test_review_exception_preserves_stage_without_exposing_error_text(monkeypatc
     monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
     settings.cache_clear()
     diagnostic = {}
+    rows = []
     client = Responses([claim()], review=LLMUnavailable("provider private details"))
     with pytest.raises(LLMUnavailable):
-        generate_answer(client, "Сера?", [REPORT], diagnostics=diagnostic)
+        generate_answer(client, "Сера?", [REPORT], diagnostics=diagnostic, claim_results=rows)
+    assert rows[0]["numeric"] == "passed"
+    assert rows[0]["semantic"] == "not_checked" and not rows[0]["accepted"]
     assert diagnostic["candidate_claims"] == 1
     assert diagnostic["stage"] == "semantic_review"
     assert diagnostic["review_attempted"] is True
@@ -158,3 +161,67 @@ def test_empty_candidate_diagnostics_reach_the_agent_response():
     assert checks[0]["validation"]["reason"] == "no_candidate_claims"
     assert "do not repeat" in checks[0]["feedback"]
     assert client.calls == ["cited_answer"]
+
+
+def test_claim_results_follow_original_positions_and_do_not_expose_rejected_values(monkeypatch):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    settings.cache_clear()
+    client = Responses(
+        [
+            claim("secret 12345", ["R1:B1", "secret-id"]),
+            claim("secret 12345"),
+            claim("secret 0.2%"),
+            claim("Сера 0.3%."),
+        ],
+        # Index in the semantic review is relative to the two *locally valid* claims.
+        review={"supported": [1], "complete": False, "feedback": "", "coverage": "partial"},
+    )
+    rows = []
+    draft, _, _ = generate_answer(client, "Сера?", [REPORT], claim_results=rows)
+    assert [item.text for item in draft.claims] == ["Сера 0.3%."]
+    assert [row["index"] for row in rows] == [1, 2, 3, 4]
+    assert [(r["citation"], r["numeric"], r["semantic"], r["accepted"]) for r in rows] == [
+        ("failed", "not_checked", "not_checked", False),
+        ("passed", "failed", "not_checked", False),
+        ("passed", "passed", "failed", False),
+        ("passed", "passed", "passed", True),
+    ]
+    assert rows[1]["missing_number_count"] == 1
+    assert all(r["evidence_ids"] == ["R1:B1"] for r in rows)
+    encoded = json.dumps(rows, ensure_ascii=False)
+    assert all(value not in encoded for value in ["secret", "12345", REPORT["text"]])
+
+
+@pytest.mark.parametrize("supported", [[1], [0, 0]])
+def test_invalid_reviewer_indexes_do_not_mark_claim_as_semantically_false(monkeypatch, supported):
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    settings.cache_clear()
+    rows = []
+    client = Responses([claim()], review={"supported": supported, "complete": True, "feedback": ""})
+    draft, _, _ = generate_answer(client, "Сера?", [REPORT], claim_results=rows)
+    assert not draft.claims and not rows[0]["accepted"]
+    assert rows[0]["semantic"] == "invalid_review"
+
+
+def test_claim_results_remain_outside_model_planning_payload():
+    class Partial(Responses):
+        planning_payload = None
+
+        def generate(self, name, payload, schema):
+            if name == "decide":
+                self.planning_payload = payload
+                return schema.model_validate(action("finish"))
+            return super().generate(name, payload, schema)
+
+    client = Partial([claim()], complete=False)
+    response = ask(
+        "Что в отчёте сказано о сере?",
+        client=client,
+        planner=lambda *_: plan(report_only=True, rag_query="sulfur"),
+        execute=lambda *args, **kw: ([REPORT], None, event("report_search")),
+    )
+    check = response["diagnostics"]["answer_checks"][0]
+    assert check["claim_results"][0]["accepted"]
+    assert check["claim_results"][0]["semantic"] == "not_checked"
+    assert client.planning_payload["answer_validation"] == check["validation"]
+    assert "claim_results" not in json.dumps(client.planning_payload)
