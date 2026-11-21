@@ -18,6 +18,7 @@ window.TraceView = (() => {
     no_progress: "Повторные попытки не добавили данных",
     time_budget_exhausted: "Достигнут общий лимит времени",
     research_budget_exhausted: "Поиск завершён с резервом времени на ответ",
+    research_clarification: "После проверки источников агент запросил уточнение",
     review_disabled: "Кандидат ответа получен; проверка смысла и полноты отключена",
   };
   const intents = { research: "Анализ источников", forecast: "Прогноз", capabilities: "Вопрос о возможностях агента", outside: "Вне специализации" };

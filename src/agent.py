@@ -605,10 +605,19 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     previous.get("validation", {}).get("citation_repair_attempted")
                     for previous in state["answer_checks"]
                 ),
+                # A reply to an earlier clarification already carries the user's
+                # choice. Missing evidence for that choice calls for research.
+                allow_research_clarification=(
+                    p["intent"] == "research"
+                    and not p["quotes"]
+                    and not p["news"]
+                    and not state.get("previous")
+                    and not any(check.get("claims") for check in state["answer_checks"])
+                ),
             )
             # The latest validation replaces the candidate, including an empty
             # rejection. Restoring an old complete draft can resurrect stale facts.
-            return {
+            result = {
                 "draft": draft.model_dump(),
                 "evidence": evidence,
                 "feedback": feedback,
@@ -625,6 +634,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     validation=validation,
                 ),
             }
+            if validation.get("research_clarification"):
+                result["stop_reason"] = "research_clarification"
+            return result
         except (LLMUnavailable, RequestBudgetExceeded) as exc:
             return {
                 "failure": str(exc),
@@ -662,6 +674,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             )
         elif p and p["clarify"]:
             status, blocks = "clarification", [p["clarify"]]
+        elif stop == "research_clarification":
+            status, blocks = "clarification", [validation["research_clarification"]["clarify"]]
         else:
             draft = CitedAnswer.model_validate(state["draft"])
             blocks, claims, sources = render_claims(draft, state["evidence"], state["sources"])
@@ -713,14 +727,21 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "переданными для подготовки ответа. Утверждения с такими ссылками исключены."
                     )
                 elif not blocks:
-                    blocks = ["Подтверждённых данных для ответа недостаточно."]
-            if not complete and not state.get("failure") and not citation_failure:
-                blocks.append(
-                    "Проверка смысла и полноты ответа отключена в настройках. "
-                    "Утверждения проверены только по ссылкам и числам; полнота ответа не подтверждена."
-                    if unreviewed
-                    else "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
-                )
+                    gaps = validation.get("missing_aspects", [])
+                    if validation.get("reason") == "semantic_validation_rejected" and gaps:
+                        blocks.append(
+                            "Что показала проверка найденных материалов\n"
+                            + "\n".join("• " + gap for gap in dict.fromkeys(gaps))
+                        )
+                    else:
+                        blocks.append("Подтверждённых данных для ответа недостаточно.")
+                elif not complete:
+                    blocks.append(
+                        "Проверка смысла и полноты ответа отключена в настройках. "
+                        "Утверждения проверены только по ссылкам и числам; полнота ответа не подтверждена."
+                        if unreviewed
+                        else "Запрос подтверждён не полностью. Доступных источников или результата проверки недостаточно для полного ответа."
+                    )
             if p and p["report_only"] and p["fresh"]:
                 blocks.append(
                     "Использованы только загруженные отчёты; актуальность на сегодняшний день не проверялась."

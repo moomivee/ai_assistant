@@ -323,6 +323,14 @@ class CitationReview(StrictModel):
         max_length=6,
         description="Specific requested aspects or evidence still missing; empty only if none are identified.",
     )
+    research_options: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Только при allow_research_clarification=true и неоднозначной цели: "
+            "2–3 коротких варианта смысла вопроса на русском для выбора пользователем. "
+            "Если не хватает сведений об однозначной задаче, верни []."
+        ),
+    )
 
 
 class Question(StrictModel):

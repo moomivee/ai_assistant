@@ -10,7 +10,7 @@ from .config import settings
 from .models.schemas import CitationReview, CitedAnswer, CitedClaim
 from .progress import context_blocks
 from .request_context import scope_payload
-from .validation import numbers
+from .validation import normalized, numbers
 
 
 def _answer_schema(evidence):
@@ -83,6 +83,7 @@ def generate_answer(
     priority_source_ids=(),
     diagnostics: dict | None = None,
     allow_citation_repair=True,
+    allow_research_clarification=False,
 ):
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
@@ -244,6 +245,7 @@ def generate_answer(
             **({"previous": previous} if previous else {}),
             **clock_payload(),
             "temporal_requirements": temporal_requirements,
+            "allow_research_clarification": allow_research_clarification,
             "user_scope": scope_payload(),
             "claims": [
                 {"index": i, "text": c.text, "evidence": [evidence[key] for key in c.evidence_ids]}
@@ -268,6 +270,25 @@ def generate_answer(
             "No claims passed semantic validation.",
         )
     supported = [c for i, c in enumerate(valid) if i in indexes]
+    if (
+        allow_research_clarification
+        and not supported
+        and not review.complete
+        and review.coverage != "sufficient"
+    ):
+        options = [" ".join(value.split()) for value in review.research_options]
+        labels = {normalized(value).strip(" .!?…") for value in options}
+        if (
+            2 <= len(options) <= 3
+            and len(labels) == len(options)
+            and "" not in labels
+            and all(len(value) <= 140 for value in options)
+        ):
+            choices = "\n".join(f"{i}. {option}" for i, option in enumerate(options, 1))
+            checks["research_clarification"] = {
+                "clarify": f"Что именно вы хотите узнать?\n\n{choices}",
+                "research_options": options,
+            }
     complete = (
         raw.complete
         and review.complete

@@ -427,9 +427,12 @@ async def check_quote_progress(page):
     assert not await page.locator("button.submit").is_disabled()
 
 
-async def check_forecast_dialogue(page):
+async def check_dialogue_continuations(page):
     requests = []
     token = "fixture-only-secret"
+    ranking = "Какой рейтинг у российской нефти?"
+    clarification = "Какое место России сравнить — по добыче или по экспорту?"
+    choice = "По экспорту за 2025 год."
 
     async def reply(route):
         payload = route.request.post_data_json
@@ -451,7 +454,18 @@ async def check_forecast_dialogue(page):
             question=question,
             answer="Уточните параметры." if pending else "Результат",
         )
-        if payload["remember_clarification"] and (pending or question == "retry"):
+        if question == ranking:
+            response.update(
+                status="clarification",
+                clarification=True,
+                intent="research",
+                answer=clarification,
+                stop_reason="research_clarification",
+                trace=[{"tool": "web_search", "status": "ok", "ms": 90}],
+            )
+        elif question == choice:
+            response.update(intent="research", answer="Тестовый ответ про экспорт.")
+        elif payload["remember_clarification"] and (pending or question == "retry"):
             response["dialogue_token"] = (
                 token + str(len(requests)) if pending else payload["dialogue_token"]
             )
@@ -494,6 +508,17 @@ async def check_forecast_dialogue(page):
     legacy = await send("На три месяца")
     assert not legacy["remember_clarification"] and legacy["previous"] == "Рассчитай Urals"
     assert "dialogue_token" not in legacy
+    await page.locator("#newquestion").click()
+    await send(ranking)
+    assert await page.locator(".response-status").inner_text() == "Нужно уточнение"
+    assert "После проверки источников" in await page.locator(".trace-stop").inner_text()
+    assert (
+        await page.locator("#question").get_attribute("placeholder")
+        == "Ответьте на уточняющий вопрос…"
+    )
+    continuation = await send(choice)
+    assert continuation["previous"] == ranking + "\nУточнение агента: " + clarification
+    assert "dialogue_token" not in continuation and await page.locator("#newquestion").is_hidden()
     await page.unroute("**/api/ask/stream", reply)
 
 
@@ -780,7 +805,7 @@ async def check(url):
         assert await page.locator(".trace-panel").count() == 0
         assert not await page.locator("button.submit").is_disabled()
         await check_quote_progress(page)
-        await check_forecast_dialogue(page)
+        await check_dialogue_continuations(page)
         assert not errors, errors
         await browser.close()
     archive = ROOT / "archive/user-interface-2026-11-11"
@@ -809,6 +834,7 @@ async def check(url):
             "source route summary: reports, web and failed attempts",
             "used web source caveats and disabled semantic review",
             "clarification",
+            "clarification after research and continuation with the chosen metric",
             "quote fallback visible during search, direct quote and interrupted stream",
             "forecast dialogue continuation, retry, scope reset and opt-out",
             "unavailable",

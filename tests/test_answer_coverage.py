@@ -31,7 +31,13 @@ def enable_review(monkeypatch):
     settings.cache_clear()
 
 
-def generate(review, *, question="Какое содержание серы указано во фрагменте?", fresh=False):
+def generate(
+    review,
+    *,
+    question="Какое содержание серы указано во фрагменте?",
+    fresh=False,
+    allow_research_clarification=False,
+):
     requests, diagnostics = [], {}
 
     def reply(request):
@@ -52,10 +58,52 @@ def generate(review, *, question="Какое содержание серы ук�
 
     client, native = gigachat_client(reply)
     try:
-        result = generate_answer(client, question, [SOURCE], fresh=fresh, diagnostics=diagnostics)
+        result = generate_answer(
+            client,
+            question,
+            [SOURCE],
+            fresh=fresh,
+            diagnostics=diagnostics,
+            allow_research_clarification=allow_research_clarification,
+        )
     finally:
         native.close()
     return result, diagnostics, requests
+
+
+@pytest.mark.parametrize(
+    "allow, options, supported, expect_choices",
+    [
+        (True, ["Место по добыче", "Место по экспорту"], [], True),
+        (True, ["Добыча", "добыча."], [], False),
+        (True, ["Место по экспорту"], [], False),
+        (True, ["Добыча", "Экспорт"], [0], False),
+        (False, ["Добыча", "Экспорт"], [], False),
+    ],
+)
+def test_unclear_research_goal_uses_existing_review(allow, options, supported, expect_choices):
+    (draft, _, _), diagnostics, requests = generate(
+        {
+            "supported": supported,
+            "complete": False,
+            "feedback": "Не указан критерий сравнения.",
+            "coverage": "unverified",
+            "research_options": options,
+        },
+        question="Какой международный рейтинг у этой нефти?",
+        allow_research_clarification=allow,
+    )
+    assert [title for title, _ in requests] == ["CitedAnswer", "CitationReview"]
+    assert bool(draft.claims) == bool(supported)
+    assert not draft.complete
+    review_input = json.loads(requests[-1][1]["messages"][-1]["content"])
+    assert review_input["allow_research_clarification"] is allow
+    if expect_choices:
+        clarification = diagnostics["research_clarification"]
+        assert clarification["research_options"] == options
+        assert all(value in clarification["clarify"] for value in options)
+    else:
+        assert "research_clarification" not in diagnostics
 
 
 def test_supported_property_is_not_complete_coverage_of_a_trade_question():

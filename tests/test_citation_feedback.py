@@ -51,3 +51,33 @@ def test_partial_answer_uses_final_citation_outcome_and_preserves_tool_notices(
     assert (SEARCH_DATE_NOTICE in message) != shows_reference_failure
     assert technical_notice in message
     assert SEARCH_DATE_NOTICE in result["diagnostics"]["steps"][0]["notices"]
+
+
+def test_empty_answer_explains_the_specific_gap_even_without_a_clarification(monkeypatch):
+    gap = "Объём экспорта сырой нефти за запрошенный год."
+
+    class Reviewed(Scripted):
+        def generate(self, name, payload, schema):
+            if name == "citation_review":
+                return schema.model_validate(
+                    {
+                        "feedback": "В публикации есть только прогноз цены.",
+                        "supported": [],
+                        "complete": False,
+                        "coverage": "unverified",
+                        "missing_aspects": [gap, gap],
+                    }
+                )
+            return super().generate(name, payload, schema)
+
+    monkeypatch.setenv("ANSWER_SELF_REVIEW", "true")
+    search = action("web_search", "crude export volume 2020")
+    result = ask(
+        "Каков был объём экспорта сырой нефти в 2020 году?",
+        client=Reviewed([search] * 3),
+        planner=lambda *_: plan(),
+        execute=lambda *_args, **_kwargs: ({"items": [WEB]}, None, event("web_search")),
+    )
+    assert result["status"] == "partial" and not result["clarification"]
+    assert result["answer"].count(gap) == 1
+    assert "Запрос подтверждён не полностью" not in result["answer"]

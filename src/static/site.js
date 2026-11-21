@@ -434,7 +434,8 @@ $("ask").addEventListener("submit", async (e) => {
     $("newquestion").hidden = !(previous || dialogueToken);
     if (previous || dialogueToken) {
       if (data.clarification) $("question").value = "";
-      $("question").placeholder = dialogueToken ? "Продолжите текущий прогноз…" : "Уточните параметры предыдущего запроса…";
+      $("question").placeholder = data.intent === "research" ? "Ответьте на уточняющий вопрос…" :
+        dialogueToken ? "Продолжите текущий прогноз…" : "Уточните параметры предыдущего запроса…";
       counter();
     } else {
       $("question").placeholder = defaultQuestionHint;
