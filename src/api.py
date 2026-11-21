@@ -51,6 +51,14 @@ async def lifespan(app):
 
 
 app = FastAPI(title="AI-агент «Нефтегазовый аналитик»", version="3.0", lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/static/index.html", include_in_schema=False)
+def home():
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 app.include_router(knowledge_router)
 app.include_router(notes_router)
@@ -99,11 +107,6 @@ def ready():
     except Exception as exc:
         log("service.not_ready", logging.WARNING, error_type=type(exc).__name__)
         raise HTTPException(503, "Индекс или LLM пока недоступны.") from exc
-
-
-@app.get("/", include_in_schema=False)
-def home():
-    return FileResponse(STATIC / "index.html")
 
 
 @app.get("/api/status")

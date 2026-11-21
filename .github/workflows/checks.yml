@@ -22,6 +22,10 @@ jobs:
         env:
           TRACE_UI_PREVIEW: "true"
         run: uv run --with playwright==1.62.0 python tools/check_trace_ui.py
+      - name: Check cached workbench styles in WebKit
+        run: |
+          uv run --with playwright==1.62.0 python -m playwright install --with-deps webkit
+          uv run --with playwright==1.62.0 python tools/check_trace_ui.py --warm-cache-webkit
       - name: Test knowledge interface
         run: uv run --with playwright==1.62.0 python tools/check_knowledge_ui.py --out /tmp/knowledge-ui-check
       - uses: actions/upload-artifact@v4

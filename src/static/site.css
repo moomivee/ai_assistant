@@ -159,7 +159,7 @@ main.shell { padding-bottom: 60px; }
   background: #dae6e9;
 }
 .model-badge[data-provider="gigachat"] .model-mark {
-  background: transparent url("/static/gigachat-mark.png") center / contain no-repeat;
+  background: transparent url("/static/gigachat-mark.png?v=a6ae06f53b3e39a7") center / contain no-repeat;
 }
 .model-mark:empty::before {
   content: "";

@@ -4,6 +4,7 @@ uv run --with playwright python tools/check_trace_ui.py
 Install Chromium with `playwright install chromium`, or set CHROMIUM_PATH.
 """
 
+import argparse
 import asyncio
 import base64
 import copy
@@ -13,6 +14,7 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from playwright.async_api import async_playwright
 
@@ -168,14 +170,26 @@ LEGACY = next(
 
 
 class Handler(BaseHTTPRequestHandler):
-    def send(self, body, mime, status=200):
+    def send(self, body, mime, status=200, *, cache_control=None):
         self.send_response(status)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(body)))
+        if cache_control:
+            self.send_header("Cache-Control", cache_control)
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):
+        path = urlsplit(self.path).path
+        if path == "/fixture/previous-workbench":
+            return self.send(b'<link rel="stylesheet" href="/static/site.css">', "text/html")
+        if self.path == "/static/site.css":
+            # Reproduce a browser that still has a fresh copy from the previous release.
+            return self.send(
+                b":root{--previous-workbench:yes}.workspace-grid{display:block}",
+                "text/css",
+                cache_control="public, max-age=86400",
+            )
         if self.path == "/api/status":
             data = dict(
                 model="GigaChat-2",
@@ -211,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         if self.path == "/api/rag/status":
             return self.send(b'{"model":"minilm-multi","top_k":6}', "application/json")
-        if self.path == "/static/gigachat-mark.png":
+        if path == "/static/gigachat-mark.png":
             return self.send((ROOT / "src/static/gigachat-mark.png").read_bytes(), "image/png")
         files = {
             "/": ("index.html", "text/html"),
@@ -220,8 +234,8 @@ class Handler(BaseHTTPRequestHandler):
             "/static/knowledge.js": ("knowledge.js", "application/javascript"),
             "/static/site.css": ("site.css", "text/css"),
         }
-        if self.path in files:
-            name, mime = files[self.path]
+        if path in files:
+            name, mime = files[path]
             return self.send((ROOT / "src/static" / name).read_bytes(), mime + "; charset=utf-8")
         self.send(b"Not found", "text/plain", 404)
 
@@ -414,6 +428,85 @@ async def check_forecast_dialogue(page):
     await page.unroute("**/api/ask", reply)
 
 
+async def check_cached_workbench(page, url, *, capture=False):
+    await page.set_viewport_size({"width": 1440, "height": 900})
+    await page.goto(url + "/fixture/previous-workbench")
+    assert await page.evaluate(
+        "getComputedStyle(document.documentElement).getPropertyValue('--previous-workbench').trim() === 'yes'"
+    )
+    resources = []
+
+    def record_request(request):
+        resources.append(request.url)
+
+    page.on("request", record_request)
+    await page.goto(url)
+    assert not await page.evaluate(
+        "getComputedStyle(document.documentElement).getPropertyValue('--previous-workbench')"
+    )
+    await page.locator('#model-badge[data-provider="gigachat"]').wait_for()
+    await page.locator("#mode").filter(has_text="GigaChat").wait_for()
+    mark_width = await page.locator("#model-badge .model-mark").evaluate(
+        r"""async mark => {
+            const image = new Image();
+            const background = getComputedStyle(mark).backgroundImage;
+            const match = /^url\(["']?(.+?)["']?\)$/.exec(background);
+            if (!match) throw new Error("Missing model badge image: " + background);
+            image.src = match[1];
+            await image.decode();
+            return image.naturalWidth;
+        }"""
+    )
+    assert mark_width > 0
+    assert await page.locator(".workspace-grid").evaluate(
+        """grid => getComputedStyle(grid).display === 'grid' &&
+            grid.querySelector('form').getBoundingClientRect().right <=
+            grid.querySelector('aside').getBoundingClientRect().left"""
+    )
+    assert await page.locator("#model-badge").evaluate(
+        "badge => parseFloat(getComputedStyle(badge).columnGap) > 0"
+    )
+    page.remove_listener("request", record_request)
+    expected = {
+        "/static/site.css",
+        "/static/site.js",
+        "/static/trace.js",
+        "/static/knowledge.js",
+        "/static/gigachat-mark.png",
+    }
+    assets = [urlsplit(resource) for resource in resources if urlsplit(resource).path in expected]
+    assert {asset.path for asset in assets} == expected, resources
+    assert all(parse_qs(asset.query).get("v") for asset in assets), resources
+    await page.wait_for_function(
+        "count => document.querySelector('#knowledge-count').textContent === String(count)",
+        arg=len(SEED_REPORTS),
+    )
+    capabilities = page.locator("#panel-test .capability-query")
+    assert await capabilities.count() == 6
+    assert all([await button.is_visible() for button in await capabilities.all()])
+    if capture:
+        await page.screenshot(path=str(OUT / "trace-workbench-home-desktop.jpg"), quality=85)
+    await page.set_viewport_size({"width": 390, "height": 844})
+    assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert await page.locator(".workspace-grid").evaluate(
+        """grid => grid.querySelector('form').getBoundingClientRect().bottom <=
+            grid.querySelector('aside').getBoundingClientRect().top"""
+    )
+    if capture:
+        await page.screenshot(path=str(OUT / "trace-workbench-home-mobile.jpg"), quality=85)
+
+
+async def check_warm_cache_webkit(url):
+    async with async_playwright() as playwright:
+        browser = await playwright.webkit.launch()
+        try:
+            page = await browser.new_page()
+            await check_cached_workbench(page, url)
+        finally:
+            await browser.close()
+    print("WebKit: previous stylesheet superseded on desktop and mobile.")
+
+
 async def check(url):
     OUT.mkdir(exist_ok=True)
     async with async_playwright() as p:
@@ -432,30 +525,7 @@ async def check(url):
         page = await context.new_page()
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        await page.goto(url)
-        await page.locator('#model-badge[data-provider="gigachat"]').wait_for()
-        await page.locator("#mode").filter(has_text="GigaChat").wait_for()
-        mark_width = await page.locator("#model-badge .model-mark").evaluate(
-            r"""async mark => {
-                const image = new Image();
-                image.src = getComputedStyle(mark).backgroundImage.match(/url\("(.+?)"\)/)[1];
-                await image.decode();
-                return image.naturalWidth;
-            }"""
-        )
-        assert mark_width > 0
-        await page.wait_for_function(
-            "count => document.querySelector('#knowledge-count').textContent === String(count)",
-            arg=len(SEED_REPORTS),
-        )
-        capabilities = page.locator("#panel-test .capability-query")
-        assert await capabilities.count() == 6
-        assert all([await button.is_visible() for button in await capabilities.all()])
-        await page.set_viewport_size({"width": 1440, "height": 900})
-        await page.screenshot(path=str(OUT / "trace-workbench-home-desktop.jpg"), quality=85)
-        await page.set_viewport_size({"width": 390, "height": 844})
-        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        await page.screenshot(path=str(OUT / "trace-workbench-home-mobile.jpg"), quality=85)
+        await check_cached_workbench(page, url, capture=True)
         await page.set_viewport_size({"width": 1280, "height": 1000})
 
         async def submit(question):
@@ -642,6 +712,7 @@ async def check(url):
         kind="browser_fixture_check",
         new_llm_run=False,
         scenarios=[
+            "new stylesheet and scripts with a cached previous stylesheet",
             "steps and duplicate rejection",
             "plan and arguments",
             "retrieved evidence",
@@ -686,9 +757,15 @@ async def check(url):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--warm-cache-webkit", action="store_true", help="Run the WebKit cache upgrade check only."
+    )
+    args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        asyncio.run(check(f"http://127.0.0.1:{server.server_port}"))
+        run = check_warm_cache_webkit if args.warm_cache_webkit else check
+        asyncio.run(run(f"http://127.0.0.1:{server.server_port}"))
     finally:
         server.shutdown()
