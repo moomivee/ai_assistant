@@ -31,6 +31,8 @@ class ScopeClient(FakeLLM):
 
     def generate(self, name, payload, schema):
         self.calls.append((name, payload))
+        if name == "source_access":
+            return schema(mode="reports_only", quote="только по отчётам")
         if name == "forecast_scope":
             assert schema is ForecastScope
             return self.extracted

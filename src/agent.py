@@ -28,9 +28,9 @@ from .integrations.telemetry import callbacks, request_trace, span
 from .integrations.web import DAILY, PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE, WEB_QUERY_LIMIT
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
-from .planning import make_plan
+from .planning import apply_report_scope, make_plan
 from .progress import action_signature, check_assessment, context_blocks, evidence_key, source_key
-from .request_context import current_scope, scope_payload
+from .request_context import plan_scope, scope_payload
 from .request_progress import announce_quote_fallback
 from .tools import make_registry, run_tool
 from .workflow import capabilities_answer, forecast_answer
@@ -331,21 +331,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def plan(state):
         try:
             value = planner(client, state["question"], state.get("previous"))
-            if current_scope().report_only:
-                value = value.model_copy(update={"report_only": True})
-            if value.report_only and value.intent == "research" and value.quotes:
-                # Market feeds are out of scope. Search the allowed reports for
-                # the full request and retain the original freshness requirement.
-                value = value.model_copy(
-                    update={
-                        "wants_context": True,
-                        "quotes": [],
-                        "rag_query": state["question"],
-                        "quote_request": "",
-                        "context_request": "",
-                        "context_fresh": None,
-                    }
-                )
+            value = apply_report_scope(value, state["question"])
             pending = pending_forecast()
             return {
                 "plan": value.model_dump(),
@@ -1030,7 +1016,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
 
     def observed(name, fn):
         def call(state):
-            with span("agent." + name) as obs:
+            with plan_scope(state.get("plan")), span("agent." + name) as obs:
                 try:
                     selected = state.get("plan", {}).get("skill")
                     try:

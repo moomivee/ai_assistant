@@ -189,10 +189,18 @@ def test_help_prefix_does_not_swallow_a_concrete_task(question, intent):
 @pytest.mark.parametrize("intent", ["research", "outside"])
 def test_non_forecast_clarification_cannot_block_source_search(intent):
     question = "Каково содержание серы в Sokol? Только по загруженным отчётам."
-    c = PlannerClient(plan(intent=intent, clarify=question))
+
+    class Client(PlannerClient):
+        def generate(self, name, payload, schema):
+            if name == "source_access":
+                self.calls.append(name)
+                return schema(mode="reports_only", quote="Только по загруженным отчётам")
+            return super().generate(name, payload, schema)
+
+    c = Client(plan(intent=intent, clarify=question))
     result = make_plan(c, question)
     assert result.clarify == ""
-    assert c.calls == ["plan"]
+    assert c.calls == (["plan", "source_access"] if intent == "research" else ["plan"])
 
 
 def test_spurious_clarification_is_rechecked_and_removed():

@@ -13,7 +13,8 @@ from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
 from .logging import log
 from .models.schemas import AgentResponse, EvidenceAnswer
-from .planning import make_plan
+from .planning import apply_report_scope, make_plan
+from .request_context import plan_scope
 from .tools import make_registry, run_tool
 from .validation import normalized
 
@@ -102,6 +103,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=fixed_plan
     def route(s):
         try:
             plan = planner(client, s["question"], s.get("previous"))
+            plan = apply_report_scope(plan, s["question"])
             pending = pending_forecast()
             return {
                 "plan": plan.model_dump(),
@@ -309,7 +311,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=fixed_plan
 
     def observed(name, fn):
         def call(s):
-            with span("workflow." + name) as obs:
+            with plan_scope(s.get("plan")), span("workflow." + name) as obs:
                 result = fn(s)
                 obs.update(output=result)
                 return result

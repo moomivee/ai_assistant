@@ -90,6 +90,15 @@ class Plan(StrictModel):
     )
 
 
+class SourceAccess(StrictModel):
+    mode: Literal["reports_only", "web_permitted", "no_instruction"]
+    quote: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="Exact excerpt of the current question supporting this interpretation, including any exception or negation.",
+    )
+
+
 class ResearchQuoteScope(StrictModel):
     quote_request: str = Field(min_length=1, max_length=2000)
     context_request: str = Field(max_length=2000)

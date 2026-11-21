@@ -11,6 +11,7 @@ PROMPT_NAMES = (
     "forecast",
     "forecast_scope",
     "research_quote_scope",
+    "source_access",
     "latest_event_scope",
     "answer",
     "answer_review",

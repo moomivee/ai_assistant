@@ -28,6 +28,17 @@ def request_scope(document_ids=(), report_only=False, note=None):
         _scope.reset(token)
 
 
+@contextmanager
+def plan_scope(plan):
+    """Carry a validated text restriction to the same tool guard used by the UI."""
+    scope = current_scope()
+    if plan and plan["report_only"] and not scope.report_only:
+        with request_scope(scope.document_ids, True, scope.note):
+            yield
+    else:
+        yield
+
+
 def scope_payload():
     scope = current_scope()
     return {

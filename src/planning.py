@@ -1,5 +1,6 @@
 """Bounded structured checks of forecast inputs and combined research requests."""
 
+import re
 from decimal import Decimal
 
 from .clock import clock_payload
@@ -14,6 +15,7 @@ from .models.schemas import (
     LatestEventScope,
     Plan,
     ResearchQuoteScope,
+    SourceAccess,
 )
 from .request_context import current_scope, scope_payload
 from .validation import (
@@ -29,6 +31,71 @@ from .validation import (
 
 FORECAST_FIELDS = ("benchmark", "months", "discount", "cut", "sensitivity")
 HELP_COMMANDS = {"/help", "что ты можешь", "что ты умеешь", "чем ты можешь помочь"}
+
+
+# Cues trigger a semantic check. They do not select or prohibit tools.
+_EXTERNAL = r"интернет|веб|сайт|онлайн|сет[ьи]|internet|web|online"
+_WITHOUT_WEB = re.compile(rf"\b(?:без|without|no)\s+(?:the\s+)?(?:{_EXTERNAL})\w*")
+_SOURCE = re.compile(
+    rf"\b(?:{_EXTERNAL}|отчет|документ|файл|материал|источник|баз[аеуы] знаний|"
+    r"pdf|report|document|file|source|knowledge base)"
+)
+_PERMISSION = re.compile(
+    rf"\b(?:{_EXTERNAL}|сначала|сперва|затем|разреш|не только|first|then|also|prefer|not only)"
+)
+_SCOPE_CUE = re.compile(
+    r"\b(?:только|лишь|исключительн\w*|без|не|никак\w*|огранич\w*|обой\w*|запрещ\w*|если|"
+    r"сначала|сперва|затем|разреш\w*|дополни\w*|only|solely|exclusively|without|no|not|avoid|"
+    r"restrict\w*|limit\w*|first|if|then|also|prefer\w*)\b"
+)
+
+
+def resolve_report_only(client, plan: Plan, question: str) -> bool:
+    if current_scope().report_only:
+        return True
+    pending = pending_forecast()
+    if pending and not pending.new_task and pending.snapshot.get("report_only"):
+        return True
+    text = normalized(question)
+    if plan.intent not in {"research", "forecast"} or not _SOURCE.search(text):
+        return plan.report_only
+    # Only the current user's words can establish permission, never retrieved material.
+    if not _SCOPE_CUE.search(text):
+        return plan.report_only
+    try:
+        access = client.generate("source_access", {"question": question}, SourceAccess)
+    except LLMUnavailable:
+        log("plan.source_access", mode="reports_only", reason="review_unavailable")
+        return True
+    quote = normalized(access.quote)
+    grounded = bool(quote and quote in text and (_SOURCE.search(quote) or _SCOPE_CUE.search(quote)))
+    if access.mode == "web_permitted":
+        # A mention inside "без интернета" is not evidence of permission.
+        grounded = grounded and bool(_PERMISSION.search(_WITHOUT_WEB.sub("", quote)))
+    if not grounded:
+        log("plan.source_access", mode="reports_only", reason="ungrounded_review")
+        return True
+    log("plan.source_access", mode=access.mode, reason="review")
+    return access.mode == "reports_only"
+
+
+def apply_report_scope(plan: Plan, question: str) -> Plan:
+    """Apply the effective source scope before either graph chooses tools."""
+    if not (current_scope().report_only or plan.report_only):
+        return plan
+    updates = {"report_only": True}
+    if plan.intent == "research" and plan.quotes:
+        # Direct market feeds cannot be used here. Research the entire question
+        # in the permitted reports, retaining its original freshness requirement.
+        updates.update(
+            wants_context=True,
+            quotes=[],
+            rag_query=question,
+            quote_request="",
+            context_request="",
+            context_fresh=None,
+        )
+    return plan.model_copy(update=updates)
 
 
 def resolve_forecast_scope(client, plan: Plan, payload: dict) -> Plan:
@@ -325,8 +392,7 @@ def make_plan(client, question, previous=None, *, resolve_missing_event_scope=Tr
     else:
         raw = client.generate("plan", payload, Plan)
     plan = validate_plan(raw, question, previous)
-    if current_scope().report_only:
-        plan = plan.model_copy(update={"report_only": True})
+    plan.report_only = resolve_report_only(client, plan, question)
     research_quotes = plan.intent == "research" and bool(plan.quotes) and not plan.clarify
     if research_quotes:
         plan = resolve_research_quotes(client, plan, payload)
