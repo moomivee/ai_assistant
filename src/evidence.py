@@ -191,6 +191,7 @@ def generate_answer(
     allow_research_clarification=False,
     latest_completed_event=False,
     allow_chronology_repair=True,
+    allow_format_repair=True,
 ):
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
@@ -226,7 +227,9 @@ def generate_answer(
     related, related_gaps = [], []
     if latest_completed_event:
         checks["stage"] = "event_chronology"
-        chronology = build_event_chronology(client, question, evidence, previous=previous)
+        chronology = build_event_chronology(
+            client, question, evidence, previous=previous, allow_format_repair=allow_format_repair
+        )
         latest = chronology["latest_held_date"]
         overdue = sorted(
             {
@@ -245,14 +248,29 @@ def generate_answer(
             )
         }
         checks["event_chronology"]["overdue_scheduled_dates"] = overdue
+        checks["event_chronology"]["scheduled_leads"] = [
+            {key: event[key] for key in ("date", "evidence_id", "scope") if key in event}
+            for event in chronology["scheduled_events"]
+        ]
+        extraction = chronology.get("extraction", {})
+        if extraction:
+            checks["event_chronology"]["extraction"] = extraction
+        format_incomplete = extraction.get("status") in {"incomplete", "invalid_format"}
         related, related_gaps = _requested_event_context(chronology)
         checks["event_chronology"]["missing_requested_context"] = related_gaps
         if not latest:
-            checks.update(reason="no_confirmed_event", accepted_claims=len(related))
+            checks.update(
+                reason="chronology_format_incomplete"
+                if format_incomplete
+                else "no_confirmed_event",
+                accepted_claims=len(related),
+            )
             return (
                 CitedAnswer(claims=related, complete=False),
                 evidence,
-                (
+                "Не удалось завершить сопоставление дат в полученных материалах."
+                if format_incomplete
+                else (
                     "Не удалось подтвердить дату состоявшегося события. Проверьте итоговое "
                     "сообщение организатора или публикацию после назначенной даты."
                 ),
@@ -262,6 +280,8 @@ def generate_answer(
                 "После подтверждённого события было запланировано другое. Требуется "
                 "проверить его итоги или отмену с учётом дат: " + ", ".join(overdue) + "."
             )
+        elif format_incomplete:
+            chronology_gap = "Проверку хронологии удалось завершить только для части фрагментов."
         elif chronology["unresolved_evidence_ids"]:
             chronology_gap = (
                 "Остались фрагменты с неустановленной хронологией. Проверьте, есть ли "

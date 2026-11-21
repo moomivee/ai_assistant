@@ -19,6 +19,7 @@ window.TraceView = (() => {
     time_budget_exhausted: "Достигнут общий лимит времени",
     research_budget_exhausted: "Поиск завершён с резервом времени на ответ",
     research_clarification: "После проверки источников агент запросил уточнение",
+    chronology_format_incomplete: "Не удалось завершить сопоставление дат",
     review_disabled: "Кандидат ответа получен; проверка смысла и полноты отключена",
   };
   const intents = { research: "Анализ источников", forecast: "Прогноз", capabilities: "Вопрос о возможностях агента", outside: "Вне специализации" };
@@ -99,7 +100,8 @@ window.TraceView = (() => {
       li.append(detail("Какие сведения найдены и чего не хватает", assessment, "step-detail"));
     }
     if (execution) {
-      if (execution.argument_repair?.mode === "plan_rag_query") li.append(node("p", "Модель оставила поисковую строку пустой. Агент взял из плана фразу «" + execution.argument_repair.after.query + "».", "small"));
+      if (["plan_rag_query", "plan_web_query"].includes(execution.argument_repair?.mode)) li.append(node("p", "Модель оставила поисковую строку пустой. Агент взял из плана фразу «" + execution.argument_repair.after.query + "».", "small"));
+      if (execution.argument_repair?.mode === "event_search") li.append(node("p", "Для проверки события выполнен запрос «" + execution.argument_repair.after.query + "».", "small"));
       if (execution.error) li.append(node("p", errorText(execution.error), "step-error"));
       if (execution.duplicate_of) li.append(node("p", `Повтор шага ${execution.duplicate_of}. Ранее получено: ${execution.reused_source_ids?.join(", ") || "фрагментов нет"}.`, "step-result"));
       if (typeof execution.new_evidence === "boolean") li.append(node("p", `Новые данные: ${execution.new_evidence ? "да" : "нет"}. Попыток без новых данных подряд: ${execution.no_progress_steps ?? 0}.`, "small"));
@@ -250,6 +252,13 @@ window.TraceView = (() => {
           item.append(node("p", date
             ? `По найденным материалам последнее подтверждённое событие состоялось ${date}${ids ? " · " + ids : ""}.`
             : "По найденным материалам пока не удалось подтвердить дату состоявшегося события.", "small event-chronology"));
+          const extraction = chronology.extraction;
+          if (extraction?.repair_attempted) {
+            item.append(node("p", "Агент запросил у модели исправление формата ответа по хронологии.", "small"));
+          }
+          if (extraction?.unparsed_evidence_ids?.length) {
+            item.append(node("p", "Не удалось разобрать результат модели для фрагментов " + extraction.unparsed_evidence_ids.join(", ") + ".", "small"));
+          }
         }
         if (Number.isInteger(check.validation?.candidate_claims)) {
           const v = check.validation;

@@ -19,12 +19,13 @@ from .budget import (
 )
 from .clock import clock_payload, request_clock
 from .config import settings
+from .event_search import EventSearchAction, event_publication_search, event_search_context
 from .evidence import generate_answer, render_claims
 from .forecast_memory import pending_forecast
 from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
-from .integrations.web import DAILY, PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE
+from .integrations.web import DAILY, PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE, WEB_QUERY_LIMIT
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import make_plan
@@ -64,8 +65,12 @@ class State(TypedDict, total=False):
 
 
 @lru_cache(maxsize=32)
-def action_schema(allowed):
-    return create_model("AvailableAction", __base__=NextAction, action=(Literal[allowed], ...))
+def action_schema(allowed, *, event_followup=False):
+    return create_model(
+        "AvailableAction",
+        __base__=EventSearchAction if event_followup else NextAction,
+        action=(Literal[allowed], ...),
+    )
 
 
 def repair_web_time_filter(client, question, previous, decision):
@@ -349,6 +354,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         try:
             actions = allowed_actions(state)
             p = state["plan"]
+            event_context = event_search_context(state) if "web_search" in actions else None
             if (
                 state["attempts"] == 0
                 and p["intent"] == "research"
@@ -385,6 +391,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         **clock_payload(),
                         "allowed_actions": allowed_actions(state),
                         "research_status": research_status(state),
+                        **({"event_search": event_context} if event_context is not None else {}),
                         "steps_remaining": settings().agent_max_steps - state["attempts"],
                         "observations": state["observations"],
                         "sources": decision_sources(
@@ -409,11 +416,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                             )
                         },
                     },
-                    action_schema(tuple(actions)),
+                    action_schema(tuple(actions), event_followup=event_context is not None),
                 ).model_dump()
                 decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
-            if "web_search" in actions:
+            if decision["action"] == "web_search" and event_context is not None:
+                decision = event_publication_search(decision, event_context, state)
+            elif "web_search" in actions:
                 decision = repair_web_time_filter(
                     client, state["question"], state.get("previous"), decision
                 )
@@ -479,7 +488,16 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             if args["search"] and fallback:
                 args.update(quote_fallback=True, fresh=True)
             if args["search"] and not d["query"].strip():
-                error = "web_search requires a non-empty query when searching publications."
+                planned = (p.get("context_request") or p["rag_query"]).strip()
+                if p.get("latest_completed_event") and planned and not state["sources"]:
+                    args["query"] = " ".join(planned.split())[:WEB_QUERY_LIMIT]
+                    argument_repair = {
+                        "mode": "plan_web_query",
+                        "before": {"query": d["query"]},
+                        "after": {"query": args["query"]},
+                    }
+                else:
+                    error = "web_search requires a non-empty query when searching publications."
             for key in ("topic", "days", "start_date", "end_date", "search_depth"):
                 if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
@@ -615,6 +633,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         check.get("validation", {}).get("chronology_repair_attempted")
                         for check in state["answer_checks"]
                     ),
+                    "allow_format_repair": not any(
+                        check.get("validation", {})
+                        .get("event_chronology", {})
+                        .get("extraction", {})
+                        .get("repair_attempted")
+                        for check in state["answer_checks"]
+                    ),
                 }
             draft, evidence, feedback = generate_answer(
                 client,
@@ -661,7 +686,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     validation=validation,
                 ),
             }
-            if validation.get("research_clarification"):
+            extraction = validation.get("event_chronology", {}).get("extraction", {})
+            if extraction.get("status") in {"incomplete", "invalid_format"}:
+                # More searches cannot fix an unreadable structured response.
+                result["stop_reason"] = "chronology_format_incomplete"
+            elif validation.get("research_clarification"):
                 result["stop_reason"] = "research_clarification"
             return result
         except (LLMUnavailable, RequestBudgetExceeded) as exc:
@@ -726,7 +755,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 if "price" in source and source["id"] not in {s["id"] for s in sources}:
                     blocks.append(source["text"] + f" [{source['id']}]")
                     sources.append(source)
-            complete = task_complete(state)
+            complete = task_complete(state) and stop != "chronology_format_incomplete"
             unreviewed = (
                 bool(
                     p
@@ -751,7 +780,23 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 blocks.append("Не удалось завершить обработку запроса. " + state["failure"])
             else:
                 status = "ok" if complete else "partial"
-                if chronology.get("overdue_scheduled_dates") and not complete:
+                if stop == "chronology_format_incomplete":
+                    if chronology.get("scheduled_leads") and not chronology.get("latest_held_date"):
+                        blocks.append(
+                            "В найденных материалах есть анонс. Подтвердить дату последнего "
+                            "состоявшегося события пока не удалось."
+                        )
+                    elif claims:
+                        blocks.append(
+                            "Приведены подтверждённые сведения. Сопоставить даты во всех "
+                            "найденных материалах не удалось."
+                        )
+                    else:
+                        blocks.append(
+                            "Материалы найдены, но установить по ним дату последнего "
+                            "состоявшегося события пока не удалось."
+                        )
+                elif chronology.get("overdue_scheduled_dates") and not complete:
                     dates = ", ".join(chronology["overdue_scheduled_dates"])
                     blocks.append(
                         f"В публикациях упомянуты более поздние даты в расписании ({dates}). "
@@ -797,8 +842,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "Использованы только загруженные отчёты; актуальность на сегодняшний день не проверялась."
                 )
             if not complete:
-                omit_date_notices = citation_failure and not any(
-                    s["kind"] == "web" and not s.get("date") for s in sources
+                omit_date_notices = stop == "chronology_format_incomplete" or (
+                    citation_failure
+                    and not any(s["kind"] == "web" and not s.get("date") for s in sources)
                 )
                 for observation in state["observations"]:
                     if not observation.get("duplicate_of"):

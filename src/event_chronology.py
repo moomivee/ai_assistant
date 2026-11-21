@@ -1,13 +1,16 @@
 """Compare dated occurrences in the supplied evidence for a latest-event question."""
 
+import json
 import re
-from collections import defaultdict
+from collections import Counter
 from datetime import date
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
+from .budget import check_budget
 from .clock import clock_payload
+from .integrations.llm import StructuredOutputError
 from .models.schemas import StrictModel
 
 
@@ -86,7 +89,51 @@ def mentioned_dates(text: str, *, default_year: int | None = None) -> set[date]:
     return found
 
 
-def build_event_chronology(client, question, evidence, *, previous=None):
+def _read_blocks(client, payload):
+    """Recover independent rows by explicit block ID, never by their array position."""
+    allowed = payload["evidence"].keys()
+    issues = []
+    try:
+        result = client.generate("event_chronology", payload, EventChronology)
+        rows = result.blocks
+        context = result.requested_context
+        counts = Counter(row.evidence_id for row in rows)
+    except StructuredOutputError as exc:
+        issues = exc.issues
+        try:
+            data = json.loads(exc.response_content)
+        except (TypeError, ValueError):
+            data = None
+        if not isinstance(data, dict) or not isinstance(data.get("blocks"), list):
+            return {}, None, issues
+        # An invalid sibling can make Pydantic reject the entire envelope.
+        # Use the very same row schema, without interpreting strings as rows.
+        # Count explicit IDs before parsing so a bad duplicate cannot be hidden.
+        objects = [
+            obj
+            for obj in data["blocks"]
+            if isinstance(obj, dict) and isinstance(obj.get("evidence_id"), str)
+        ]
+        counts = Counter(obj["evidence_id"] for obj in objects)
+        rows = []
+        for obj in objects:
+            if obj["evidence_id"] in allowed and counts[obj["evidence_id"]] == 1:
+                try:
+                    rows.append(EventBlock.model_validate(obj))
+                except ValidationError:
+                    continue
+        try:
+            context = EventChronology.model_validate({**data, "blocks": []}).requested_context
+        except ValidationError:
+            context = None
+    return (
+        {r.evidence_id: r for r in rows if r.evidence_id in allowed and counts[r.evidence_id] == 1},
+        context,
+        issues,
+    )
+
+
+def build_event_chronology(client, question, evidence, *, previous=None, allow_format_repair=True):
     clock = clock_payload()
     as_of = clock["today"]
     payload = {
@@ -103,23 +150,34 @@ def build_event_chronology(client, question, evidence, *, previous=None):
             for key, block in evidence.items()
         },
     }
-    chronology = (
-        client.generate("event_chronology", payload, EventChronology)
-        if evidence
-        else EventChronology(blocks=[])
-    )
-    reviews_by_id = defaultdict(list)
-    for block in chronology.blocks:
-        reviews_by_id[block.evidence_id].append(block)
+    reviews, context, issues = _read_blocks(client, payload) if evidence else ({}, [], [])
+    missing = [key for key in evidence if key not in reviews]
+    repair_attempted = allow_format_repair and bool(missing or context is None)
+    if repair_attempted:
+        check_budget()
+        repair_payload = {
+            **payload,
+            "evidence": {key: payload["evidence"][key] for key in missing},
+            "format_repair": {
+                "expected_evidence_ids": missing,
+                "validation_errors": issues,
+            },
+        }
+        corrected, corrected_context, repair_issues = _read_blocks(client, repair_payload)
+        reviews.update(corrected)
+        if context is None:
+            context = corrected_context
+        issues = [*issues, *repair_issues]
+        missing = [key for key in evidence if key not in reviews]
     unresolved = set()
     held, scheduled = [], []
     for key, source in evidence.items():
-        reviews = reviews_by_id[key]
-        if len(reviews) != 1 or reviews[0].status == "uncertain":
+        block = reviews.get(key)
+        if block is None or block.status == "uncertain":
             unresolved.add(key)
             continue
         original = " ".join(source["text"].split())
-        for item in reviews[0].events:
+        for item in block.events:
             quote = " ".join(item.quote.split())
             if (
                 not quote
@@ -153,8 +211,20 @@ def build_event_chronology(client, question, evidence, *, previous=None):
         "latest_evidence_ids": list(
             dict.fromkeys(item["evidence_id"] for item in held if item["date"] == latest)
         ),
-        "requested_context": list(dict.fromkeys(chronology.requested_context)),
+        "requested_context": list(dict.fromkeys(context or ())),
         "held_events": held,
         "scheduled_events": scheduled,
         "unresolved_evidence_ids": sorted(unresolved),
+        "extraction": {
+            "status": (
+                "ok"
+                if not missing and context is not None
+                else "incomplete"
+                if reviews
+                else "invalid_format"
+            ),
+            "repair_attempted": repair_attempted,
+            "issues": issues,
+            "unparsed_evidence_ids": missing,
+        },
     }

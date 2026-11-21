@@ -20,6 +20,7 @@ DAILY = {"Brent": "DCOILBRENTEU", "WTI": "DCOILWTICO"}
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 QUOTE_TIMEOUT = 8.0
 QUOTE_FALLBACK_TIMEOUT = 15.0
+WEB_QUERY_LIMIT = 400
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
 SEARCH_DATE_NOTICE = (
@@ -238,7 +239,7 @@ def search_web(
     """
     check_budget()
     cfg = settings()
-    query = " ".join(query.split())[:400]
+    query = " ".join(query.split())[:WEB_QUERY_LIMIT]
     if not query:
         raise ValueError("Для веб-поиска нужен непустой запрос.")
     start, end = validate_search_options(
@@ -377,7 +378,7 @@ def read_web(url: str, query: str = "") -> dict:
         }
     if not cfg.web_key:
         return {"items": [], "notices": ["Для чтения веб-страницы нужен TAVILY_API_KEY в .env."]}
-    query = " ".join(query.split())[:400]
+    query = " ".join(query.split())[:WEB_QUERY_LIMIT]
     payload = {
         "urls": [url],
         "extract_depth": "basic",

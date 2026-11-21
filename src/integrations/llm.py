@@ -22,6 +22,17 @@ class LLMUnavailable(RuntimeError):
     pass
 
 
+class StructuredOutputError(LLMUnavailable):
+    """A provider answered, but the data could not be parsed as the requested model."""
+
+    def __init__(self, message, *, issues, response_content):
+        super().__init__(message)
+        self.issues = issues
+        # Consumers can recover independently valid records. Never log or pass
+        # this text to a repair prompt; it may contain source or provider data.
+        self.response_content = response_content
+
+
 class LLMClient:
     def __init__(self, client=None, *, model=None, provider=None):
         cfg = settings()
@@ -240,7 +251,9 @@ class LLMClient:
                     message = (
                         f"Ответ модели не прошёл проверку по схеме {schema.__name__}: {details}."
                     )
-                raise LLMUnavailable(message) from exc
+                raise StructuredOutputError(
+                    message, issues=issues, response_content=raw_content
+                ) from exc
             except (OpenAIError, ValueError, IndexError) as exc:
                 check_budget()
                 log(
