@@ -4,7 +4,13 @@ import re
 from decimal import Decimal
 
 from .logging import log
-from .models.schemas import EvidenceAnswer, Plan
+from .models.schemas import EvidenceAnswer, ForecastInputs, Plan
+
+BENCHMARK_NAMES = {
+    "Brent": {"brent", "брент"},
+    "WTI": {"wti"},
+    "Urals": {"urals", "уралс", "юралс"},
+}
 
 
 def normalized(text):
@@ -17,6 +23,26 @@ def numbers(text):
     text = text.replace("−", "-")
     text = re.sub(r"(?<=\d)(\s*%?)\s*[-–—]\s*(?=\d)", r"\1 ", text)
     return {Decimal(x.replace(",", ".")) for x in re.findall(r"(?<!\w)-?\d+(?:[.,]\d+)?", text)}
+
+
+def unsupported_discount(plan: Plan) -> bool:
+    return plan.discount is not None and plan.benchmark in ("Brent", "WTI")
+
+
+def named_grades(text: str) -> set[str]:
+    words = set(re.findall(r"\w+", normalized(text)))
+    return {grade for grade, names in BENCHMARK_NAMES.items() if words & names}
+
+
+def discount_quote(inputs: Plan | ForecastInputs) -> str:
+    # Match validate_plan's choice if a model returned the field twice.
+    return next((p.quote for p in reversed(inputs.parameters) if p.field == "discount"), "")
+
+
+def unsupported_discount_base(plan: Plan) -> bool:
+    if plan.benchmark != "Urals" or plan.discount is None:
+        return False
+    return "WTI" in named_grades(discount_quote(plan))
 
 
 def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Plan:
@@ -74,6 +100,16 @@ def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Pla
             log("plan.parameter_rejected", field=field)
     if p.benchmark is None:
         p.clarify = "Какой сорт рассчитать: Brent, WTI или Urals?"
+    elif unsupported_discount(p):
+        p.clarify = (
+            f"Для {p.benchmark} доступен обычный прогноз. Дисконт к Brent применяется "
+            f"только в сценарии Urals. Рассчитать {p.benchmark} без дисконта?"
+        )
+    elif unsupported_discount_base(p):
+        p.clarify = (
+            "В условии дисконта указан WTI. Для прогноза Urals расчёт использует Brent "
+            "как базу. Какой дисконт к Brent заложить в USD за баррель?"
+        )
     elif p.months is None or not 1 <= p.months <= 12:
         p.clarify = "На сколько месяцев нужен прогноз? Допустим горизонт от 1 до 12 месяцев."
     elif p.benchmark == "Urals" and p.discount is None:

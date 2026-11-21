@@ -1,5 +1,7 @@
 """Bounded structured checks of forecast inputs and combined research requests."""
 
+from decimal import Decimal
+
 from .clock import clock_payload
 from .integrations.agent_skills import get_skill_catalog
 from .integrations.llm import LLMUnavailable
@@ -7,14 +9,18 @@ from .integrations.web import DAILY
 from .logging import log
 from .models.schemas import ForecastInputs, ForecastScope, Plan, ResearchQuoteScope
 from .request_context import current_scope, scope_payload
-from .validation import normalized, validate_plan
+from .validation import (
+    BENCHMARK_NAMES,
+    discount_quote,
+    named_grades,
+    normalized,
+    numbers,
+    unsupported_discount,
+    unsupported_discount_base,
+    validate_plan,
+)
 
 FORECAST_FIELDS = ("benchmark", "months", "discount", "cut", "sensitivity")
-BENCHMARK_NAMES = {
-    "Brent": ("brent", "брент"),
-    "WTI": ("wti",),
-    "Urals": ("urals", "уралс", "юралс"),
-}
 
 
 def resolve_forecast_scope(client, plan: Plan, payload: dict) -> Plan:
@@ -66,29 +72,84 @@ def resolve_forecast_scope(client, plan: Plan, payload: dict) -> Plan:
     return resolved
 
 
-def merge_forecast_inputs(plan: Plan, extracted: ForecastInputs, question, previous=None):
-    """Fill missing fields only; new values require quotes from the actual input."""
+def discount_target_needs_review(plan: Plan, source: str) -> bool:
+    if unsupported_discount(plan):
+        return True
+    if plan.benchmark != "Urals" or plan.discount is None:
+        return False
+    terms = normalized(discount_quote(plan))
+    target_text = source.replace(terms, " ") if terms else source
+    return plan.benchmark not in named_grades(target_text)
+
+
+def discount_target_supported(
+    plan: Plan, extracted: ForecastInputs, source: str, target_quote: str
+) -> bool:
+    """Check that the proposed target is identifiable outside the quoted discount terms."""
+    if named_grades(target_quote) != {extracted.benchmark}:
+        return False
+    original_terms = normalized(discount_quote(plan))
+    if named_grades(original_terms) == {extracted.benchmark} and not any(
+        target_quote in part for part in source.split(original_terms)
+    ):
+        return False
+    for terms in (original_terms, normalized(discount_quote(extracted))):
+        if not terms or terms not in source or Decimal(str(plan.discount)) not in numbers(terms):
+            continue
+        # Exclude the reference in e.g. "12 dollars below Brent". A name that appears
+        # only there cannot identify the requested price. Different numeric inputs
+        # from the second reading never override the validated assumptions.
+        remaining = source.split(terms)
+        if not any(target_quote in part for part in remaining):
+            continue
+        if named_grades(" ".join(remaining)) == {extracted.benchmark}:
+            return True
+        # Additional clauses may mention other grades. In that case accept a specific
+        # target clause when the earlier candidate is confirmed or is the quoted base.
+        if len(target_quote.split()) > 1 and (
+            plan.benchmark == extracted.benchmark or plan.benchmark in named_grades(terms)
+        ):
+            return True
+    return False
+
+
+def merge_forecast_inputs(
+    plan: Plan, extracted: ForecastInputs, question, previous=None, *, review_target=False
+):
+    """Fill missing inputs and reconsider a target incompatible with a grounded discount."""
     candidate = plan.model_copy(deep=True)
     source = normalized((previous or "") + " " + question)
     quote = normalized(extracted.benchmark_quote)
+    if review_target:
+        candidate.benchmark = None
     if candidate.benchmark is None and extracted.benchmark is not None:
-        # This checks the model's evidence, not intent/routing by keywords.
-        tokens = [word.strip(".,:;!?()[]«»\"'") for word in quote.replace("/", " ").split()]
         if (
             quote
             and quote in source
-            and any(name in tokens for name in BENCHMARK_NAMES[extracted.benchmark])
+            and extracted.benchmark in named_grades(quote)
+            and (not review_target or discount_target_supported(plan, extracted, source, quote))
         ):
             candidate.benchmark = extracted.benchmark
     evidence = {e.field: e for e in candidate.parameters}
     new_evidence = {e.field: e for e in extracted.parameters}
+    if review_target and extracted.discount == plan.discount and "discount" in new_evidence:
+        # Keep a fuller verbatim citation (including the reference grade) for the
+        # same validated amount, without replacing it with a different assumption.
+        terms = normalized(new_evidence["discount"].quote)
+        if normalized(discount_quote(plan)) in terms and terms in source:
+            evidence["discount"] = new_evidence["discount"]
     for field in FORECAST_FIELDS[1:]:
         value = getattr(extracted, field)
         if getattr(candidate, field) is None and value is not None and field in new_evidence:
             setattr(candidate, field, value)
             evidence[field] = new_evidence[field]
     candidate.parameters = list(evidence.values())
-    return validate_plan(candidate, question, previous)
+    result = validate_plan(candidate, question, previous)
+    if review_target and result.benchmark is None:
+        result.clarify = (
+            "Какой сорт нужно прогнозировать? Сценарий с дисконтом к Brent доступен для Urals."
+        )
+    return result
 
 
 def verified_quote_scope(
@@ -214,18 +275,27 @@ def make_plan(client, question, previous=None) -> Plan:
         )
     if plan.intent != "forecast":
         return plan
+    source = normalized((previous or "") + " " + question)
+    review_target = discount_target_needs_review(plan, source)
+    if unsupported_discount_base(plan) and not review_target:
+        return plan
 
-    if plan.clarify or raw.clarify:
+    if review_target or plan.clarify or raw.clarify:
         # At most one input repair. A genuinely absent parameter stays absent.
         log(
             "plan.repair_requested",
             missing=[f for f in FORECAST_FIELDS if getattr(plan, f) is None],
+            review_discount_target=review_target,
         )
-        extracted = client.generate("forecast", payload, ForecastInputs)
-        if raw.clarify and not plan.clarify:
+        extracted = client.generate(
+            "forecast", {**payload, "review_discount_target": review_target}, ForecastInputs
+        )
+        if raw.clarify and not plan.clarify and not review_target:
             # Recheck a possible ambiguity before dismissing the clarification.
             plan = plan.model_copy(update={**{f: None for f in FORECAST_FIELDS}, "parameters": []})
-        plan = merge_forecast_inputs(plan, extracted, question, previous)
+        plan = merge_forecast_inputs(
+            plan, extracted, question, previous, review_target=review_target
+        )
         log(
             "plan.repaired",
             benchmark=plan.benchmark,

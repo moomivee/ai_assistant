@@ -97,7 +97,7 @@ def comparison_checks(response):
     return checks
 
 
-def valid_intervals(rows, as_of):
+def valid_intervals(rows, as_of, months=3):
     try:
         last = date.fromisoformat(as_of + "-01")
         for row in rows:
@@ -108,19 +108,20 @@ def valid_intervals(rows, as_of):
                 or not row["lower"] <= row["point"] <= row["upper"]
             ):
                 return False
-        return len(rows) == 3
+        return len(rows) == months
     except (KeyError, TypeError, ValueError):
         return False
 
 
-def forecast_checks(response):
+def forecast_checks(response, benchmark="Brent", months=3):
     forecast = response.get("forecast") or {}
     rows = forecast.get("rows") or []
     last = rows[-1] if rows else {}
     answer = response["answer"]
     return {
-        "Brent, три последовательных месяца с прогнозными интервалами": (
-            forecast.get("benchmark") == "Brent" and valid_intervals(rows, forecast.get("as_of"))
+        f"{benchmark}, последовательные месяцы с прогнозными интервалами ({months})": (
+            forecast.get("benchmark") == benchmark
+            and valid_intervals(rows, forecast.get("as_of"), months)
         ),
         "конечный месяц, цена, границы интервала и единицы видны в ответе": bool(
             last.get("month")
@@ -235,6 +236,19 @@ def saved_answers(directory):
     return answers
 
 
+def ask_api(base_url, question, previous=None):
+    payload = {"question": question}
+    if previous is not None:
+        payload["previous"] = previous
+    request = Request(
+        base_url.rstrip("/") + "/api/ask",
+        json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with urlopen(request, timeout=600) as result:
+        return json.load(result)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -253,13 +267,7 @@ def main():
     for case, question in QUESTIONS.items():
         try:
             if saved is None:
-                request = Request(
-                    args.base_url.rstrip("/") + "/api/ask",
-                    json.dumps({"question": question}).encode(),
-                    headers={"Content-Type": "application/json"},
-                )
-                with urlopen(request, timeout=600) as result:
-                    response = json.load(result)
+                response = ask_api(args.base_url, question)
             else:
                 response = saved[question]
             row = score(case, response)

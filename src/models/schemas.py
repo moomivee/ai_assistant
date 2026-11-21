@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 Grade = Literal["Brent", "WTI", "Urals"]
+FORECAST_TARGET = "Сорт, цену которого пользователь просит спрогнозировать. Упомянутая база сравнения или дисконта сама по себе не является целью прогноза."
 
 
 class StrictModel(BaseModel):
@@ -49,7 +50,7 @@ class Plan(StrictModel):
         default=None,
         description="Does the separate research clause need current verification independently of a spot quote? Null when inapplicable.",
     )
-    benchmark: Grade | None
+    benchmark: Grade | None = Field(description=FORECAST_TARGET)
     months: int | None
     discount: FiniteFloat | None
     cut: FiniteFloat | None
@@ -80,8 +81,11 @@ class ResearchQuoteScope(StrictModel):
 
 
 class ForecastInputs(StrictModel):
-    benchmark: Grade | None
-    benchmark_quote: str = Field(max_length=500)
+    benchmark: Grade | None = Field(description=FORECAST_TARGET)
+    benchmark_quote: str = Field(
+        max_length=500,
+        description="Дословный фрагмент о том, для какого сорта нужен прогноз, отдельно от условия дисконта.",
+    )
     months: int | None
     discount: FiniteFloat | None
     cut: FiniteFloat | None
