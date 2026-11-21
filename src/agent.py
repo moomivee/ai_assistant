@@ -737,8 +737,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     "chronology": chronology_cache,
                 }
             extraction = validation.get("event_chronology", {}).get("extraction", {})
-            if extraction.get("status") in {"incomplete", "invalid_format"}:
-                # More searches cannot fix an unreadable structured response.
+            # An incomplete comparison still has usable rows. Its evidence gaps
+            # go back to the planner under the usual time and action limits.
+            if extraction.get("status") == "invalid_format":
                 result["stop_reason"] = "chronology_format_incomplete"
             elif validation.get("research_clarification"):
                 result["stop_reason"] = "research_clarification"

@@ -284,21 +284,28 @@ def generate_answer(
         related, related_gaps = _requested_event_context(chronology)
         checks["event_chronology"]["missing_requested_context"] = related_gaps
         if not latest:
+            unreadable = extraction.get("status") == "invalid_format"
             checks.update(
-                reason="chronology_format_incomplete"
-                if format_incomplete
-                else "no_confirmed_event",
+                reason="chronology_format_incomplete" if unreadable else "no_confirmed_event",
                 accepted_claims=len(related),
             )
+            if unreadable:
+                feedback = "Не удалось разобрать ответ модели по хронологии найденных материалов."
+            elif format_incomplete:
+                feedback = (
+                    "В разобранных фрагментах нет подтверждения даты состоявшегося события. "
+                    "Можно проверить другой источник или открыть полный текст в пределах "
+                    "разрешённого поиска. Из него нужна цитата, подтверждающая дату и участников."
+                )
+            else:
+                feedback = (
+                    "Не удалось подтвердить дату состоявшегося события. Проверьте итоговое "
+                    "сообщение организатора или публикацию после назначенной даты."
+                )
             return (
                 CitedAnswer(claims=related, complete=False),
                 evidence,
-                "Не удалось завершить сопоставление дат в полученных материалах."
-                if format_incomplete
-                else (
-                    "Не удалось подтвердить дату состоявшегося события. Проверьте итоговое "
-                    "сообщение организатора или публикацию после назначенной даты."
-                ),
+                feedback,
             )
         if overdue:
             chronology_gap = (
@@ -313,6 +320,13 @@ def generate_answer(
                 "в них более позднее состоявшееся событие, либо уточните поиск."
             )
         chronology_gap = " ".join(value for value in [chronology_gap, *related_gaps] if value)
+        # Keep malformed rows in the chronology diagnostics. Only readable rows
+        # can become citations, even when two excerpts belong to the same page.
+        unparsed = set(extraction.get("unparsed_evidence_ids", []))
+        if unparsed:
+            evidence = {key: row for key, row in evidence.items() if key not in unparsed}
+            source_ids = {row["source"] for row in evidence.values()}
+            sources = [source for source in sources if source["id"] in source_ids]
     payload = {
         "question": question,
         **({"previous": previous} if previous else {}),

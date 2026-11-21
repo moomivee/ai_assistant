@@ -135,13 +135,19 @@ def build_event_chronology(
     keyed = prior.get("keyed_blocks", False)
     reviews = {}
     fingerprints = {}
+    previous_unparsed = []
+    pending = []
     for key, entry in inputs.items():
         fingerprint = sha256(json.dumps(entry, ensure_ascii=False).encode()).hexdigest()
         fingerprints[key] = fingerprint
-        if key in saved and saved[key]["fingerprint"] == fingerprint:
-            reviews[key] = EventBlock.model_validate(saved[key]["row"])
+        cached = saved.get(key)
+        if cached is None or cached["fingerprint"] != fingerprint:
+            pending.append(key)
+        elif cached["row"] is None:
+            previous_unparsed.append(key)
+        else:
+            reviews[key] = EventBlock.model_validate(cached["row"])
     reused = list(reviews)
-    pending = [key for key in inputs if key not in reviews]
     capacity = BATCH_SIZE * MAX_BATCHES
     deferred = pending[capacity:]
     pending = pending[:capacity]
@@ -188,8 +194,13 @@ def build_event_chronology(
             if context is None and (corrected or not missing):
                 context = roles
         reviews.update(rows)
-        for key, record in rows.items():
-            saved[key] = {"fingerprint": fingerprints[key], "row": record.model_dump()}
+        # An unparseable block remains a gap. Only new content warrants another
+        # extraction after all permitted repairs have been tried for this input.
+        for key in keys:
+            saved[key] = {
+                "fingerprint": fingerprints[key],
+                "row": rows[key].model_dump() if key in rows else None,
+            }
     if cache is not None:
         cache.update(
             scope=scope,
@@ -197,7 +208,8 @@ def build_event_chronology(
             requested_context=context,
             keyed_blocks=keyed or repair_attempted,
         )
-    missing = [key for key in pending if key not in reviews]
+    new_unparsed = [key for key in pending if key not in reviews]
+    unparsed = previous_unparsed + new_unparsed
     if not evidence:
         context = []
     unresolved = set()
@@ -249,7 +261,7 @@ def build_event_chronology(
         "extraction": {
             "status": (
                 "ok"
-                if not missing and context is not None
+                if not unparsed and context is not None
                 else "incomplete"
                 if reviews
                 else "invalid_format"
@@ -257,7 +269,8 @@ def build_event_chronology(
             "repair_attempted": repair_attempted,
             "issues": issues,
             "address_errors": dict(address_errors),
-            "unparsed_evidence_ids": missing,
+            "unparsed_evidence_ids": unparsed,
+            "new_unparsed_evidence_ids": new_unparsed,
             "deferred_evidence_ids": deferred,
             "reused_evidence_ids": reused,
             "reviewed_evidence_ids": [key for key in pending if key in reviews],

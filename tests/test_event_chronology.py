@@ -200,6 +200,43 @@ def test_twice_malformed_result_retains_only_independently_valid_confirmed_row()
     )
 
 
+def test_unparsed_block_stays_a_gap_until_its_content_changes():
+    undated = {
+        "W1:B1": {"text": "The council will publish an update."},
+        "W2:B1": {"text": "Fragment of a release."},
+    }
+    date = "The council met on 4 May 2020."
+    more = {**undated, "W3:B1": {"text": date}}
+    provider = RecordedProvider(
+        {"blocks": [block("W1:B1", status="uncertain"), {"unexpected": "W2:B1"}]},
+        GigaChatError("empty_response", "No content"),
+        {"blocks": {"W3:B1": {"status": "assessed", "events": [event("2020-05-04", date)]}}},
+        {"blocks": {"W2:B1": {"status": "assessed", "events": []}}},
+    )
+    cache = {}
+    initial = read_provider(provider, undated, cache=cache)
+    assert initial["extraction"]["new_unparsed_evidence_ids"] == ["W2:B1"]
+    next_round = read_provider(provider, more, cache=cache, allow_format_repair=False)
+    assert next_round["latest_evidence_ids"] == ["W3:B1"]
+    assert next_round["unresolved_evidence_ids"] == ["W1:B1", "W2:B1"]
+    audit = next_round["extraction"]
+    assert audit["status"] == "incomplete" and not audit["new_unparsed_evidence_ids"]
+    assert audit["unparsed_evidence_ids"] == ["W2:B1"]
+    assert audit["reviewed_evidence_ids"] == ["W3:B1"] and audit["reused_evidence_ids"] == ["W1:B1"]
+    assert not read_provider(provider, more, cache=cache)["extraction"]["batch_sizes"]
+
+    updated = {**more, "W2:B1": {"text": "Corrected release about a different organization."}}
+    after_read = read_provider(provider, updated, cache=cache, allow_format_repair=False)
+    assert after_read["extraction"]["status"] == "ok"
+    assert after_read["unresolved_evidence_ids"] == ["W1:B1"]
+    assert [list(p["evidence"]) for p in provider.payloads] == [
+        list(undated),
+        ["W2:B1"],
+        ["W3:B1"],
+        ["W2:B1"],
+    ]
+
+
 def test_unparsed_response_is_distinct_from_a_successful_uncertain_assessment():
     evidence = {"W1:B1": {"text": "There will be another meeting."}}
     bad = {"blocks": ["not an observation"]}
@@ -217,6 +254,24 @@ def test_unparsed_response_is_distinct_from_a_successful_uncertain_assessment():
         evidence
     )
     assert len(provider.payloads) == 1
+
+
+def test_failed_replacement_supersedes_earlier_success_for_the_same_block():
+    text = "The council met on 4 May 2020."
+    original = {"W1:B1": {"text": text}}
+    replacement = {"W1:B1": {"text": "A corrected bulletin without a date."}}
+    provider = RecordedProvider(
+        {"blocks": [block("W1:B1", event("2020-05-04", text))]},
+        {"blocks": []},
+        {"blocks": [block("W1:B1", status="uncertain")]},
+    )
+    cache = {}
+    assert read_provider(provider, original, cache=cache)["latest_held_date"] == "2020-05-04"
+    changed = read_provider(provider, replacement, cache=cache, allow_format_repair=False)
+    assert changed["extraction"]["status"] == "invalid_format" and not changed["held_events"]
+    restored = read_provider(provider, original, cache=cache)
+    assert restored["extraction"]["reviewed_evidence_ids"] == ["W1:B1"]
+    assert not restored["held_events"] and restored["unresolved_evidence_ids"] == ["W1:B1"]
 
 
 def test_exhausted_request_repair_and_transport_failure_do_not_regenerate():
@@ -245,6 +300,7 @@ def test_empty_and_truncated_new_completions_preserve_previously_assessed_event(
     assert result["unresolved_evidence_ids"] == ["W2:B1"]
     audit = result["extraction"]
     assert audit["status"] == "incomplete" and audit["repair_attempted"]
+    assert audit["new_unparsed_evidence_ids"] == ["W2:B1"] and not audit["reviewed_evidence_ids"]
     assert audit["address_errors"] == {"unusable_completion": 2, "missing_ids": 2}
     assert [list(p["evidence"]) for p in provider.payloads] == [["W1:B1"], ["W2:B1"], ["W2:B1"]]
 
