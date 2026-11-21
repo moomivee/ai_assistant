@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 import httpx
 
@@ -7,13 +7,12 @@ from src.config import settings
 from src.integrations.web import allowed, search_web
 
 
-def test_web_domain_and_date_filters(monkeypatch):
+def test_web_domain_and_date_filters(monkeypatch, web_today):
     assert allowed("https://www.eia.gov/report", ("eia.gov",))
     assert not allowed("https://eia.gov.fake.example/report", ("eia.gov",))
     assert not allowed("https://user@eia.gov/report", ("eia.gov",))
     monkeypatch.setenv("TAVILY_API_KEY", "test-key")
     settings.cache_clear()
-    today = date.today()
     rows = [
         {
             "url": "https://eia.gov/" + str(i),
@@ -23,9 +22,9 @@ def test_web_domain_and_date_filters(monkeypatch):
         }
         for i, d in enumerate(
             [
-                today.isoformat(),
-                (today + timedelta(days=1)).isoformat(),
-                (today - timedelta(days=90)).isoformat(),
+                web_today.isoformat(),
+                (web_today + timedelta(days=1)).isoformat(),
+                (web_today - timedelta(days=90)).isoformat(),
                 None,
             ]
         )
@@ -34,7 +33,7 @@ def test_web_domain_and_date_filters(monkeypatch):
         {
             "url": "https://untrusted.example/oil",
             "content": "Oil",
-            "published_date": today.isoformat(),
+            "published_date": web_today.isoformat(),
         }
     )
 

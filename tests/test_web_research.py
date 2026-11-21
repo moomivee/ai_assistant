@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -96,9 +96,11 @@ def test_rss_does_not_contact_unrelated_feeds_for_publisher_search(monkeypatch):
     assert data["items"] == [] and any("RSS" in note for note in data["notices"])
 
 
-def test_current_general_search_preserves_latest_older_event_and_unknown_date(monkeypatch):
-    old = (date.today() - timedelta(days=180)).isoformat()
-    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+def test_current_general_search_preserves_latest_older_event_and_unknown_date(
+    monkeypatch, web_today
+):
+    old = (web_today - timedelta(days=180)).isoformat()
+    tomorrow = (web_today + timedelta(days=1)).isoformat()
     calls = post_fixture(
         monkeypatch,
         {
@@ -125,16 +127,16 @@ def test_current_general_search_preserves_latest_older_event_and_unknown_date(mo
     assert payload["auto_parameters"] is False
 
 
-def test_explicit_window_filters_unknown_and_old_dates(monkeypatch):
-    today = date.today()
+def test_explicit_window_filters_unknown_and_old_dates(monkeypatch, web_today):
     calls = post_fixture(
         monkeypatch,
         {
             "results": [
-                result(published=today.isoformat()),
+                result(published=web_today.isoformat()),
                 result(url="https://eia.gov/unknown"),
                 result(
-                    url="https://eia.gov/old", published=(today - timedelta(days=35)).isoformat()
+                    url="https://eia.gov/old",
+                    published=(web_today - timedelta(days=35)).isoformat(),
                 ),
             ]
         },
@@ -142,12 +144,19 @@ def test_explicit_window_filters_unknown_and_old_dates(monkeypatch):
     rows = web.search_web("Oil news", True, topic="news", days=7, search_depth="advanced")
     assert len(rows) == 1
     payload = calls[0][1]["json"]
-    assert payload["start_date"] == (today - timedelta(days=7)).isoformat()
-    assert payload["end_date"] == today.isoformat()
+    assert payload["start_date"] == (web_today - timedelta(days=7)).isoformat()
+    assert payload["end_date"] == web_today.isoformat()
     assert payload["filter_by_published_date"] is True
     assert payload["search_depth"] == "advanced"
     assert rows[0]["content_type"] == "snippet"
     assert rows[0]["retrieved_at"]
+
+
+def test_future_search_end_is_rejected_before_network_call(monkeypatch, web_today):
+    calls = post_fixture(monkeypatch, {"results": []})
+    with pytest.raises(ValueError):
+        web.search_web("Oil", True, end_date=(web_today + timedelta(days=1)).isoformat())
+    assert not calls
 
 
 @pytest.mark.parametrize(
@@ -160,7 +169,6 @@ def test_explicit_window_filters_unknown_and_old_dates(monkeypatch):
         {"start_date": "2024-02-30"},
         {"start_date": "20240101"},
         {"start_date": "2024-03-01", "end_date": "2024-01-01"},
-        {"end_date": (date.today() + timedelta(days=1)).isoformat()},
         {"max_results": 7},
         {"max_results": True},
         {"topic": "anything"},
@@ -289,7 +297,7 @@ def test_extract_rejects_redirect_to_untrusted_domain_and_reports_partial_failur
     assert "secret-provider-text" not in str(response)
 
 
-def test_extract_future_date_is_rejected(monkeypatch):
+def test_extract_future_date_is_rejected(monkeypatch, web_today):
     post_fixture(
         monkeypatch,
         {
@@ -297,7 +305,7 @@ def test_extract_future_date_is_rejected(monkeypatch):
                 {
                     "url": "https://eia.gov/report",
                     "raw_content": "future",
-                    "published_date": (date.today() + timedelta(days=1)).isoformat(),
+                    "published_date": (web_today + timedelta(days=1)).isoformat(),
                 }
             ]
         },
@@ -378,7 +386,7 @@ def test_budget_exhaustion_propagates(monkeypatch):
     assert calls == []
 
 
-def test_rss_fallback_remains_explicit_and_quotes_still_work(monkeypatch):
+def test_rss_fallback_remains_explicit_and_quotes_still_work(monkeypatch, web_today):
     monkeypatch.setenv("TAVILY_API_KEY", "")
     settings.cache_clear()
     monkeypatch.setattr(
@@ -388,7 +396,7 @@ def test_rss_fallback_remains_explicit_and_quotes_still_work(monkeypatch):
             {
                 "kind": "web",
                 "title": "RSS",
-                "date": date.today().isoformat(),
+                "date": web_today.isoformat(),
                 "text": "RSS snippet",
                 "url": "https://eia.gov/report",
             }

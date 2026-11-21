@@ -1,3 +1,5 @@
+from datetime import UTC, date, datetime
+
 import pytest
 
 from src.config import settings
@@ -39,3 +41,10 @@ def isolated(monkeypatch, tmp_path):
     settings.cache_clear()
     llm.cache_clear()
     langfuse_client.cache_clear()
+
+
+@pytest.fixture
+def web_today(monkeypatch):
+    # Same instant, different calendar days in UTC and the configured Moscow zone.
+    monkeypatch.setattr("src.clock._utc_now", lambda: datetime(2026, 11, 21, 22, tzinfo=UTC))
+    return date(2026, 11, 22)
