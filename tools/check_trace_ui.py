@@ -18,6 +18,7 @@ from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs/assets"
+SEED_REPORTS = json.loads((ROOT / "data/reports.json").read_text())
 QUESTION = "Тест интерфейса: сравни образцы Orion и Vega по тестовому отчёту."
 TEXT = "Тестовые данные: Orion — 42° API; Vega — 28° API. Чем выше API, тем легче нефть."
 SOURCE = dict(
@@ -177,21 +178,46 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/status":
             data = dict(
-                model="UI fixture · без LLM",
+                model="GigaChat-2",
+                provider="gigachat",
+                llm_configured=True,
                 tavily=False,
                 agent_mode="loop",
                 agent_max_steps=6,
-                reports=[],
+                reports=SEED_REPORTS,
                 history=[
                     dict(month="2025-01", Brent=70, WTI=65),
                     dict(month="2025-02", Brent=72, WTI=67),
                 ],
             )
             return self.send(json.dumps(data).encode(), "application/json")
+        if self.path.partition("?")[0] == "/api/knowledge/documents":
+            documents = [
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "filename": row["file"],
+                    "status": "ready",
+                    "builtin": True,
+                    "active_version_id": "fixture-v1",
+                    "current_version_id": "fixture-v1",
+                }
+                for row in SEED_REPORTS
+            ]
+            return self.send(json.dumps({"documents": documents}).encode(), "application/json")
+        if self.path.endswith("/update-capability"):
+            return self.send(
+                b'{"supported":true,"discovers_new_releases":false}', "application/json"
+            )
+        if self.path == "/api/rag/status":
+            return self.send(b'{"model":"minilm-multi","top_k":6}', "application/json")
+        if self.path == "/static/gigachat-mark.png":
+            return self.send((ROOT / "src/static/gigachat-mark.png").read_bytes(), "image/png")
         files = {
             "/": ("index.html", "text/html"),
             "/static/site.js": ("site.js", "application/javascript"),
             "/static/trace.js": ("trace.js", "application/javascript"),
+            "/static/knowledge.js": ("knowledge.js", "application/javascript"),
             "/static/site.css": ("site.css", "text/css"),
         }
         if self.path in files:
@@ -375,6 +401,7 @@ async def check_forecast_dialogue(page):
     await send("Рассчитай Urals")
     await page.locator("#newquestion").click()
     assert "dialogue_token" not in await send("Рассчитай Urals")
+    await page.locator("#query-settings > summary").click()
     await page.locator("#report-only").check()
     assert await page.locator("#newquestion").is_hidden()
     scoped = await send("Рассчитай Urals")
@@ -406,7 +433,30 @@ async def check(url):
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         await page.goto(url)
-        await page.locator("#mode").filter(has_text="UI fixture").wait_for()
+        await page.locator('#model-badge[data-provider="gigachat"]').wait_for()
+        await page.locator("#mode").filter(has_text="GigaChat").wait_for()
+        mark_width = await page.locator("#model-badge .model-mark").evaluate(
+            r"""async mark => {
+                const image = new Image();
+                image.src = getComputedStyle(mark).backgroundImage.match(/url\("(.+?)"\)/)[1];
+                await image.decode();
+                return image.naturalWidth;
+            }"""
+        )
+        assert mark_width > 0
+        await page.wait_for_function(
+            "count => document.querySelector('#knowledge-count').textContent === String(count)",
+            arg=len(SEED_REPORTS),
+        )
+        capabilities = page.locator("#panel-test .capability-query")
+        assert await capabilities.count() == 6
+        assert all([await button.is_visible() for button in await capabilities.all()])
+        await page.set_viewport_size({"width": 1440, "height": 900})
+        await page.screenshot(path=str(OUT / "trace-workbench-home-desktop.jpg"), quality=85)
+        await page.set_viewport_size({"width": 390, "height": 844})
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        await page.screenshot(path=str(OUT / "trace-workbench-home-mobile.jpg"), quality=85)
+        await page.set_viewport_size({"width": 1280, "height": 1000})
 
         async def submit(question):
             if await page.locator("#newquestion").is_visible():
@@ -493,8 +543,9 @@ async def check(url):
             page.locator(".inspector-detail > summary").filter(has_text="Полный ответ API").click()
         )
         await page.locator("#result").screenshot(path=str(OUT / "trace-workbench-mobile.png"))
-        await page.locator("#market > summary").click()
-        await page.locator("#historychart svg").wait_for()
+        # The API fixture includes price history. The active workbench does
+        # not expose a chart, while the forecast table below must still work.
+        assert await page.locator("#market, #historychart").count() == 0
         await submit("partial")
         assert "Достигнут лимит шагов" in await page.locator(".trace-stop").inner_text()
         await submit("no_progress")
@@ -596,7 +647,7 @@ async def check(url):
             "retrieved evidence",
             "copy and download",
             "mobile",
-            "chart on demand",
+            "price history chart removed, forecast table preserved",
             "partial",
             "evidence assessment and missing facts",
             "no progress and time budget stops",
@@ -623,8 +674,13 @@ async def check(url):
     # Optional text transport for review clients that cannot download binary
     # Actions artifacts. These screenshots contain UI fixtures only.
     if os.getenv("TRACE_UI_PREVIEW") == "true":
-        print("::group::UI fixture screenshots (base64 PNG)")
-        for name in ("trace-workbench-desktop.png", "trace-workbench-mobile.png"):
+        print("::group::UI fixture screenshots (base64)")
+        for name in (
+            "trace-workbench-home-desktop.jpg",
+            "trace-workbench-home-mobile.jpg",
+            "trace-workbench-desktop.png",
+            "trace-workbench-mobile.png",
+        ):
             print("UI_PREVIEW " + name + " " + base64.b64encode((OUT / name).read_bytes()).decode())
         print("::endgroup::")
 

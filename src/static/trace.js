@@ -189,7 +189,7 @@ window.TraceView = (() => {
     const box = node("aside", undefined, "trace-panel");
     box.setAttribute("aria-label", "Ход запроса");
     const heading = node("div", undefined, "trace-heading");
-    heading.append(node("h3", "Ход запроса"), node("span", "TRACE", "trace-kicker"));
+    heading.append(node("h2", "Ход запроса"));
     box.append(heading, node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"), routeView(data));
     const metrics = node("div", undefined, "trace-metrics");
     for (const [value, label] of [[duration(elapsed), "запрос в браузере"], [(data.trace || []).length, "вызовов инструментов"], [(data.decisions || []).filter(d => d.origin !== "plan_policy").length, "выборов LLM"]]) {

@@ -3,18 +3,43 @@ const $ = (id) => document.getElementById(id);
 let previous = null;
 let dialogueToken = null;
 let dialogueScope = null;
-let historyRows = [];
-let chartRendered = false;
-const scenarios = [
-  ["Сравнить Urals и ESPO", "Чем отличаются Urals и ESPO по плотности и содержанию серы?"],
-  ["Последняя цена Brent", "Какая последняя опубликованная спотовая цена Brent?"],
-  [
-    "Сопоставить отчёт и рынок",
-    "Чем по качеству отличаются Urals и ESPO и какова последняя цена Brent?",
-  ],
-  ["Спрогнозировать Brent", "Спрогнозируй среднемесячную цену Brent на 3 месяца."],
-
-  ["Рассчитать сценарий Urals", "Спрогнозируй Urals на 3 месяца при дисконте 12 долларов к Brent."],
+const defaultQuestionHint = $("question").placeholder;
+const capabilities = [
+  {
+    kind: "report",
+    icon: "M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6",
+    label: "Найти в отчётах",
+    example: "Чем отличаются Urals и ESPO по плотности и содержанию серы? Используй только загруженные отчёты.",
+  },
+  {
+    kind: "web",
+    icon: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M3 12h18 M12 3c4 4 4 14 0 18-4-4-4-14 0-18z",
+    label: "Проверить свежие данные",
+    example: "Какая последняя опубликованная спотовая цена Brent? Укажи дату наблюдения и источник.",
+  },
+  {
+    kind: "compare",
+    icon: "M3 8h17l-4-4 M21 16H4l4 4",
+    label: "Сопоставить источники",
+    example: "Что в отчёте EIA сказано об экспорте российской нефти в Индию? Сравни со свежими публикациями.",
+  },
+  {
+    kind: "forecast",
+    icon: "M3 18l6-7 4 3 7-9 M14 5h6v6",
+    label: "Спрогнозировать цену",
+    example: "Спрогнозируй среднемесячную цену Brent на 3 месяца.",
+  },
+  {
+    kind: "scenario",
+    icon: "M4 6h7m4 0h5 M4 12h2m4 0h10 M4 18h9m4 0h3 M11 4v4h4V4z M6 10v4h4v-4z M13 16v4h4v-4z",
+    label: "Рассчитать сценарий",
+    example: "Спрогнозируй Urals на 3 месяца при дисконте 12 долларов за баррель к Brent.",
+  },
+  {
+    kind: "upload",
+    icon: "M12 15V3m-5 5 5-5 5 5 M4 15v5h16v-5",
+    label: "Разобрать свой документ",
+  },
 ];
 function element(tag, text, cls) {
   const node = document.createElement(tag);
@@ -53,7 +78,7 @@ function resetClarification() {
   dialogueToken = null;
   dialogueScope = null;
   $("newquestion").hidden = true;
-  $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
+  $("question").placeholder = defaultQuestionHint;
 }
 function requestScope() {
   return {
@@ -68,25 +93,26 @@ function checkDialogueScope() {
     $("result").replaceChildren(element("p", "Источники для запроса изменились. Для нового прогноза укажите его параметры заново."));
   }
 }
-function selectQuery(question, keepScope = false) {
+function selectQuery(question) {
   if ($("question").disabled) return;
   resetClarification();
   $("question").value = question;
-  if (!keepScope) {
-    window.KnowledgeUI?.clearSelection();
-    window.ResearchNotes?.clearContext();
-    $("report-only").checked = false;
-    updateScopeHint();
-  }
   counter();
   showTab("test");
+  $("result").hidden = true;
   $("question").focus();
 }
 function updateScopeHint() {
-  $("scope-hint").textContent = $("report-only").checked
-    ? "Используются только документы базы знаний. Веб-поиск отключён для этого вопроса."
-    : "Агент выбирает документы или веб по задаче. Для актуальных событий может сразу обратиться к интернету.";
+  const onlyReports = $("report-only").checked;
+  const count = window.KnowledgeUI?.selectedIds().length || 0;
+  const active = $("active-scope");
+  active.hidden = !onlyReports && !count;
+  active.textContent = [onlyReports ? "Только база знаний" : "", count ? "Выбрано документов: " + count : ""].filter(Boolean).join(" · ");
+  $("scope-hint").textContent = onlyReports
+    ? "Для этого вопроса веб-поиск выключен."
+    : "Агент может использовать документы и интернет.";
 }
+updateScopeHint();
 function locatorLabel(locator = {}, page = null) {
   if (locator?.label) return locator.label;
   const where = locator || {}, parts = [];
@@ -101,6 +127,7 @@ function locatorLabel(locator = {}, page = null) {
   if (where.region === "whole_image" && !where.part) parts.push("Изображение целиком");
   return parts.join(" · ");
 }
+updateScopeHint();
 $("report-only").addEventListener("change", () => { updateScopeHint(); checkDialogueScope(); });
 $("remember-forecast").addEventListener("change", () => {
   if (dialogueToken) {
@@ -115,41 +142,49 @@ window.Workbench = { showTab, selectQuery, updateScopeHint, checkDialogueScope, 
 function counter() {
   $("counter").textContent = $("question").value.length + " / 2000";
 }
-for (const [label, question] of scenarios) {
-  const button = element("button", label, "sample");
-  button.type = "button";
-  button.addEventListener("click", () => selectQuery(question));
-  $("samples").append(button);
-}
 $("question").addEventListener("input", counter);
-$("question").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+$("question").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
     $("ask").requestSubmit();
   }
 });
-function renderCapabilities(settings) {
-  const configured = settings?.llm_configured ?? Boolean(settings?.model);
-  const tasks = [
-    { label: "Найти ответ в документах", text: "Показатели, определения и сравнения из загруженных отчётов — со ссылкой на конкретный фрагмент.", query: scenarios[0][1], note: "Приоритет базы знаний" },
-    { label: "Проверить свежие сведения", text: "Новости, события и последние опубликованные цены. В ответе веб-источники отделены от отчётов.", query: scenarios[1][1], note: settings?.tavily ? "Tavily настроен · доступ ещё не проверен" : settings ? "Без Tavily: ограниченные RSS и FRED" : "Настройки веб-поиска неизвестны" },
-    { label: "Сопоставить несколько источников", text: "Объединить сведения из документов и интернета, показать подтверждения и недостающие данные.", query: scenarios[2][1], note: "Документы + веб-источники" },
-    { label: "Рассчитать прогноз", text: "Brent и WTI по историческим ценам; Urals — через заданный дисконт к Brent. Методы, интервал и историческая ошибка видны в результате.", query: scenarios[3][1], note: "ARIMA + экспоненциальное сглаживание" },
-    { label: "Проверить сценарий", text: "Оценить сценарий с заданными допущениями. Дисконт и чувствительность задаются явно, а не угадываются моделью.", query: scenarios[4][1], note: "Условный расчёт по вашим параметрам" },
-    { label: "Разобрать собственный документ", text: "Добавить PDF, изображение, DOCX или таблицу. Проверить результат распознавания и ограничить вопрос выбранными документами.", query: null, note: "Локальная обработка и OCR" },
-  ];
-  $("capabilities").replaceChildren();
-  for (const [index, task] of tasks.entries()) {
-    const card = element("article", undefined, "capability-card");
-    card.append(element("span", String(index + 1).padStart(2, "0"), "capability-number"), element("h3", task.label), element("p", task.text), element("span", task.note, "capability-note"));
-    const button = element("button", task.query ? "Подставить пример ↗" : "Открыть базу знаний ↗", "plain-button capability-query");
-    button.type = "button";
-    button.addEventListener("click", () => task.query ? selectQuery(task.query) : showTab("knowledge"));
-    card.append(button);
-    if (task.query && !configured) card.append(element("span", settings ? "Для ответа нужен настроенный LLM-клиент" : "Состояние модели неизвестно", "small"));
-    $("capabilities").append(card);
+
+for (const task of capabilities) {
+  const button = element("button", undefined, "capability-query");
+  button.type = "button";
+  const icon = element("span", undefined, "cap-icon");
+  icon.dataset.kind = task.kind;
+  icon.setAttribute("aria-hidden", "true");
+  const drawing = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  drawing.setAttribute("viewBox", "0 0 24 24");
+  drawing.setAttribute("width", "18");
+  drawing.setAttribute("height", "18");
+  drawing.setAttribute("fill", "none");
+  drawing.setAttribute("stroke", "currentColor");
+  drawing.setAttribute("stroke-width", "1.6");
+  drawing.setAttribute("stroke-linecap", "round");
+  drawing.setAttribute("stroke-linejoin", "round");
+  const path = document.createElementNS(drawing.namespaceURI, "path");
+  path.setAttribute("d", task.icon);
+  drawing.append(path);
+  icon.append(drawing);
+  const arrow = element("span", "↗", "cap-arrow");
+  arrow.setAttribute("aria-hidden", "true");
+  button.append(icon, element("span", task.label, "cap-label"), arrow);
+  if (task.example) {
+    button.title = task.example;
+    button.addEventListener("click", () => selectQuery(task.example));
+  } else {
+    button.title = "Открыть загрузку в базе знаний";
+    button.addEventListener("click", () => {
+      showTab("knowledge");
+      $("document-file").focus();
+    });
   }
+  $("capabilities").append(button);
 }
-renderCapabilities(null);
+
 fetch("/api/rag/status").then(response => {
   if (!response.ok) throw new Error("rag");
   return response.json();
@@ -157,64 +192,6 @@ fetch("/api/rag/status").then(response => {
   const lines = [data.model ? "Эмбеддер: " + data.model : null, data.model_repo ? "Модель: " + data.model_repo : null, data.search_mode || data.mode ? "Режим: " + (data.search_mode || data.mode) : null, data.top_k ? "Фрагментов за поиск: " + data.top_k : null, data.status ? "Индекс: " + (data.status === "ready" ? "готов" : "ожидает построения при запросе") : null];
   $("rag-settings").textContent = lines.join(" · ") || "Настройки эмбеддера сервером не переданы.";
 }).catch(() => { $("rag-settings").textContent = "Настройки поиска сейчас недоступны. Метрики здесь не измерялись."; });
-function renderChart(rows) {
-  const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg"),
-    width = 680,
-    height = 160,
-    left = 40,
-    right = 16,
-    top = 12,
-    bottom = 27;
-  svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Среднемесячные цены Brent и WTI, доллары за баррель");
-  const vals = rows.flatMap((r) => [r.Brent, r.WTI]),
-    low = Math.floor(Math.min(...vals) / 10) * 10,
-    high = Math.max(low + 10, Math.ceil(Math.max(...vals) / 10) * 10);
-  const x = (i) => left + ((width - left - right) * i) / Math.max(rows.length - 1, 1),
-    y = (v) => top + ((high - v) * (height - top - bottom)) / (high - low);
-  function add(tag, attrs, value) {
-    const n = document.createElementNS(NS, tag);
-    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-    if (value !== undefined) n.textContent = value;
-    svg.append(n);
-  }
-  for (const v of [low, (low + high) / 2, high]) {
-    add("line", {
-      x1: left,
-      x2: width - right,
-      y1: y(v),
-      y2: y(v),
-      stroke: "#dbe3d8",
-      "stroke-dasharray": "3 4",
-    });
-    add("text", { x: left - 8, y: y(v) + 4, "text-anchor": "end" }, v);
-  }
-  for (const [key, color] of [
-    ["Brent", "#236447"],
-    ["WTI", "#a96e36"],
-  ]) {
-    add("polyline", {
-      points: rows.map((r, i) => x(i) + "," + y(r[key])).join(" "),
-      fill: "none",
-      stroke: color,
-      "stroke-width": "2.6",
-      "stroke-linejoin": "round",
-    });
-  }
-  for (const i of [0, Math.floor(rows.length / 2), rows.length - 1])
-    add(
-      "text",
-      {
-        x: x(i),
-        y: height - 5,
-        "text-anchor": i === 0 ? "start" : i === rows.length - 1 ? "end" : "middle",
-      },
-      rows[i].month,
-    );
-  $("historychart").replaceChildren(svg);
-}
 function source(row) {
   const detail = element("details", undefined, "source"),
     labels = { model: "Расчёт", report: "Отчёт", web: "Веб" };
@@ -332,10 +309,10 @@ function forecastTable(calc) {
 function render(q, data, elapsed) {
   const out = $("result");
   const heading = element("div", undefined, "result-heading");
-  heading.append(element("h2", "Результат проверки"), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
+  heading.append(element("h2", "Ответ аналитика"), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
   const answer = element("section", undefined, "answer-panel");
   answer.setAttribute("aria-label", "Ответ аналитика");
-  answer.append(element("h3", "Ответ аналитика"), element("div", q, "answer-q"));
+  answer.append(heading, element("div", q, "answer-q"));
   for (const p of (data.answer || "").split("\n\n")) appendAnswerParagraph(answer, p, data);
   if (data.forecast) {
     const detail = element("details", undefined, "forecast-details");
@@ -355,25 +332,28 @@ function render(q, data, elapsed) {
   }
   const grid = element("div", undefined, "result-grid");
   grid.append(answer, TraceView.render(data, elapsed));
-  out.replaceChildren(heading, grid);
+  out.replaceChildren(grid);
 }
 $("ask").addEventListener("submit", async (e) => {
   e.preventDefault();
   const q = $("question").value.trim(),
     button = $("ask").querySelector(".submit");
   if (!q || button.disabled) return;
+  const submitLabel = button.querySelector(".submit-label");
+  const idleLabel = submitLabel.textContent;
   checkDialogueScope();
   const scope = requestScope();
   const remember = $("remember-forecast").checked;
   button.disabled = true;
   $("question").disabled = true;
-  const controls = document.querySelectorAll(".sample, .capability-query, #newquestion, #report-only, #choose-documents, #remember-forecast");
+  const controls = document.querySelectorAll(".capability-query, #newquestion, #report-only, #choose-documents, #remember-forecast");
   controls.forEach(b => b.disabled = true);
-  button.textContent = "Готовим ответ…";
+  button.setAttribute("aria-busy", "true");
+  submitLabel.textContent = "Обработка…";
   $("result").setAttribute("aria-busy", "true");
   const target = $("result");
   target.hidden = false;
-  target.replaceChildren(element("p", "Выполняется запрос. Ответ и шаги появятся после завершения.", "busy"));
+  target.replaceChildren(element("p", "Агент готовит ответ…", "busy"));
   const started = performance.now();
   try {
     const r = await fetch("/api/ask", {
@@ -418,7 +398,7 @@ $("ask").addEventListener("submit", async (e) => {
       $("question").placeholder = dialogueToken ? "Продолжите текущий прогноз…" : "Уточните параметры предыдущего запроса…";
       counter();
     } else {
-      $("question").placeholder = "Например, чем отличаются Urals и ESPO?";
+      $("question").placeholder = defaultQuestionHint;
     }
   } catch (err) {
     target.replaceChildren(element("p", "Не удалось получить ответ. " + err.message));
@@ -426,43 +406,47 @@ $("ask").addEventListener("submit", async (e) => {
     button.disabled = false;
     $("question").disabled = false;
     controls.forEach(b => b.disabled = false);
-    button.textContent = "Получить ответ ↗";
+    button.removeAttribute("aria-busy");
+    submitLabel.textContent = idleLabel;
     target.setAttribute("aria-busy", "false");
     if (previous || dialogueToken) $("question").focus();
   }
 });
+function showModel(settings) {
+  const badge = $("model-badge");
+  const configured = settings.llm_configured ?? Boolean(settings.model);
+  const gigachat = settings.provider === "gigachat" || (!settings.provider && /^gigachat/i.test(settings.model || ""));
+  badge.dataset.provider = configured ? (gigachat ? "gigachat" : "other") : "unconfigured";
+  if (configured) {
+    $("mode").textContent = settings.model || (gigachat ? "GigaChat" : "Настроена");
+    badge.title = "Модель, выбранная в настройках сервера. Доступ к API проверяется командой check-llm.";
+  } else {
+    $("mode").textContent = gigachat ? "GigaChat · нет ключа" : "Не настроена";
+    badge.title = "Укажите ключ модели в .env для работы с агентом.";
+  }
+}
+
 fetch("/api/status")
-  .then((r) => { if (!r.ok) throw new Error("status"); return r.json(); })
-  .then((s) => {
-    $("mode").textContent = s.model ? s.model + " · настроена" : "LLM не настроена";
-    $("mode").title = s.model ? "Модель из настроек. Доступ к API проверяется отдельно командой check-llm." : "Добавьте ключ выбранного провайдера в .env.";
-    $("environment").textContent = [s.agent_mode === "loop" ? "Агентский цикл" : s.agent_mode === "workflow" ? "Фиксированный workflow" : "Режим не указан", s.agent_max_steps ? `до ${s.agent_max_steps} решений` : null, s.tavily ? "Веб: Tavily + FRED" : "Веб: RSS + FRED"].filter(Boolean).join(" · ");
-    $("library").replaceChildren();
-    if (!s.reports?.length) $("library").textContent = "Отчёты пока не добавлены.";
-    for (const r of s.reports || []) $("library").append(link(r.title, r.url));
-    renderCapabilities(s);
-    if (s.history?.length) {
-      const first = s.history[0],
-        last = s.history[s.history.length - 1];
-      $("chartdates").textContent = first.month + " — " + last.month;
-      historyRows = s.history;
-      $("market").hidden = false;
-    }
+  .then(response => {
+    if (!response.ok) throw new Error("status");
+    return response.json();
+  })
+  .then(settings => {
+    showModel(settings);
+    const routing = { loop: "Агентский цикл", workflow: "Фиксированный маршрут" }[settings.agent_mode];
+    const stepLimit = settings.agent_mode === "loop" && settings.agent_max_steps
+      ? `до ${settings.agent_max_steps} шагов` : "";
+    const search = settings.tavily ? "Поиск через Tavily" : "Публикации из RSS";
+    $("status-details").textContent = [routing, stepLimit, search, "Котировки FRED"].filter(Boolean).join(" · ");
+    const reports = settings.reports || [];
+    $("library").replaceChildren(...reports.map(report => link(report.title, report.url)));
+    if (!reports.length) $("library").textContent = "Исходных отчётов пока нет.";
   })
   .catch(() => {
-    $("mode").textContent = "Нет соединения";
-    $("environment").textContent = "Не удалось получить конфигурацию сервера.";
-    $("library").textContent = "Не удалось загрузить список. Попробуйте обновить страницу.";
-    renderCapabilities(null);
+    $("model-badge").dataset.provider = "unavailable";
+    $("model-badge").title = "Сервер не вернул настройки модели.";
+    $("mode").textContent = "Статус неизвестен";
+    $("status-details").textContent = "Не удалось загрузить настройки стенда.";
+    $("library").textContent = "Не удалось загрузить список отчётов.";
   });
-
-$("market").addEventListener("toggle", () => {
-  if ($("market").open && !chartRendered && historyRows.length) {
-    renderChart(historyRows);
-    chartRendered = true;
-  }
-});
-$("newquestion").addEventListener("click", () => {
-  selectQuery("", true);
-  $("result").hidden = true;
-});
+$("newquestion").addEventListener("click", () => selectQuery(""));

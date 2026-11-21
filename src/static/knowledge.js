@@ -48,6 +48,7 @@
   }
   function updateSelection() {
     window.Workbench.checkDialogueScope();
+    window.Workbench.updateScopeHint();
     const count = selected.size;
     $("scope-summary").textContent = count ? "Выбрано документов: " + count : "Все активные документы";
     $("selection-label").textContent = count ? "Для вопроса выбрано: " + count : "Документы для вопроса не выбраны";
@@ -63,7 +64,7 @@
     updateSelection(); renderCatalog();
     $("report-only").checked = true;
     window.Workbench.updateScopeHint();
-    window.Workbench.selectQuery(doc ? 'Какие основные выводы содержит документ «' + doc.title + '»?' : "", true);
+    window.Workbench.selectQuery(doc ? 'Какие основные выводы содержит документ «' + doc.title + '»?' : "");
   }
   window.KnowledgeUI = { selectedIds: () => [...selected], clearSelection };
   function renderCatalog() {
@@ -72,7 +73,7 @@
     $("document-list").replaceChildren();
     $("knowledge-count").textContent = String(documents.filter(doc => !doc.archived).length);
     if (!shown.length) {
-      $("document-list").append(node("p", filter ? "Документов с таким названием не найдено." : "Здесь появятся документы базы знаний. Добавьте первый файл слева.", "empty-catalog"));
+      $("document-list").append(node("p", filter ? "Документов с таким названием не найдено." : "Здесь появятся документы базы знаний. Добавьте первый файл.", "empty-catalog"));
       return;
     }
     for (const doc of shown) {
@@ -318,7 +319,7 @@
             use.addEventListener("click", () => {
               if ($("question").disabled) return;
               window.KnowledgeUI?.clearSelection();
-              window.Workbench.selectQuery("", true);
+              window.Workbench.selectQuery("");
               noteId = full.note_id;
               $("note-context-title").textContent = "Контекст заметки: " + full.title;
               $("note-context").hidden = false;

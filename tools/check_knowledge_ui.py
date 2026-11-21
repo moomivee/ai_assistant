@@ -70,7 +70,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self.respond(
                 dict(
-                    model="GigaChat · UI fixture",
+                    model="GigaChat-2",
                     provider="gigachat",
                     llm_configured=True,
                     tavily=True,
@@ -153,6 +153,10 @@ class Handler(BaseHTTPRequestHandler):
                         0, dict(id="v2", status=doc["status"], created_at="2026-11-14T12:00:00Z")
                     )
                 return self.respond({**doc, "versions": versions})
+        if path == "/static/gigachat-mark.png":
+            return self.send_bytes(
+                (ROOT / "src/static/gigachat-mark.png").read_bytes(), "image/png"
+            )
         file = "index.html" if path == "/" else path.removeprefix("/static/")
         if file in {"index.html", "site.js", "site.css", "trace.js", "knowledge.js"}:
             mime = (
@@ -289,23 +293,40 @@ async def check(url, out):
         browser = await p.chromium.launch(
             **({"executable_path": executable} if executable else {}), args=["--no-sandbox"]
         )
-        page = await browser.new_page(viewport={"width": 1280, "height": 1000})
+        page = await browser.new_page(viewport={"width": 1440, "height": 900})
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         await page.goto(url)
-        await page.locator("#mode").filter(has_text="настроена").wait_for()
+        await page.locator('#model-badge[data-provider="gigachat"]').wait_for()
+        assert "GigaChat" in await page.locator("#mode").inner_text()
         await page.locator(".document-card").wait_for(state="attached")
-        assert "ещё" not in await page.locator("#mode").inner_text()
-        await page.get_by_role("tab", name="Возможности").click()
-        assert await page.locator(".capability-card").count() == 6
-        assert "доступ ещё не проверен" in await page.locator("#capabilities").inner_text()
-        await page.screenshot(path=str(out / "capabilities-desktop.png"), full_page=True)
-        await page.locator(".capability-query").first.click()
-        assert await page.locator("#question").input_value()
-        assert not STATE["asks"], "Example cards must not run the agent"
+        assert await page.get_by_role("tab").count() == 2
+        capabilities = page.locator("#panel-test #capabilities .capability-query")
+        assert await capabilities.count() == 6
+        assert await page.locator("#question").is_visible()
+        assert await page.locator("#tab-capabilities, #market, #historychart").count() == 0
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        await page.set_viewport_size({"width": 390, "height": 844})
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        await page.set_viewport_size({"width": 1440, "height": 900})
+        examples = set()
+        for button in await capabilities.all():
+            await button.click()
+            if await page.locator("#panel-knowledge").is_visible():
+                assert await page.locator("#document-file").evaluate(
+                    "el => el === document.activeElement"
+                )
+                await page.locator("#tab-test").click()
+            else:
+                examples.add(await page.locator("#question").input_value())
+                assert await page.locator("#question").evaluate("q => q === document.activeElement")
+        assert len(examples) == 5 and "" not in examples
+        assert not STATE["asks"], "Examples must leave submission to the user"
         await page.locator("#tab-test").focus()
         await page.keyboard.press("ArrowRight")
-        assert await page.locator("#tab-capabilities").get_attribute("aria-selected") == "true"
+        assert await page.locator("#tab-knowledge").get_attribute("aria-selected") == "true"
+        await page.keyboard.press("Home")
+        assert await page.locator("#tab-test").get_attribute("aria-selected") == "true"
         await page.keyboard.press("End")
         assert await page.locator("#tab-knowledge").get_attribute("aria-selected") == "true"
         await page.get_by_role("button", name="Проверить исходный файл").click()
@@ -352,7 +373,7 @@ async def check(url, out):
         await page.locator("#question").press("Control+Enter")
         await page.locator('#result[aria-busy="false"]').wait_for()
         assert STATE["asks"][-1]["note_id"] == "note-fixture"
-        await page.get_by_role("button", name="Убрать контекст").click()
+        await page.locator("#clear-note-context").click()
         await (
             page.locator(".research-note").get_by_role("button", name="В архив", exact=True).click()
         )
@@ -420,7 +441,7 @@ async def check(url, out):
         )
         STATE["list_error"] = False
         await page.locator("#refresh-knowledge").click()
-        await page.get_by_role("tab", name="Тестирование").click()
+        await page.locator("#tab-test").click()
         for question in ["hostile", "http-error"]:
             await page.locator("#question").fill(question)
             await page.locator("#question").press("Control+Enter")
@@ -430,6 +451,29 @@ async def check(url, out):
             assert await page.locator('a[href^="javascript:"]').count() == 0
         assert "503" in await page.locator("#result").inner_text()
         assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+        for provider, model, state in [
+            ("openai", "local-model", "other"),
+            ("gigachat", None, "unconfigured"),
+        ]:
+            status = {
+                "provider": provider,
+                "llm_configured": bool(model),
+                "model": model,
+                "reports": [],
+            }
+            await page.route("**/api/status", lambda route: route.fulfill(json=status))
+            await page.reload()
+            await page.locator(f'#model-badge[data-provider="{state}"]').wait_for()
+            if model:
+                assert model in await page.locator("#mode").inner_text()
+            else:
+                assert "ключ" in await page.locator("#mode").inner_text()
+            await page.unroute("**/api/status")
+        await page.route("**/api/status", lambda route: route.fulfill(status=503, json={}))
+        await page.reload()
+        await page.locator('#model-badge[data-provider="unavailable"]').wait_for()
+        assert await capabilities.count() == 6
         assert not errors, errors
         await browser.close()
     result = dict(
@@ -437,7 +481,8 @@ async def check(url, out):
         live_llm=False,
         live_tavily=False,
         scenarios=[
-            "capability cards without autorun",
+            "inline capabilities without autorun",
+            "configured, unconfigured and unavailable model status",
             "keyboard tabs",
             "catalog and scoped ask",
             "local OCR/text preview and provenance",
