@@ -309,9 +309,11 @@ function forecastTable(calc) {
 function render(q, data, elapsed) {
   const out = $("result");
   const heading = element("div", undefined, "result-heading");
-  heading.append(element("h2", "Ответ аналитика"), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
+  const help = data.intent === "capabilities" && data.status === "ok";
+  const title = help ? "Возможности агента" : "Ответ аналитика";
+  heading.append(element("h2", title), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
   const answer = element("section", undefined, "answer-panel");
-  answer.setAttribute("aria-label", "Ответ аналитика");
+  answer.setAttribute("aria-label", title);
   answer.append(heading, element("div", q, "answer-q"));
   for (const p of (data.answer || "").split("\n\n")) appendAnswerParagraph(answer, p, data);
   if (data.forecast) {
@@ -323,7 +325,7 @@ function render(q, data, elapsed) {
     answer.append(element("h3", "Источники ответа", "sectiontitle"));
     for (const row of data.sources) answer.append(source(row));
   }
-  if (window.ResearchNotes && !data.clarification && ["ok", "partial"].includes(data.status)) {
+  if (window.ResearchNotes && !help && !data.clarification && ["ok", "partial"].includes(data.status)) {
     const save = element("button", "Сохранить в заметки", "secondary-button save-note");
     save.type = "button";
     const feedback = element("p", undefined, "small"); feedback.setAttribute("role", "status");

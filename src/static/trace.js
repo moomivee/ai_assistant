@@ -20,7 +20,7 @@ window.TraceView = (() => {
     research_budget_exhausted: "Поиск завершён с резервом времени на ответ",
     review_disabled: "Кандидат ответа получен; проверка смысла и полноты отключена",
   };
-  const intents = { research: "Анализ источников", forecast: "Прогноз", outside: "Вне специализации" };
+  const intents = { research: "Анализ источников", forecast: "Прогноз", capabilities: "Вопрос о возможностях агента", outside: "Вне специализации" };
   const node = (tag, text, cls) => {
     const el = document.createElement(tag);
     if (text !== undefined) el.textContent = text;
@@ -190,13 +190,24 @@ window.TraceView = (() => {
     box.setAttribute("aria-label", "Ход запроса");
     const heading = node("div", undefined, "trace-heading");
     heading.append(node("h2", "Ход запроса"));
-    box.append(heading, node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"), routeView(data));
+    box.append(heading);
+    const directHelp = data.intent === "capabilities" && data.status === "ok" &&
+      !data.trace?.length && !data.sources?.length && !data.decisions?.length;
+    if (directHelp) {
+      box.append(node("p", "Агент показал встроенную справку о возможностях стенда.", "small"));
+    } else {
+      box.append(node("p", "Фактические действия, пояснения модели и шаги по правилам агента.", "small"), routeView(data));
+    }
     const metrics = node("div", undefined, "trace-metrics");
     for (const [value, label] of [[duration(elapsed), "запрос в браузере"], [(data.trace || []).length, "вызовов инструментов"], [(data.decisions || []).filter(d => d.origin !== "plan_policy").length, "выборов LLM"]]) {
       const metric = node("div"); metric.append(node("strong", String(value)), node("span", label)); metrics.append(metric);
     }
     box.append(metrics);
     const diagnostics = data.diagnostics;
+    if (directHelp) {
+      if (diagnostics?.plan) box.append(detail("Как понят запрос", planView(diagnostics.plan)));
+      return appendTraceExport(box, data);
+    }
     const clock = diagnostics?.time_context;
     if (clock?.today) {
       const time = node("div", undefined, "trace-time");
@@ -249,6 +260,9 @@ window.TraceView = (() => {
     box.append(stop);
     if (diagnostics) box.append(detail(`Найденные фрагменты · ${diagnostics.retrieved_sources?.length || 0}`, sourcesView(diagnostics.retrieved_sources || [])));
     box.append(node("p", "Пояснение модели и статус выполнения не подтверждают правильность вывода. Сверяйте ответ с источниками.", "trace-footnote"));
+    return appendTraceExport(box, data);
+  }
+  function appendTraceExport(box, data) {
     if (data.trace_id) {
       const id = node("div", undefined, "trace-id");
       id.append(node("span", "Trace ID"), node("code", data.trace_id));

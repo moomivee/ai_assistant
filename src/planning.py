@@ -22,6 +22,7 @@ from .validation import (
 )
 
 FORECAST_FIELDS = ("benchmark", "months", "discount", "cut", "sensitivity")
+HELP_COMMANDS = {"/help", "что ты можешь", "что ты умеешь", "чем ты можешь помочь"}
 
 
 def resolve_forecast_scope(client, plan: Plan, payload: dict) -> Plan:
@@ -248,6 +249,33 @@ def resolve_research_quotes(client, plan: Plan, payload: dict) -> Plan:
 
 
 def make_plan(client, question, previous=None) -> Plan:
+    pending = pending_forecast()
+    # Only an entire, unambiguous help question can bypass the semantic planner.
+    if normalized(question).rstrip(" .?!…") in HELP_COMMANDS:
+        if pending:
+            pending.new_task = True
+        log(
+            "plan.validated",
+            intent="capabilities",
+            origin="help_command",
+            needs_clarification=False,
+        )
+        return Plan(
+            intent="capabilities",
+            rag_query="",
+            report_only=current_scope().report_only,
+            fresh=False,
+            news=False,
+            wants_context=False,
+            quotes=[],
+            benchmark=None,
+            months=None,
+            discount=None,
+            cut=None,
+            sensitivity=None,
+            parameters=[],
+            clarify="",
+        )
     payload = {
         "question": question,
         "previous": previous,
@@ -257,7 +285,6 @@ def make_plan(client, question, previous=None) -> Plan:
             s for s in get_skill_catalog() if s.get("enabled") and s.get("available", True)
         ],
     }
-    pending = pending_forecast()
     withdrawn = set()
     if pending:
         snapshot = pending.snapshot

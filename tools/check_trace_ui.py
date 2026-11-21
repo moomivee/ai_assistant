@@ -318,6 +318,23 @@ class Handler(BaseHTTPRequestHandler):
                 retrieved_sources=[],
                 answer_checks=[],
             )
+        elif question == "Что ты можешь?":
+            response.update(
+                question=question,
+                intent="capabilities",
+                status="ok",
+                answer="Могу найти данные в отчёте и рассчитать прогноз цены Brent.",
+                sources=[],
+                claims=[],
+                trace=[],
+                decisions=[],
+            )
+            response["diagnostics"].update(
+                plan={"intent": "capabilities"},
+                steps=[],
+                retrieved_sources=[],
+                answer_checks=[],
+            )
         elif question in {"clarification", "unavailable", "outside"}:
             response.update(
                 status=question,
@@ -696,6 +713,16 @@ async def check(url):
             assert "Вызовов инструментов нет" in await page.locator(".empty-trace").inner_text()
             assert "Вызовов инструментов нет" in await page.locator(".route-executed").inner_text()
             assert await page.locator(".route-purpose").count() == 0
+        await submit("Что ты можешь?")
+        assert await page.locator(".answer-panel h2").inner_text() == "Возможности агента"
+        assert await page.locator(".response-status").inner_text() == "Ответ получен"
+        assert "рассчитать прогноз" in await page.locator(".answer-panel").inner_text()
+        assert not await page.locator(".route-summary, .trace-footnote, .save-note").count()
+        assert "встроенную справку" in await page.locator(".trace-panel").inner_text()
+        assert await page.locator(".trace-metrics strong").nth(1).inner_text() == "0"
+        await page.get_by_text("Как понят запрос", exact=True).click()
+        assert "Вопрос о возможностях агента" in await page.locator(".trace-fields").inner_text()
+        assert await page.locator(".download-button").count() == 1
         await submit("web-only")
         assert "интернет (1)" in await page.locator(".route-used-sources").inner_text()
         assert "Веб-поиск" in await page.locator(".route-executed").inner_text()
@@ -786,6 +813,7 @@ async def check(url):
             "forecast dialogue continuation, retry, scope reset and opt-out",
             "unavailable",
             "outside",
+            "capabilities help without source warnings and with downloadable trace",
             "legacy forecast",
             "untrusted text and URLs",
             "HTTP error",

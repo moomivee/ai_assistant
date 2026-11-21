@@ -88,6 +88,46 @@ def test_complete_plan_needs_only_one_call():
     assert c.calls == ["plan"]
 
 
+def test_standalone_help_command_works_without_calling_model():
+    c = PlannerClient(None)
+    result = make_plan(c, "  ЧТО   ты можешь?! ")
+    assert result.intent == "capabilities"
+    assert c.calls == [] and not result.clarify and not result.wants_context
+
+
+def test_capability_paraphrase_uses_structured_intent_and_discards_unneeded_actions():
+    c = PlannerClient(
+        plan(
+            intent="capabilities",
+            rag_query="search",
+            news=True,
+            quotes=["Brent"],
+            benchmark="Brent",
+            clarify="Какой сорт?",
+            skill="report_analysis",
+        )
+    )
+    result = make_plan(c, "Первый раз здесь. С какими задачами к вам обращаются?")
+    assert c.calls == ["plan"] and result.intent == "capabilities"
+    assert not result.quotes and not result.rag_query and not result.clarify
+    assert result.skill is None and result.benchmark is None
+    assert not result.wants_context and not result.news and not result.fresh
+
+
+@pytest.mark.parametrize(
+    ("question", "intent"),
+    [
+        ("Что ты можешь сказать о добыче в России?", "research"),
+        ("Что ты можешь? Спрогнозируй Brent на 3 месяца.", "forecast"),
+        ("Что ты можешь приготовить на ужин?", "outside"),
+    ],
+)
+def test_help_prefix_does_not_swallow_a_concrete_task(question, intent):
+    c = PlannerClient(plan(intent=intent, benchmark="Brent", months=3, wants_context=False))
+    assert make_plan(c, question).intent == intent
+    assert c.calls == ["plan"]
+
+
 @pytest.mark.parametrize("intent", ["research", "outside"])
 def test_non_forecast_clarification_cannot_block_source_search(intent):
     question = "Каково содержание серы в Sokol? Только по загруженным отчётам."

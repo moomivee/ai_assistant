@@ -18,9 +18,9 @@ DATA = ROOT / "eval/data/scope_regressions.jsonl"
 
 def test_authored_scope_dataset_loads_in_the_actual_evaluator():
     summary = validate_data(DATA)
-    assert summary["cases"] == 14
-    assert summary["groups"] == 7
-    assert summary["splits"] == {"dev": 14, "test": 0}
+    assert summary["cases"] == 18
+    assert summary["groups"] == 8
+    assert summary["splits"] == {"dev": 18, "test": 0}
     assert summary["retrieval_cases"] == 0
 
 

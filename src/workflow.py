@@ -32,6 +32,34 @@ class State(TypedDict, total=False):
     answer_repairs: int
 
 
+def capabilities_answer(report_only: bool) -> str:
+    reports = (
+        "Я помогаю разбираться в нефтегазовом рынке. Могу сравнить отраслевые отчёты "
+        "или разобрать ваш документ и показать фрагмент, на котором основан вывод."
+    )
+    report_example = "Что в отчёте EIA сказано об экспорте российской нефти в Индию?"
+    if report_only:
+        return (
+            f"{reports}\n\nСейчас выбран режим «Только база знаний». "
+            f"Попробуйте спросить «{report_example}»\n\n"
+            "Чтобы проверить свежие публикации или последние котировки Brent и WTI, "
+            "снимите это ограничение в настройках вопроса."
+        )
+    publications = (
+        "по публикациям доверенных источников"
+        if settings().web_key
+        else "по публикациям EIA и Банка России"
+    )
+    return (
+        f"{reports}\n\nМогу проверить свежие сведения {publications}, найти последнюю "
+        "опубликованную спотовую цену Brent или WTI и указать дату наблюдения. "
+        "Также могу рассчитать диапазон будущих цен Brent и WTI, а для Urals — "
+        "сценарий с заданным вами дисконтом к Brent.\n\n"
+        f"Попробуйте спросить «{report_example}» или попросите "
+        "«Спрогнозируй цену Brent на три месяца»."
+    )
+
+
 def forecast_answer(calc: dict):
     last = calc["rows"][-1]
     answer = (
@@ -148,7 +176,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def after_route(s):
         p = s.get("plan")
         return (
-            "finish" if s.get("failure") or p["intent"] == "outside" or p["clarify"] else "reports"
+            "finish"
+            if s.get("failure") or p["intent"] in {"capabilities", "outside"} or p["clarify"]
+            else "reports"
         )
 
     def after_assess(s):
@@ -178,6 +208,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         if s.get("failure"):
             blocks = [s["failure"] + " Проверьте подключение LLM и поддержку structured outputs."]
             status = "unavailable"
+        elif p["intent"] == "capabilities":
+            blocks, status = [capabilities_answer(p["report_only"])], "ok"
         elif p["intent"] == "outside":
             blocks = [
                 "Этот запрос вне нефтегазовой специализации. Могу помочь с отраслевыми отчётами, ценами нефти и расчётом прогноза."

@@ -17,9 +17,12 @@ class ParameterEvidence(StrictModel):
 
 class Plan(StrictModel):
     skill: Literal["report_analysis", "web_research", "price_forecast"] | None = None
-    intent: Literal["research", "forecast", "outside"] = Field(
+    intent: Literal["research", "forecast", "capabilities", "outside"] = Field(
         description=(
             "research — анализ нефтегазового рынка и его факторов; forecast — наш расчёт цены. "
+            "capabilities — пользователь просит описать возможности этого агента или привести "
+            "примеры вопросов к нему. Просьба выполнить конкретный анализ или расчёт "
+            "относится к research или forecast, даже если начинается с «можешь». "
             "outside — другая цель, включая личную карьеру, вакансии и зарплату профессии, "
             "даже если упомянут нефтегаз. Влияние расходов на персонал на добычу/рынок — research."
         )
@@ -205,7 +208,7 @@ class AgentResponse(StrictModel):
     answer: str
     status: Literal["ok", "partial", "clarification", "outside", "unavailable"]
     clarification: bool
-    intent: Literal["research", "forecast", "outside", "unknown"]
+    intent: Literal["research", "forecast", "capabilities", "outside", "unknown"]
     mode: str
     sources: list[Source]
     claims: list[Claim]

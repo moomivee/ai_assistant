@@ -47,7 +47,7 @@ def unsupported_discount_base(plan: Plan) -> bool:
 
 def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Plan:
     p = plan.model_copy(deep=True)
-    if p.intent == "outside":
+    if p.intent in ("outside", "capabilities"):
         # Canonicalize a semantic decision already made by the model; never
         # classify the question here using occupation names or keyword lists.
         p.rag_query = ""

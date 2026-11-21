@@ -32,7 +32,7 @@ from .progress import action_signature, check_assessment, context_blocks, eviden
 from .request_context import current_scope, scope_payload
 from .request_progress import announce_quote_fallback
 from .tools import make_registry, run_tool
-from .workflow import forecast_answer
+from .workflow import capabilities_answer, forecast_answer
 
 
 class State(TypedDict, total=False):
@@ -651,6 +651,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         )
         if state.get("failure") and not state["sources"] and not calc:
             status, blocks = "unavailable", [state["failure"]]
+        elif intent == "capabilities":
+            status, blocks = "ok", [capabilities_answer(p["report_only"])]
         elif p and p["intent"] == "outside":
             status, blocks = (
                 "outside",
@@ -794,7 +796,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             "finish"
             if state.get("failure")
             or state.get("research_stopped")
-            or state["plan"]["intent"] == "outside"
+            or state["plan"]["intent"] in {"capabilities", "outside"}
             or state["plan"]["clarify"]
             else "decide"
         )
