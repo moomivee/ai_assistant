@@ -8,7 +8,13 @@ from .integrations.agent_skills import get_skill_catalog
 from .integrations.llm import LLMUnavailable
 from .integrations.web import DAILY
 from .logging import log
-from .models.schemas import ForecastInputs, ForecastScope, Plan, ResearchQuoteScope
+from .models.schemas import (
+    ForecastInputs,
+    ForecastScope,
+    LatestEventScope,
+    Plan,
+    ResearchQuoteScope,
+)
 from .request_context import current_scope, scope_payload
 from .validation import (
     BENCHMARK_NAMES,
@@ -176,6 +182,7 @@ def verified_quote_scope(
                 "quote_request": question,
                 "context_request": "",
                 "context_fresh": False,
+                "latest_completed_event": False,
             }
         )
 
@@ -190,7 +197,7 @@ def verified_quote_scope(
             "quote_request": scope.quote_request.strip(),
             "context_request": scope.context_request.strip(),
             "rag_query": scope.context_request.strip(),
-            "context_fresh": bool(scope.context_fresh or plan.news),
+            "context_fresh": bool(scope.context_fresh or plan.news or plan.latest_completed_event),
         }
     )
 
@@ -248,7 +255,7 @@ def resolve_research_quotes(client, plan: Plan, payload: dict) -> Plan:
     return resolved
 
 
-def make_plan(client, question, previous=None) -> Plan:
+def make_plan(client, question, previous=None, *, resolve_missing_event_scope=True) -> Plan:
     pending = pending_forecast()
     # Only an entire, unambiguous help question can bypass the semantic planner.
     if normalized(question).rstrip(" .?!…") in HELP_COMMANDS:
@@ -300,7 +307,9 @@ def make_plan(client, question, previous=None) -> Plan:
             for p in getattr(followup, "withdrawn", [])
             if normalized(p.quote) and normalized(p.quote) in normalized(question)
         }
-        raw = Plan.model_validate(followup.model_dump(include=set(Plan.model_fields)))
+        raw = Plan.model_validate(
+            followup.model_dump(include=set(Plan.model_fields), exclude_unset=True)
+        )
         if pending.new_task:
             previous = payload["previous"] = None
             payload.pop("pending_forecast")
@@ -318,15 +327,37 @@ def make_plan(client, question, previous=None) -> Plan:
     plan = validate_plan(raw, question, previous)
     if current_scope().report_only:
         plan = plan.model_copy(update={"report_only": True})
+    research_quotes = plan.intent == "research" and bool(plan.quotes) and not plan.clarify
+    if research_quotes:
+        plan = resolve_research_quotes(client, plan, payload)
+    # A legacy plan may omit temporal scope and even misclassify freshness.
+    # Only unclassified research needs a second reading; quotes have their own check.
+    if (
+        resolve_missing_event_scope
+        and plan.intent == "research"
+        and plan.wants_context
+        and plan.context_fresh is not False
+        and not plan.clarify
+        and "latest_completed_event" not in raw.model_fields_set
+    ):
+        scope = client.generate(
+            "latest_event_scope",
+            {"question": plan.context_request or question, "previous": previous, **clock_payload()},
+            LatestEventScope,
+        )
+        plan.latest_completed_event = scope.latest_completed_event
+        if scope.latest_completed_event:
+            plan.fresh = True
     log(
         "plan.validated",
         intent=plan.intent,
+        latest_completed_event=plan.latest_completed_event,
         benchmark=plan.benchmark,
         months=plan.months,
         needs_clarification=bool(plan.clarify),
     )
-    if plan.intent == "research" and plan.quotes and not plan.clarify:
-        return resolve_research_quotes(client, plan, payload)
+    if research_quotes:
+        return plan
     if plan.context_request or plan.quote_request or plan.context_fresh is not None:
         plan = plan.model_copy(
             update={"quote_request": "", "context_request": "", "context_fresh": None}

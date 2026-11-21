@@ -47,6 +47,8 @@ def unsupported_discount_base(plan: Plan) -> bool:
 
 def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Plan:
     p = plan.model_copy(deep=True)
+    if p.intent != "research":
+        p.latest_completed_event = False
     if p.intent in ("outside", "capabilities"):
         # Canonicalize a semantic decision already made by the model; never
         # classify the question here using occupation names or keyword lists.
@@ -54,7 +56,7 @@ def validate_plan(plan: Plan, question: str, previous: str | None = None) -> Pla
         p.fresh = p.news = p.wants_context = False
         p.quotes = []
         p.skill = None
-    p.fresh = p.fresh or p.news or bool(p.quotes)
+    p.fresh = p.fresh or p.news or bool(p.quotes) or p.latest_completed_event
     if p.intent == "research" and (not p.quotes or p.news):
         p.wants_context = True
     if p.intent != "forecast":

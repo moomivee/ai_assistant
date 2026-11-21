@@ -243,6 +243,14 @@ window.TraceView = (() => {
         item.append(node("p", `После шага ${check.after_step}: переданы источники ${(check.source_ids || []).join(", ") || "отсутствуют"}.`));
         item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота кандидата по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
         if (check.feedback) item.append(node("p", check.feedback, "small"));
+        const chronology = check.validation?.event_chronology;
+        if (chronology) {
+          const date = chronology.latest_held_date;
+          const ids = (chronology.latest_evidence_ids || []).join(", ");
+          item.append(node("p", date
+            ? `По найденным материалам последнее подтверждённое событие состоялось ${date}${ids ? " · " + ids : ""}.`
+            : "По найденным материалам пока не удалось подтвердить дату состоявшегося события.", "small event-chronology"));
+        }
         if (Number.isInteger(check.validation?.candidate_claims)) {
           const v = check.validation;
           item.append(node("p", `Модель предложила утверждений: ${v.candidate_claims}. Отклонено по ссылкам: ${v.citation_rejected || 0}, по числам: ${v.numeric_rejected || 0}, по смыслу: ${v.semantic_rejected || 0}.`, "small"));

@@ -17,6 +17,7 @@ def plan(**kwargs):
                 intent="research",
                 rag_query="Sokol",
                 fresh=False,
+                latest_completed_event=False,
                 report_only=False,
                 wants_context=True,
                 news=False,

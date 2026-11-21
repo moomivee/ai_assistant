@@ -1,0 +1,5 @@
+Determine the temporal scope of the user's research question. Return the requested structured boolean. Use previous only when it clarifies this turn.
+
+Select true if the user wants the most recent event that actually took place as of today. This includes a question about the date or outcome of the last meeting, vote, announcement or other occurrence, even if no calendar date is stated.
+
+Select false for a scheduled or next event, a current price, state or rule, a general news summary, an explicitly historical interval, or a request about what a specific report mentions. The selected source restriction (e.g. only local reports) does not itself change which event the user asked about.

@@ -7,7 +7,7 @@ from test_agent import executor, plan
 
 from eval.run import RecordingPlanner
 from src.integrations.llm import LLMClient, LLMUnavailable
-from src.models.schemas import ForecastInputs
+from src.models.schemas import ForecastInputs, LatestEventScope, Plan
 from src.planning import make_plan
 from src.workflow import ask
 
@@ -86,6 +86,64 @@ def test_complete_plan_needs_only_one_call():
     c = PlannerClient(plan(intent="forecast", benchmark="Brent", months=3, wants_context=False))
     assert make_plan(c, QUESTION).clarify == ""
     assert c.calls == ["plan"]
+
+
+@pytest.mark.parametrize(
+    "question,fresh,latest",
+    [
+        ("Чем закончилось последнее голосование комитета?", True, True),
+        ("Какие решения приняли участники, когда собирались в последний раз?", False, True),
+        ("Каков действующий состав комитета?", True, False),
+        ("Когда состоится следующее голосование?", True, False),
+        ("Что решил комитет в феврале 2020 года?", False, False),
+    ],
+)
+def test_legacy_research_plan_resolves_missing_event_scope(question, fresh, latest):
+    class OlderPlanner(PlannerClient):
+        def generate(self, name, payload, schema):
+            if name == "latest_event_scope":
+                self.calls.append(name)
+                assert schema is LatestEventScope
+                assert payload["question"] == question and payload["today"]
+                return schema(latest_completed_event=latest)
+            return super().generate(name, payload, schema)
+
+    legacy = plan(fresh=fresh)
+    client = OlderPlanner(
+        Plan.model_validate(legacy.model_dump(exclude={"latest_completed_event"}))
+    )
+    result = make_plan(client, question)
+    assert result.latest_completed_event is latest and result.fresh is (fresh or latest)
+    assert client.calls == ["plan", "latest_event_scope"]
+
+
+@pytest.mark.parametrize(
+    "question,initial,expected",
+    [
+        ("Как прошло последнее голосование?", plan(latest_completed_event=True), True),
+        ("Какова сегодняшняя квота?", plan(fresh=True, latest_completed_event=False), False),
+        ("Что сказано в прошлогоднем отчёте?", plan(fresh=False), False),
+        (
+            QUESTION,
+            plan(
+                intent="forecast",
+                benchmark="Brent",
+                months=3,
+                wants_context=False,
+                latest_completed_event=True,
+            ),
+            False,
+        ),
+    ],
+)
+def test_resolved_event_scope_preserves_other_routes_without_extra_calls(
+    question, initial, expected
+):
+    client = PlannerClient(initial)
+    result = make_plan(client, question)
+    assert result.latest_completed_event is expected and client.calls == ["plan"]
+    if expected:
+        assert result.fresh and result.wants_context
 
 
 def test_standalone_help_command_works_without_calling_model():

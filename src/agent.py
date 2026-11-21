@@ -220,7 +220,14 @@ def answer_sources(state):
     # A search decision may contain spurious source_ids. Only an explicit
     # finish selection may narrow the sources sent to answer generation.
     decision = state.get("decision", {})
-    selected = set(decision.get("source_ids", [])) if decision.get("action") == "finish" else set()
+    # A hand-picked subset can hide a later occurrence discovered in this turn.
+    # The chronology must compare the same cumulative pool after a finish action.
+    selected = (
+        set(decision.get("source_ids", []))
+        if decision.get("action") == "finish"
+        and not state.get("plan", {}).get("latest_completed_event")
+        else set()
+    )
     sources = state["sources"]
     if state.get("direct_quotes_attempted"):
         # A quote alone cannot answer an additional research request. When the
@@ -274,6 +281,16 @@ def can_finish_unreviewed(state):
     """Do not research repeatedly solely because the review was switched off."""
     checks = state.get("answer_checks", [])
     validation = checks[-1].get("validation", {}) if checks else {}
+    if state.get("plan", {}).get("latest_completed_event"):
+        chronology = validation.get("event_chronology") or {}
+        if (
+            not chronology.get("latest_held_date")
+            or validation.get("chronology_matches_draft") is not True
+            or chronology.get("overdue_scheduled_dates")
+            or chronology.get("unresolved_evidence_ids")
+            or chronology.get("missing_requested_context")
+        ):
+            return False
     return (
         not settings().answer_review
         and bool(state["draft"]["claims"])
@@ -590,6 +607,15 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 question = p["context_request"]
                 if p.get("context_fresh") is not None:
                     fresh = p["context_fresh"]
+            chronology_options = {}
+            if p.get("latest_completed_event"):
+                chronology_options = {
+                    "latest_completed_event": True,
+                    "allow_chronology_repair": not any(
+                        check.get("validation", {}).get("chronology_repair_attempted")
+                        for check in state["answer_checks"]
+                    ),
+                }
             draft, evidence, feedback = generate_answer(
                 client,
                 question,
@@ -614,6 +640,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     and not state.get("previous")
                     and not any(check.get("claims") for check in state["answer_checks"])
                 ),
+                **chronology_options,
             )
             # The latest validation replaces the candidate, including an empty
             # rejection. Restoring an old complete draft can resurrect stale facts.
@@ -679,6 +706,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         else:
             draft = CitedAnswer.model_validate(state["draft"])
             blocks, claims, sources = render_claims(draft, state["evidence"], state["sources"])
+            chronology = validation.get("event_chronology") or {}
+            if claims and chronology.get("latest_held_date"):
+                blocks.insert(0, "По найденным источникам")
             if calc:
                 blocks.insert(0, forecast_answer(calc))
                 sources.append(
@@ -721,7 +751,27 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 blocks.append("Не удалось завершить обработку запроса. " + state["failure"])
             else:
                 status = "ok" if complete else "partial"
-                if citation_failure:
+                if chronology.get("overdue_scheduled_dates") and not complete:
+                    dates = ", ".join(chronology["overdue_scheduled_dates"])
+                    blocks.append(
+                        f"В публикациях упомянуты более поздние даты в расписании ({dates}). "
+                        "Пока не удалось подтвердить, состоялось ли запланированное событие."
+                    )
+                elif validation.get("reason") == "no_confirmed_event":
+                    blocks.append(
+                        "В найденных материалах не удалось подтвердить, когда состоялось событие."
+                    )
+                elif validation.get("reason") == "event_chronology_mismatch":
+                    blocks.append(
+                        "Не удалось связать выводы с датой последнего подтверждённого события. "
+                        "В трейсе можно открыть фрагмент, по которому проверялась дата."
+                    )
+                elif claims and not complete and chronology.get("unresolved_evidence_ids"):
+                    blocks.append(
+                        "Для части найденных материалов не удалось установить дату или состав "
+                        "участников. Более позднее событие остаётся возможным."
+                    )
+                elif citation_failure:
                     blocks.append(
                         "Источники найдены, но ссылки модели не совпали с фрагментами, "
                         "переданными для подготовки ответа. Утверждения с такими ссылками исключены."

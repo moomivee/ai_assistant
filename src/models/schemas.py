@@ -15,6 +15,18 @@ class ParameterEvidence(StrictModel):
     quote: str = Field(min_length=1, max_length=500)
 
 
+LAST_EVENT_SCOPE = (
+    "True if the research question asks which actual occurrence is the most recent "
+    "as of the request time (and possibly what happened then). Distinguish a completed "
+    "event from an upcoming event, current value, generic news, historical interval, "
+    "or the last event mentioned in a specified document."
+)
+
+
+class LatestEventScope(StrictModel):
+    latest_completed_event: bool = Field(description=LAST_EVENT_SCOPE)
+
+
 class Plan(StrictModel):
     skill: Literal["report_analysis", "web_research", "price_forecast"] | None = None
     intent: Literal["research", "forecast", "capabilities", "outside"] = Field(
@@ -35,6 +47,7 @@ class Plan(StrictModel):
             "or a calculation from CSV history. Independent of report_only."
         )
     )
+    latest_completed_event: bool = Field(default=False, description=LAST_EVENT_SCOPE)
     report_only: bool
     wants_context: bool
     news: bool
@@ -299,8 +312,11 @@ class CitedClaim(StrictModel):
     )
 
 
+MAX_CITED_CLAIMS = 8
+
+
 class CitedAnswer(StrictModel):
-    claims: list[CitedClaim] = Field(max_length=8)
+    claims: list[CitedClaim] = Field(max_length=MAX_CITED_CLAIMS)
     complete: bool = Field(
         description="true, только если claims отвечают на ВСЕ части вопроса, включая вывод сравнения."
     )
@@ -308,7 +324,7 @@ class CitedAnswer(StrictModel):
 
 class CitationReview(StrictModel):
     feedback: str = Field(max_length=600)
-    supported: list[int] = Field(max_length=8)
+    supported: list[int] = Field(max_length=MAX_CITED_CLAIMS)
     complete: bool
     coverage: Literal["sufficient", "partial", "unverified"] = Field(
         default="unverified",

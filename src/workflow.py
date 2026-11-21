@@ -1,5 +1,6 @@
 """Bounded LangGraph workflow; LLM plans, code enforces source priority."""
 
+from functools import partial
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -15,6 +16,9 @@ from .models.schemas import AgentResponse, EvidenceAnswer
 from .planning import make_plan
 from .tools import make_registry, run_tool
 from .validation import normalized
+
+# The historical fixed workflow does not run the event chronology evaluator.
+fixed_planner = partial(make_plan, resolve_missing_event_scope=False)
 
 
 class State(TypedDict, total=False):
@@ -92,7 +96,7 @@ def forecast_answer(calc: dict):
     )
 
 
-def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan):
+def build_graph(client=None, registry=None, execute=run_tool, planner=fixed_planner):
     client, registry = client or llm(), registry or make_registry()
 
     def route(s):
@@ -345,7 +349,7 @@ def ask(
     client=None,
     registry=None,
     execute=run_tool,
-    planner=make_plan,
+    planner=fixed_planner,
 ) -> dict:
     question = question.strip()
     if not 1 <= len(question) <= 2000:

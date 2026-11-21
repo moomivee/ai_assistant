@@ -11,11 +11,13 @@ PROMPT_NAMES = (
     "forecast",
     "forecast_scope",
     "research_quote_scope",
+    "latest_event_scope",
     "answer",
     "answer_review",
     "judge",
     "decide",
     "web_time_filter",
+    "event_chronology",
     "cited_answer",
     "citation_review",
 )

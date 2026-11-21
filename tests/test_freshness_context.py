@@ -4,9 +4,60 @@ import pytest
 from test_agent import REPORT, WEB, plan
 from test_agent_loop import Scripted, action, event
 
-from src.agent import ask, decision_sources
+from src.agent import answer_sources, ask, can_finish_unreviewed, decision_sources
 from src.clock import clock_payload
 from src.evidence import generate_answer
+
+
+@pytest.mark.parametrize("latest,expected_ids", [(True, ["R1", "W1"]), (False, ["R1"])])
+def test_finish_selection_cannot_hide_newer_event_candidate(latest, expected_ids):
+    state = {
+        "plan": {"latest_completed_event": latest},
+        "decision": {"action": "finish", "source_ids": ["R1"]},
+        "sources": [REPORT, WEB],
+    }
+    assert [s["id"] for s in answer_sources(state)] == expected_ids
+
+
+@pytest.mark.parametrize(
+    "chronology,matched,may_finish",
+    [
+        ({"latest_held_date": None}, False, False),
+        ({"latest_held_date": "2026-01-01", "unresolved_evidence_ids": ["W2:B1"]}, True, False),
+        (
+            {"latest_held_date": "2026-01-01", "missing_requested_context": ["next date"]},
+            True,
+            False,
+        ),
+        (
+            {"latest_held_date": "2026-01-01", "overdue_scheduled_dates": ["2026-03-20"]},
+            True,
+            False,
+        ),
+        ({"latest_held_date": "2026-01-01"}, False, False),
+        ({"latest_held_date": "2026-01-01"}, True, True),
+    ],
+)
+def test_unreviewed_answer_only_ends_research_after_verifying_event_chronology(
+    chronology, matched, may_finish
+):
+    state = {
+        "plan": plan(latest_completed_event=True).model_dump(),
+        "draft": {"claims": ["unreviewed candidate"]},
+        "sources": [WEB],
+        "answer_checks": [
+            {
+                "validation": {
+                    "candidate_complete": True,
+                    "candidate_claims": 1,
+                    "accepted_claims": 1,
+                    "event_chronology": chronology,
+                    "chronology_matches_draft": matched,
+                }
+            }
+        ],
+    }
+    assert can_finish_unreviewed(state) is may_finish
 
 
 def test_opened_page_keeps_dates_and_urls_in_decision_context():

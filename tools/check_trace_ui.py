@@ -305,6 +305,48 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 ],
             )
+        elif question in {"latest-event", "latest-event-unconfirmed"}:
+            confirmed = question == "latest-event"
+            source = dict(
+                id="W2",
+                kind="web",
+                title="Сообщение о заседании",
+                date=None,
+                url="https://example.invalid/meeting-fixture",
+                used_in_answer=confirmed,
+                text="Заседание прошло 1 ноября 2026 года."
+                if confirmed
+                else "Следующее заседание запланировано на 29 ноября 2026 года.",
+            )
+            response.update(
+                answer=source["text"] + " [W2]" if confirmed else "Найден только анонс.",
+                sources=[source] if confirmed else [],
+                status="ok" if confirmed else "partial",
+                stop_reason="completed" if confirmed else "no_progress",
+                decisions=[dict(action="web_search", purpose="Найти итоги заседания.")],
+                trace=[dict(tool="web_search", status="ok", ms=24)],
+                rejected_actions=0,
+            )
+            response["diagnostics"].update(
+                plan=dict(intent="research", fresh=True, latest_completed_event=True),
+                steps=[dict(step=1, tool="web_search", status="ok", ms=24, source_ids=["W2"])],
+                retrieved_sources=[source],
+                answer_checks=[
+                    dict(
+                        after_step=1,
+                        source_ids=["W2"],
+                        status="ok",
+                        complete=confirmed,
+                        claims=int(confirmed),
+                        validation=dict(
+                            event_chronology=dict(
+                                latest_held_date="2026-11-01" if confirmed else None,
+                                latest_evidence_ids=["W2:B1"] if confirmed else [],
+                            )
+                        ),
+                    ),
+                ],
+            )
         elif question == "failed-only":
             response.update(
                 status="unavailable",
@@ -675,6 +717,7 @@ async def check(url):
         )
         await handoff.click()
         assert "переданы источники R1" in await page.locator(".answer-check").inner_text()
+        assert await page.locator(".event-chronology").count() == 0
         assert (
             "Модель предложила утверждений: 1" in await page.locator(".answer-check").inner_text()
         )
@@ -772,6 +815,20 @@ async def check(url):
         )
         assert "Покрытие вопроса: не проверено" in await page.locator(".answer-check").inner_text()
         assert "Полнота перечня не подтверждена" in await page.locator(".answer-check").inner_text()
+        await submit("latest-event")
+        await handoff.click()
+        chronology = page.locator(".answer-check .event-chronology")
+        assert await chronology.is_visible()
+        assert (
+            await chronology.inner_text()
+            == "По найденным материалам последнее подтверждённое событие состоялось 2026-11-01 · W2:B1."
+        )
+        await submit("latest-event-unconfirmed")
+        await handoff.click()
+        assert (
+            await chronology.inner_text()
+            == "По найденным материалам пока не удалось подтвердить дату состоявшегося события."
+        )
         await submit("failed-only")
         assert (
             "Успешных вызовов инструментов нет"
@@ -830,6 +887,7 @@ async def check(url):
             "no progress and time budget stops",
             "controller override and unknown references",
             "evidence handoff and answer reserve",
+            "latest completed event date and supporting block within the retrieved evidence",
             "policy step separate from model choices",
             "source route summary: reports, web and failed attempts",
             "used web source caveats and disabled semantic review",
