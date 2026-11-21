@@ -9,6 +9,7 @@ from .budget import check_budget
 from .clock import clock_payload
 from .config import settings
 from .event_chronology import build_event_chronology, mentioned_dates
+from .event_relevance import select_event_sources
 from .models.schemas import MAX_CITED_CLAIMS, CitationReview, CitedAnswer, CitedClaim
 from .progress import context_blocks
 from .request_context import scope_payload
@@ -139,10 +140,10 @@ def _matches_latest_event(claims, evidence, chronology, related):
     return dated_anchor
 
 
-def catalog(sources, limit=18000, *, priority_source_ids=()):
+def catalog(sources, limit=18000, *, priority_source_ids=(), retained_block_id=None):
     evidence = {}
     for source, i, start, end, block in context_blocks(
-        sources, limit, priority_source_ids=priority_source_ids
+        sources, limit, priority_source_ids=priority_source_ids, retained_block_id=retained_block_id
     ):
         key = f"{source['id']}:B{i}"
         evidence[key] = {
@@ -192,6 +193,9 @@ def generate_answer(
     latest_completed_event=False,
     allow_chronology_repair=True,
     allow_format_repair=True,
+    relevance_cache=None,
+    chronology_cache=None,
+    retained_block_id=None,
 ):
     # These counters describe validation, not model quality. Keep raw text and
     # rejected values out of diagnostics; None means generation did not finish.
@@ -215,7 +219,23 @@ def generate_answer(
         stage="evidence",
         reason="pending",
     )
-    evidence = catalog(sources, priority_source_ids=priority_source_ids)
+    if latest_completed_event:
+        checks["stage"] = "event_relevance"
+        sources, relevance = select_event_sources(
+            client, question, sources, previous=previous, cache=relevance_cache
+        )
+        checks["event_relevance"] = relevance
+        if not sources and relevance["excluded_source_ids"]:
+            checks.update(stage="finished", reason="no_relevant_event_sources", accepted_claims=0)
+            return (
+                CitedAnswer(claims=[], complete=False),
+                {},
+                "Публикации посвящены другим событиям. Найдите сообщение организатора "
+                "о запрошенном событии или его архив, при необходимости смените язык поиска.",
+            )
+    evidence = catalog(
+        sources, priority_source_ids=priority_source_ids, retained_block_id=retained_block_id
+    )
     if not evidence:
         checks["reason"] = "no_evidence"
         return CitedAnswer(claims=[], complete=False), evidence, "No evidence available"
@@ -228,7 +248,12 @@ def generate_answer(
     if latest_completed_event:
         checks["stage"] = "event_chronology"
         chronology = build_event_chronology(
-            client, question, evidence, previous=previous, allow_format_repair=allow_format_repair
+            client,
+            question,
+            evidence,
+            previous=previous,
+            allow_format_repair=allow_format_repair,
+            cache=chronology_cache,
         )
         latest = chronology["latest_held_date"]
         overdue = sorted(

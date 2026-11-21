@@ -1,6 +1,7 @@
 import csv
 import ipaddress
 import math
+import re
 from datetime import UTC, date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from time import monotonic
@@ -64,6 +65,21 @@ def allowed(url: str, domains: tuple[str, ...]) -> bool:
         )
     except (ValueError, UnicodeError):
         return False
+
+
+def publication_domains(publisher_domain: str, configured: tuple[str, ...]) -> tuple[str, ...]:
+    """Narrow a publication search to a DNS hostname inside the configured trust scope."""
+    if publisher_domain == "":
+        return configured
+    host = publisher_domain.lower().removesuffix(".")
+    label = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    if (
+        len(host) > 253
+        or not re.fullmatch(rf"{label}(?:\.{label})+", host)
+        or not allowed("https://" + host, configured)
+    ):
+        raise ValueError("Для поиска по издателю укажите домен из доверенного списка.")
+    return (host,)
 
 
 def web_date(raw: str | None) -> date | None:
@@ -224,6 +240,7 @@ def search_web(
     fresh: bool,
     *,
     quote_fallback: bool = False,
+    publisher_domain: str = "",
     topic: str = "general",
     days: int | None = None,
     start_date: str | None = None,
@@ -239,6 +256,7 @@ def search_web(
     """
     check_budget()
     cfg = settings()
+    domains = publication_domains(publisher_domain, cfg.domains)
     query = " ".join(query.split())[:WEB_QUERY_LIMIT]
     if not query:
         raise ValueError("Для веб-поиска нужен непустой запрос.")
@@ -270,19 +288,20 @@ def search_web(
                     provider="rss",
                     cache_hit=False,
                 )
-                for row in search_feeds(query, allowed, web_date, deadline)
-                if _within_window(web_date(row.get("date")), start, end)
+                for row in search_feeds(query, allowed, web_date, deadline, domains)
+                if allowed(row["url"], domains)
+                and _within_window(web_date(row.get("date")), start, end)
             ][:max_results]
         raise ValueError(
             "Для свободного веб-поиска укажите TAVILY_API_KEY в .env. "
             "Последние наблюдения Brent и WTI доступны через FRED без ключа."
         )
-    if not cfg.domains:
+    if not domains:
         raise ValueError("Для веб-поиска не настроены доверенные домены.")
     payload = {
         "query": query,
         "max_results": max_results,
-        "include_domains": sorted(set(cfg.domains)),
+        "include_domains": sorted(set(domains)),
         "include_domains_mode": "restrict",
         "include_answer": False,
         "include_raw_content": False,
@@ -326,7 +345,7 @@ def search_web(
             continue
         url, snippet = str(item.get("url") or ""), str(item.get("content") or "").strip()
         published = web_date(item.get("published_date"))
-        if not allowed(url, cfg.domains) or url in seen or not snippet:
+        if not allowed(url, domains) or url in seen or not snippet:
             continue
         if not _within_window(published, start, end):
             continue
@@ -471,11 +490,18 @@ def web_lookup(
     search: bool,
     *,
     quote_fallback=False,
+    publisher_domain="",
     **search_options,
 ) -> dict:
     # Validate before the provider-error handlers below (and before FRED calls).
     # The tool registry must record invalid arguments as an error, not status=ok.
     validate_search_options(**search_options)
+    if publisher_domain:
+        if not search:
+            raise ValueError("Домен издателя применим только к поиску публикаций.")
+        (search_options["publisher_domain"],) = publication_domains(
+            publisher_domain, settings().domains
+        )
     rows, notices = [], []
     for grade in dict.fromkeys(quotes):
         if grade not in DAILY:

@@ -61,6 +61,23 @@ def test_priority_follows_excerpt_when_full_page_replaces_it():
     assert "R1:B1" not in evidence
 
 
+def test_dated_citation_remains_available_with_newer_retrievals():
+    last = source("W1", "A" * 1600 + "Earlier confirmed date.")
+    new = source("W2", "B" * 1550)
+    evidence = catalog(
+        [last, new], limit=1600, priority_source_ids=["W2"], retained_block_id="W1:B2"
+    )
+    assert list(evidence) == ["W1:B2", "W2:B1"]
+    assert evidence["W1:B2"]["text"] == last["text"][1600:]
+    assert sum(len(row["text"]) for row in evidence.values()) <= 1600
+
+
+def test_excluded_source_cannot_return_via_retained_citation():
+    source_after_screening = source("W2", "A different event.")
+    evidence = catalog([source_after_screening], retained_block_id="W1:B2")
+    assert list(evidence) == ["W2:B1"]
+
+
 def test_whole_small_table_and_normal_numeric_tokens_are_preserved():
     table = "Grade | API | Sulfur\nUrals | 31 | 1.5%\nESPO | 35 | 0.5%"
     text = "A" * 1595 + " 1234567.89 USD"

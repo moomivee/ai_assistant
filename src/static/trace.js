@@ -102,6 +102,9 @@ window.TraceView = (() => {
     if (execution) {
       if (["plan_rag_query", "plan_web_query"].includes(execution.argument_repair?.mode)) li.append(node("p", "Модель оставила поисковую строку пустой. Агент взял из плана фразу «" + execution.argument_repair.after.query + "».", "small"));
       if (execution.argument_repair?.mode === "event_search") li.append(node("p", "Для проверки события выполнен запрос «" + execution.argument_repair.after.query + "».", "small"));
+      if (execution.tool === "web_search" && execution.status === "ok" && execution.arguments?.publisher_domain) {
+        li.append(node("p", `Поиск ограничен сайтом ${execution.arguments.publisher_domain}.`, "small trace-publisher"));
+      }
       if (execution.error) li.append(node("p", errorText(execution.error), "step-error"));
       if (execution.duplicate_of) li.append(node("p", `Повтор шага ${execution.duplicate_of}. Ранее получено: ${execution.reused_source_ids?.join(", ") || "фрагментов нет"}.`, "step-result"));
       if (typeof execution.new_evidence === "boolean") li.append(node("p", `Новые данные: ${execution.new_evidence ? "да" : "нет"}. Попыток без новых данных подряд: ${execution.no_progress_steps ?? 0}.`, "small"));
@@ -245,6 +248,8 @@ window.TraceView = (() => {
         item.append(node("p", `После шага ${check.after_step}: переданы источники ${(check.source_ids || []).join(", ") || "отсутствуют"}.`));
         item.append(node("p", `Подготовка и проверка: ${duration(check.ms)}. ${check.status === "error" ? "Ошибка: " + check.error : `Утверждений после проверки: ${check.claims}. Полнота кандидата по оценке модели: ${check.complete ? "полный ответ" : "неполный ответ"}.`}`, "small"));
         if (check.feedback) item.append(node("p", check.feedback, "small"));
+        const excluded = check.validation?.event_relevance?.excluded_source_ids;
+        if (excluded?.length) item.append(node("p", `Вне темы вопроса. Из проверки дат исключены публикации ${excluded.join(", ")}.`, "small event-excluded"));
         const chronology = check.validation?.event_chronology;
         if (chronology) {
           const date = chronology.latest_held_date;
@@ -253,6 +258,9 @@ window.TraceView = (() => {
             ? `По найденным материалам последнее подтверждённое событие состоялось ${date}${ids ? " · " + ids : ""}.`
             : "По найденным материалам пока не удалось подтвердить дату состоявшегося события.", "small event-chronology"));
           const extraction = chronology.extraction;
+          if (extraction?.reused_evidence_ids?.length) {
+            item.append(node("p", `Проверка дат использовала результаты предыдущих шагов для фрагментов ${extraction.reused_evidence_ids.join(", ")}.`, "small event-reused"));
+          }
           if (extraction?.repair_attempted) {
             item.append(node("p", "Агент запросил у модели исправление формата ответа по хронологии.", "small"));
           }

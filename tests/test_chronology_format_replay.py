@@ -43,6 +43,8 @@ class CouncilReplay:
         elif "allowed_actions" in payload:
             query = "" if not payload["observations"] else "заседание совета сентябрь 2026"
             body = action("web_search", query)
+        elif name == "EventRelevance":
+            body = {"off_topic": []}
         elif name == "EventChronology":
             body = self.classify(payload)
         elif name == "CitedAnswer":
@@ -119,9 +121,10 @@ def test_followup_search_and_bounded_repair_after_invalid_chronology(monkeypatch
             "EventChronology" not in response["answer"] and "model_type" not in response["answer"]
         )
         assert "CitedAnswer" not in provider.schemas
-        assert (
-            checks[-1]["validation"]["event_chronology"]["extraction"]["status"] == "invalid_format"
-        )
+        extraction = checks[-1]["validation"]["event_chronology"]["extraction"]
+        assert extraction["status"] == "incomplete"
+        assert extraction["reused_evidence_ids"] == ["W1:B1"]
+        assert extraction["unparsed_evidence_ids"] == ["W2:B1"]
 
 
 def test_transport_failures_do_not_trigger_format_repair(monkeypatch):

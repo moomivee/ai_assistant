@@ -5,13 +5,20 @@ from urllib.parse import urlsplit
 
 from pydantic import Field
 
+from .clock import clock_today
 from .config import settings
+from .event_dates import open_event_query
 from .integrations.web import WEB_QUERY_LIMIT, allowed
 from .models.schemas import NextAction
 from .validation import normalized
 
 
 class EventSearchAction(NextAction):
+    publisher_domain: str = Field(
+        default="",
+        max_length=253,
+        description="Домен первоисточника из trusted_publishers. Можно выбрать до первого результата. Пусто для поиска по всем разрешённым издателям.",
+    )
     event_search_goal: Literal["outcome", "archive", "coverage"] = Field(
         default="outcome", description="Для повторного веб-поиска выбери тип нужной публикации."
     )
@@ -50,13 +57,12 @@ def event_search_context(state):
         or state["draft"]["complete"]
     ):
         return None
-    if not any(
+    followup = any(
         observation["tool"] in ("report_search", "read_report", "web_search", "read_web")
         and not observation.get("error")
         and (observation["tool"] != "web_search" or observation["arguments"].get("search"))
         for observation in state["observations"]
-    ):
-        return None
+    )
     chronology = next(
         (
             check["validation"]["event_chronology"]
@@ -68,48 +74,62 @@ def event_search_context(state):
     lead_dates = set(chronology.get("overdue_scheduled_dates", []))
     if date := chronology.get("latest_held_date"):
         lead_dates.add(date)
+    trusted = settings().domains
+    validation = state["answer_checks"][-1].get("validation", {}) if state["answer_checks"] else {}
+    excluded = set(validation.get("event_relevance", {}).get("excluded_source_ids", []))
     publisher_pages = {}
     for source in state["sources"]:
-        if source["kind"] == "web" and allowed(source.get("url", ""), settings().domains):
+        if (
+            source["kind"] == "web"
+            and source["id"] not in excluded
+            and allowed(source.get("url", ""), trusted)
+        ):
             publisher_pages.setdefault(source["url"], []).append(source["id"])
     return {
-        "subject": plan.get("context_request") or state["question"],
+        "trusted_publishers": list(trusted),
+        "followup": followup,
         "lead_dates": sorted(lead_dates),
         "publisher_pages": publisher_pages,
     }
 
 
 def event_publication_search(decision, context, state):
-    """Encode a discovery objective or a verifiable dated lead as a publication query."""
-    goal = decision.get("event_search_goal", "outcome")
-    language = decision.get("event_language", "ru")
-    subject = " ".join(context["subject"].split())
+    """Preserve the model's search terms and pass the publisher as a provider filter."""
+    before = {
+        k: decision.get(k) for k in ("query", "publisher_domain", "days", "start_date", "end_date")
+    }
+    question = state["plan"].get("context_request") or state["question"]
     term = " ".join(decision.get("event_subject", "").split())
-    selected = normalized(term)
-    if selected and any(
-        selected in normalized(text) for text in (subject, state.get("previous") or "")
-    ):
-        if selected not in normalized(subject):
-            subject = f"{term} {subject}"
-    else:
+    if not any(normalized(term) in normalized(t) for t in (question, state.get("previous") or "")):
         term = ""
-    qualifiers = [_PUBLICATION_TERMS[goal][language]]
-    date = decision.get("event_lead_date", "")
-    if date in context["lead_dates"]:
-        qualifiers.append(date)
-    publisher = decision.get("event_publisher_id", "")
-    for url, source_ids in context["publisher_pages"].items():
-        if publisher in source_ids:
-            qualifiers.append("site:" + urlsplit(url).hostname)
-            break
-    suffix = " " + " ".join(qualifiers)
-    available = WEB_QUERY_LIMIT - len(suffix)
-    if len(subject) > available:
-        subject = (term or subject)[:available].rstrip()
-    # A lead is an event date, never a publication window. Retrospective results
-    # and later cancellations/corrections must remain eligible for the same query.
-    before = {k: decision.get(k) for k in ("query", "days", "start_date", "end_date")}
-    after = {"query": subject + suffix, "days": None, "start_date": None, "end_date": None}
+    lead = decision.get("event_lead_date", "")
+    if lead not in context["lead_dates"]:
+        lead = ""
+    proposed = " ".join((before["query"] or "").split())
+    initial_query = proposed or term or state["plan"]["rag_query"].strip()
+    if proposed and term and normalized(term) not in normalized(proposed):
+        initial_query = term + " " + proposed
+    if not proposed and context["followup"] and initial_query:
+        goal = decision.get("event_search_goal", "outcome")
+        language = decision.get("event_language", "ru")
+        initial_query += " " + _PUBLICATION_TERMS[goal][language]
+    query = open_event_query(initial_query, question=question, today=clock_today(), lead_date=lead)
+    # A confirmed lead is optional. No historical publication cutoff follows from it.
+    suffix = " " + lead if lead and lead not in query else ""
+    query = query[: WEB_QUERY_LIMIT - len(suffix)].rstrip() + suffix
+    publisher = (before["publisher_domain"] or "").strip().lower()
+    if publisher not in context["trusted_publishers"]:
+        publisher = next(
+            (
+                urlsplit(url).hostname
+                for url, ids in context["publisher_pages"].items()
+                if decision.get("event_publisher_id") in ids
+            ),
+            "",
+        )
+    after = {**before, "query": query, "publisher_domain": publisher}
+    if context["followup"]:
+        after.update(days=None, start_date=None, end_date=None)
     return {
         **decision,
         **after,

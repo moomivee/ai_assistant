@@ -59,7 +59,7 @@ class MeetingReplay:
     def __init__(self, draft_mode):
         self.draft_mode = draft_mode
         self.drafts = 0
-        self.chronologies = 0
+        self.reviewed_blocks = []
 
     def generate(self, name, payload, schema):
         if name == "plan":
@@ -69,8 +69,10 @@ class MeetingReplay:
                 action("finish") if payload["observations"] else action("web_search", "meetings")
             )
             return schema.model_validate(selected)
+        if name == "event_relevance":
+            return schema.model_validate({"off_topic": []})
         if name == "event_chronology":
-            self.chronologies += 1
+            self.reviewed_blocks.extend(payload["evidence"])
             jan = occurrence("2026-01-04", JAN)
             events = [
                 [jan],
@@ -85,6 +87,7 @@ class MeetingReplay:
                     "blocks": [
                         {"evidence_id": f"W{i}:B1", "status": "assessed", "events": block}
                         for i, block in enumerate(events, 1)
+                        if f"W{i}:B1" in payload["evidence"]
                     ]
                 }
             )
@@ -152,7 +155,7 @@ def test_graph_uses_latest_held_event_even_if_naive_reviewer_would_approve(
 
     response = ask(question, client=model, execute=lookup)
     assert calls == ["web_search"]
-    assert model.chronologies == 1
+    assert sorted(model.reviewed_blocks) == [f"W{i}:B1" for i in range(1, 7)]
     assert model.drafts == 2
     assert "4 января" not in response["answer"]
     assert "29 ноября" not in response["answer"]

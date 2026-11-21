@@ -22,7 +22,11 @@ class LLMUnavailable(RuntimeError):
     pass
 
 
-class StructuredOutputError(LLMUnavailable):
+class InvalidModelOutput(LLMUnavailable):
+    """The provider completed generation without usable structured data."""
+
+
+class StructuredOutputError(InvalidModelOutput):
     """A provider answered, but the data could not be parsed as the requested model."""
 
     def __init__(self, message, *, issues, response_content):
@@ -215,6 +219,8 @@ class LLMClient:
                     error_type=type(exc).__name__,
                     error_code=exc.code,
                 )
+                if exc.code in {"empty_response", "length"}:
+                    raise InvalidModelOutput(str(exc)) from None
                 raise LLMUnavailable(str(exc)) from None
             except ValidationError as exc:
                 check_budget()

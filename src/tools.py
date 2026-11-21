@@ -26,6 +26,7 @@ class WebArgs(ReportArgs):
     quotes: list[Grade]
     search: bool
     quote_fallback: bool = False
+    publisher_domain: str = Field(default="", max_length=254)
     topic: str = "general"
     days: int | None = None
     start_date: str | None = None

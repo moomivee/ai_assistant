@@ -26,10 +26,15 @@ def chronology(monkeypatch, evidence, blocks):
             assert name == "event_chronology" and get_prompt(name).text
             assert payload["today"] == "2026-11-21"
             assert payload["previous"] == "Вопрос про комитет"
-            keys = payload.get("format_repair", {}).get("expected_evidence_ids", list(evidence))
+            keys = payload.get("format_repair", {}).get(
+                "expected_evidence_ids", payload["evidence"]
+            )
             assert payload["evidence"].keys() == set(keys)
+            assert set(keys) <= set(evidence)
             assert all(v["text"] == evidence[k]["text"] for k, v in payload["evidence"].items())
-            return schema.model_validate({"blocks": blocks})
+            return schema.model_validate(
+                {"blocks": [b for b in blocks if b["evidence_id"] in keys]}
+            )
 
     return build_event_chronology(
         Reader(), "Когда состоялось последнее заседание?", evidence, previous="Вопрос про комитет"
@@ -224,3 +229,118 @@ def test_exhausted_request_repair_and_transport_failure_do_not_regenerate():
         with pytest.raises(LLMUnavailable, match="provider failure"):
             read_provider(provider, evidence)
         assert len(provider.payloads) == 1
+
+
+def test_empty_and_truncated_new_completions_preserve_previously_assessed_event():
+    first = {"W1:B1": {"text": "The council met on 1 May 2020."}}
+    provider = RecordedProvider(
+        {"blocks": [block("W1:B1", event("2020-05-01", first["W1:B1"]["text"]))]},
+        GigaChatError("empty_response", "No content"),
+        GigaChatError("length", "Truncated output"),
+    )
+    cache = {}
+    read_provider(provider, first, cache=cache)
+    result = read_provider(provider, {**first, "W2:B1": {"text": "New report."}}, cache=cache)
+    assert result["latest_evidence_ids"] == ["W1:B1"]
+    assert result["unresolved_evidence_ids"] == ["W2:B1"]
+    audit = result["extraction"]
+    assert audit["status"] == "incomplete" and audit["repair_attempted"]
+    assert audit["address_errors"] == {"unusable_completion": 2, "missing_ids": 2}
+    assert [list(p["evidence"]) for p in provider.payloads] == [["W1:B1"], ["W2:B1"], ["W2:B1"]]
+
+
+def test_second_round_reviews_only_new_or_changed_blocks_and_reuses_uncertainty():
+    earlier, later = "The council met on 1 May 2020.", "The council met on 5 May 2020."
+    first = {"W1:B1": {"text": earlier}, "W2:B1": {"text": "Undated material."}}
+    provider = RecordedProvider(
+        {
+            "blocks": [
+                block("W1:B1", event("2020-05-01", earlier)),
+                block("W2:B1", status="uncertain"),
+            ]
+        },
+        {"blocks": [block("W3:B1", event("2020-05-05", later))]},
+        {"blocks": [block("W1:B1")]},
+    )
+    cache = {}
+    read_provider(provider, first, cache=cache)
+    latest = read_provider(provider, {**first, "W3:B1": {"text": later}}, cache=cache)
+    assert list(provider.payloads[1]["evidence"]) == ["W3:B1"]
+    assert latest["extraction"]["reused_evidence_ids"] == list(first)
+    assert latest["unresolved_evidence_ids"] == ["W2:B1"]
+    assert [row["date"] for row in latest["held_events"]] == ["2020-05-05", "2020-05-01"]
+
+    # Changed content must be re-read. W3 left the current catalog, so it cannot
+    # be cited here even though its assessment still exists in the request cache.
+    changed = {**first, "W1:B1": {"text": "Publication corrected: no event information."}}
+    latest = read_provider(provider, changed, cache=cache)
+    assert list(provider.payloads[2]["evidence"]) == ["W1:B1"]
+    assert latest["latest_held_date"] is None
+    again = read_provider(provider, changed, cache=cache)
+    assert again["extraction"]["batch_sizes"] == [] and len(provider.payloads) == 3
+
+
+def test_empty_batch_repairs_with_app_assigned_keys_and_keeps_protocol_for_new_blocks():
+    text = "The council met on 1 May 2020."
+    value = dict(status="assessed", events=[event("2020-05-01", text)])
+    provider = RecordedProvider(
+        {"blocks": []},
+        {"blocks": {"W7:B1": value}},
+        {"blocks": {"W8:B1": {"status": "uncertain", "events": []}}},
+    )
+    cache = {}
+    evidence = {"W7:B1": {"text": text}}
+    initial = read_provider(provider, evidence, cache=cache)
+    assert initial["latest_evidence_ids"] == ["W7:B1"]
+    audit = initial["extraction"]
+    assert audit["address_errors"] == {"empty_blocks": 1, "missing_ids": 1}
+    assert provider.payloads[1]["format_repair"]["keyed_blocks"]
+    next_round = read_provider(
+        provider,
+        {**evidence, "W8:B1": {"text": "Later meeting?"}},
+        cache=cache,
+        allow_format_repair=False,
+    )
+    assert provider.payloads[2]["keyed_blocks"] and list(provider.payloads[2]["evidence"]) == [
+        "W8:B1"
+    ]
+    assert next_round["latest_evidence_ids"] == ["W7:B1"] and next_round[
+        "unresolved_evidence_ids"
+    ] == ["W8:B1"]
+
+
+def test_invalid_keys_have_counts_and_cannot_bind_by_position():
+    evidence = {"W2:B1": {"text": "The council met on 1 May 2020."}}
+    provider = RecordedProvider({"blocks": [block("W99:B1"), block("W2:B1"), block("W2:B1")]})
+    result = read_provider(provider, evidence, allow_format_repair=False)
+    assert not result["held_events"]
+    assert result["extraction"]["address_errors"] == {"unknown_ids": 1, "duplicate_ids": 1}
+    assert result["extraction"]["unparsed_evidence_ids"] == ["W2:B1"]
+
+
+def test_batch_capacity_preserves_coverage_gap_and_advances_on_next_assessment():
+    from src.event_chronology import BATCH_SIZE, MAX_BATCHES
+
+    capacity = BATCH_SIZE * MAX_BATCHES
+    evidence = {f"W{i}:B1": {"text": "There was no event."} for i in range(capacity + 1)}
+    keys = list(evidence)
+    outputs = [
+        {"blocks": [block(key) for key in keys[i : i + BATCH_SIZE]]}
+        for i in range(0, len(keys), BATCH_SIZE)
+    ]
+    provider = RecordedProvider(*outputs)
+    cache = {}
+    first = read_provider(provider, evidence, cache=cache)
+    assert first["extraction"]["batch_sizes"] == [BATCH_SIZE] * MAX_BATCHES
+    assert (
+        first["unresolved_evidence_ids"]
+        == first["extraction"]["deferred_evidence_ids"]
+        == keys[capacity:]
+    )
+    assert (
+        not first["extraction"]["unparsed_evidence_ids"]
+        and not first["extraction"]["repair_attempted"]
+    )
+    second = read_provider(provider, evidence, cache=cache)
+    assert not second["unresolved_evidence_ids"]
+    assert second["extraction"]["batch_sizes"] == [1]

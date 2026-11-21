@@ -49,9 +49,11 @@ def _plain(x: str) -> str:
     return " ".join(" ".join(parser.parts).split())
 
 
-def search_feeds(query: str, trusted, parse_date, deadline=None) -> list[dict]:
+def search_feeds(query: str, trusted, parse_date, deadline=None, domains=None) -> list[dict]:
     log("web.rss_fallback", feeds=len(FEEDS))
     cfg = settings()
+    if domains is None:
+        domains = cfg.domains
     q = query.casefold()
     groups = [g for g in TOPICS if any(term in q for term in g)]
     if not groups:
@@ -68,7 +70,7 @@ def search_feeds(query: str, trusted, parse_date, deadline=None) -> list[dict]:
 
     def fetch(entry):
         publisher, feed = entry
-        if not trusted(feed, cfg.domains):
+        if not trusted(feed, domains):
             return []
         try:
             if deadline is None:
@@ -96,7 +98,7 @@ def search_feeds(query: str, trusted, parse_date, deadline=None) -> list[dict]:
             if parts.scheme not in ("http", "https"):
                 continue
             url = urlunsplit(("https", parts.netloc, parts.path, parts.query, ""))
-            if not trusted(url, cfg.domains):
+            if not trusted(url, domains):
                 continue
             title = _plain(row.findtext("title", ""))
             text = _plain(row.findtext("description", ""))[:1100]

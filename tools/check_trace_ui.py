@@ -318,31 +318,66 @@ class Handler(BaseHTTPRequestHandler):
                 if confirmed
                 else "Следующее заседание запланировано на 29 ноября 2026 года.",
             )
+            steps = []
+            retrieved = []
+            if confirmed:
+                for source_id, title, excerpt in (
+                    ("W1", "Календарь заседаний", "Заседание запланировано на 1 ноября."),
+                    ("W3", "Встреча банкиров", "Обсудили регулирование банков."),
+                ):
+                    retrieved.append(
+                        dict(
+                            source,
+                            id=source_id,
+                            title=title,
+                            text=excerpt,
+                            used_in_answer=False,
+                            url=f"https://news.invalid/{source_id}",
+                        )
+                    )
+                steps.append(
+                    dict(step=1, tool="web_search", status="ok", ms=18, source_ids=["W1", "W3"])
+                )
+            retrieved.append(source)
+            steps.append(
+                dict(
+                    step=len(steps) + 1,
+                    tool="web_search",
+                    status="ok",
+                    ms=24,
+                    source_ids=["W2"],
+                    arguments={"publisher_domain": "example.invalid"} if confirmed else {},
+                )
+            )
             response.update(
                 answer=source["text"] + " [W2]" if confirmed else "Найден только анонс.",
                 sources=[source] if confirmed else [],
                 status="ok" if confirmed else "partial",
                 stop_reason="completed" if confirmed else "no_progress",
-                decisions=[dict(action="web_search", purpose="Найти итоги заседания.")],
-                trace=[dict(tool="web_search", status="ok", ms=24)],
+                decisions=[
+                    dict(action="web_search", purpose="Найти итоги заседания.") for _ in steps
+                ],
+                trace=[dict(tool=s["tool"], status=s["status"], ms=s["ms"]) for s in steps],
                 rejected_actions=0,
             )
             response["diagnostics"].update(
                 plan=dict(intent="research", fresh=True, latest_completed_event=True),
-                steps=[dict(step=1, tool="web_search", status="ok", ms=24, source_ids=["W2"])],
-                retrieved_sources=[source],
+                steps=steps,
+                retrieved_sources=retrieved,
                 answer_checks=[
                     dict(
-                        after_step=1,
-                        source_ids=["W2"],
+                        after_step=len(steps),
+                        source_ids=["W1", "W2"] if confirmed else ["W2"],
                         status="ok",
                         complete=confirmed,
                         claims=int(confirmed),
                         validation=dict(
+                            event_relevance=dict(excluded_source_ids=["W3"] if confirmed else []),
                             event_chronology=dict(
                                 latest_held_date="2026-11-01" if confirmed else None,
                                 latest_evidence_ids=["W2:B1"] if confirmed else [],
-                            )
+                                extraction=dict(reused_evidence_ids=["W1:B1"] if confirmed else []),
+                            ),
                         ),
                     ),
                 ],
@@ -817,6 +852,12 @@ async def check(url):
         assert "Полнота перечня не подтверждена" in await page.locator(".answer-check").inner_text()
         await submit("latest-event")
         await handoff.click()
+        publisher = page.locator(".trace-step .trace-publisher")
+        excluded = page.locator(".answer-check .event-excluded")
+        reused = page.locator(".answer-check .event-reused")
+        assert await publisher.inner_text() == "Поиск ограничен сайтом example.invalid."
+        assert "Из проверки дат исключены публикации W3." in await excluded.inner_text()
+        assert "результаты предыдущих шагов для фрагментов W1:B1." in await reused.inner_text()
         chronology = page.locator(".answer-check .event-chronology")
         assert await chronology.is_visible()
         assert (
@@ -825,6 +866,7 @@ async def check(url):
         )
         await submit("latest-event-unconfirmed")
         await handoff.click()
+        assert await publisher.count() == await excluded.count() == await reused.count() == 0
         assert (
             await chronology.inner_text()
             == "По найденным материалам пока не удалось подтвердить дату состоявшегося события."

@@ -17,6 +17,7 @@ PROMPT_NAMES = (
     "judge",
     "decide",
     "web_time_filter",
+    "event_relevance",
     "event_chronology",
     "cited_answer",
     "citation_review",

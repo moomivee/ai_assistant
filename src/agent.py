@@ -54,6 +54,7 @@ class State(TypedDict, total=False):
     answer_attempts: int
     answer_context_ids: list
     answer_checks: list
+    event_analysis_cache: dict
     direct_quotes_attempted: bool
     quote_fallback_source_ids: list[str]
     draft: dict
@@ -116,9 +117,12 @@ def recent_source_ids(state):
     )
 
 
-def decision_sources(sources, *, priority_source_ids=()):
+def decision_sources(sources, *, priority_source_ids=(), excluded_ids=()):
     """Share bounded context across sources instead of filling it with one PDF."""
     result = {}
+    if excluded_ids:
+        excluded_ids = set(excluded_ids)
+        sources = [source for source in sources if source["id"] not in excluded_ids]
     for source, _, _, end, block in context_blocks(
         sources, 14000, priority_source_ids=priority_source_ids
     ):
@@ -354,6 +358,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
         try:
             actions = allowed_actions(state)
             p = state["plan"]
+            last_validation = (
+                state["answer_checks"][-1].get("validation", {}) if state["answer_checks"] else {}
+            )
             event_context = event_search_context(state) if "web_search" in actions else None
             if (
                 state["attempts"] == 0
@@ -395,13 +402,15 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "steps_remaining": settings().agent_max_steps - state["attempts"],
                         "observations": state["observations"],
                         "sources": decision_sources(
-                            state["sources"], priority_source_ids=recent_source_ids(state)
+                            state["sources"],
+                            priority_source_ids=recent_source_ids(state),
+                            excluded_ids=last_validation.get("event_relevance", {}).get(
+                                "excluded_source_ids", []
+                            ),
                         ),
                         "calculation_available": bool(state["calc"]),
                         "answer_feedback": state["feedback"],
-                        "answer_validation": state["answer_checks"][-1].get("validation", {})
-                        if state["answer_checks"]
-                        else {},
+                        "answer_validation": last_validation,
                         "current_answer": state["draft"],
                         "no_progress_steps": state["no_progress_steps"],
                         "no_progress_limit": settings().agent_no_progress_limit,
@@ -420,9 +429,13 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 ).model_dump()
                 decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
-            if decision["action"] == "web_search" and event_context is not None:
+            if (
+                decision["action"] == "web_search"
+                and event_context is not None
+                and not decision.get("quote_lookup")
+            ):
                 decision = event_publication_search(decision, event_context, state)
-            elif "web_search" in actions:
+            if "web_search" in actions and not (event_context and event_context["followup"]):
                 decision = repair_web_time_filter(
                     client, state["question"], state.get("previous"), decision
                 )
@@ -489,7 +502,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 args.update(quote_fallback=True, fresh=True)
             if args["search"] and not d["query"].strip():
                 planned = (p.get("context_request") or p["rag_query"]).strip()
-                if p.get("latest_completed_event") and planned and not state["sources"]:
+                if (
+                    p.get("latest_completed_event")
+                    and planned
+                    and not state["sources"]
+                    and not argument_repair
+                ):
                     args["query"] = " ".join(planned.split())[:WEB_QUERY_LIMIT]
                     argument_repair = {
                         "mode": "plan_web_query",
@@ -498,7 +516,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     }
                 else:
                     error = "web_search requires a non-empty query when searching publications."
-            for key in ("topic", "days", "start_date", "end_date", "search_depth"):
+            for key in (
+                "topic",
+                "days",
+                "start_date",
+                "end_date",
+                "search_depth",
+                "publisher_domain",
+            ):
                 if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
         elif name == "read_web":
@@ -627,8 +652,18 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     fresh = p["context_fresh"]
             chronology_options = {}
             if p.get("latest_completed_event"):
+                event_cache = state.get("event_analysis_cache", {})
+                relevance_cache = dict(event_cache.get("relevance", {}))
+                chronology_cache = dict(event_cache.get("chronology", {}))
+                last_check = state["answer_checks"][-1] if state["answer_checks"] else {}
+                prior_dates = last_check.get("validation", {}).get("event_chronology", {})
                 chronology_options = {
                     "latest_completed_event": True,
+                    "relevance_cache": relevance_cache,
+                    "chronology_cache": chronology_cache,
+                    "retained_block_id": next(
+                        iter(prior_dates.get("latest_evidence_ids", [])), None
+                    ),
                     "allow_chronology_repair": not any(
                         check.get("validation", {}).get("chronology_repair_attempted")
                         for check in state["answer_checks"]
@@ -667,6 +702,16 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 ),
                 **chronology_options,
             )
+            relevance = validation.get("event_relevance", {})
+            excluded = set(relevance.get("excluded_source_ids", []))
+            new_ids = (
+                state["observations"][-1].get("new_source_ids", []) if state["observations"] else []
+            )
+            if new_ids and set(new_ids) <= excluded and not draft.complete and evidence:
+                feedback += (
+                    " Последняя выдача посвящена другим событиям. Проверьте первоисточник "
+                    "запрошенной организации или смените поисковую формулировку."
+                )
             # The latest validation replaces the candidate, including an empty
             # rejection. Restoring an old complete draft can resurrect stale facts.
             result = {
@@ -686,6 +731,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     validation=validation,
                 ),
             }
+            if chronology_options:
+                result["event_analysis_cache"] = {
+                    "relevance": relevance_cache,
+                    "chronology": chronology_cache,
+                }
             extraction = validation.get("event_chronology", {}).get("extraction", {})
             if extraction.get("status") in {"incomplete", "invalid_format"}:
                 # More searches cannot fix an unreadable structured response.
@@ -805,6 +855,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 elif validation.get("reason") == "no_confirmed_event":
                     blocks.append(
                         "В найденных материалах не удалось подтвердить, когда состоялось событие."
+                    )
+                elif validation.get("reason") == "no_relevant_event_sources":
+                    blocks.append(
+                        "Найденные публикации относятся к другим событиям. Дату подтвердить не удалось."
                     )
                 elif validation.get("reason") == "event_chronology_mismatch":
                     blocks.append(
@@ -1000,7 +1054,10 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         result["failure"] = str(exc)
                 except RequestBudgetExceeded as exc:
                     result = {"failure": str(exc), "stop_reason": "time_budget_exhausted"}
-                obs.update(output=result, status="error" if result.get("failure") else "ok")
+                observed_result = {k: v for k, v in result.items() if k != "event_analysis_cache"}
+                obs.update(
+                    output=observed_result, status="error" if result.get("failure") else "ok"
+                )
                 return result
 
         return call

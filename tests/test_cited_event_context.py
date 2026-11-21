@@ -22,6 +22,8 @@ def answer(monkeypatch, chronology, claims, *, review=True):
 
     class PermissiveReviewer:
         def generate(self, name, payload, schema):
+            if name == "event_relevance":
+                return schema(off_topic=[])
             if name == "cited_answer":
                 return schema.model_validate({"claims": claims, "complete": True})
             assert name == "citation_review"

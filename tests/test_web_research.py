@@ -36,6 +36,66 @@ def post_fixture(monkeypatch, payload, status=200):
     return calls
 
 
+def test_optional_publisher_restricts_native_search_hits_and_cache(monkeypatch):
+    monkeypatch.setenv("WEB_DOMAINS", "agency.example,wire.example")
+    settings.cache_clear()
+    organizer = "https://press.agency.example/releases/1"
+    wire = "https://wire.example/news/2"
+    calls = post_fixture(monkeypatch, {"results": [result(wire), result(organizer)]})
+    assert len(web.search_web("meeting", True)) == 2
+    data, error, event = run_tool(
+        make_registry(),
+        "web_search",
+        query="meeting",
+        fresh=True,
+        quotes=[],
+        search=True,
+        publisher_domain="PRESS.agency.example",
+    )
+    assert (
+        not error
+        and event["status"] == "ok"
+        and [row["url"] for row in data["items"]] == [organizer]
+    )
+    assert calls[-1][1]["json"]["include_domains"] == ["press.agency.example"]
+    cached = web.search_web("meeting", True, publisher_domain="press.agency.example")
+    assert len(calls) == 2 and cached[0]["cache_hit"] and cached[0]["url"] == organizer
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "untrusted.example",
+        "press.agency.example/x",
+        "*.agency.example",
+        "agency.example@interfax.ru",
+    ],
+)
+def test_invalid_publisher_cannot_expand_or_rewrite_scope(monkeypatch, value):
+    monkeypatch.setenv("WEB_DOMAINS", "agency.example,interfax.ru")
+    settings.cache_clear()
+    calls = post_fixture(monkeypatch, {"results": []})
+    data, error, event = run_tool(
+        make_registry(),
+        "web_search",
+        query="meeting",
+        fresh=True,
+        quotes=[],
+        search=True,
+        publisher_domain=value,
+    )
+    assert event["status"] == "error" and error and not data and not calls
+
+
+def test_rss_does_not_contact_unrelated_feeds_for_publisher_search(monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "")
+    monkeypatch.setenv("WEB_DOMAINS", "agency.example,eia.gov,cbr.ru")
+    settings.cache_clear()
+    monkeypatch.setattr(web.httpx, "get", lambda *a, **kw: pytest.fail("Unrelated RSS endpoint"))
+    data = web.web_lookup("oil", True, [], True, publisher_domain="agency.example")
+    assert data["items"] == [] and any("RSS" in note for note in data["notices"])
+
+
 def test_current_general_search_preserves_latest_older_event_and_unknown_date(monkeypatch):
     old = (date.today() - timedelta(days=180)).isoformat()
     tomorrow = (date.today() + timedelta(days=1)).isoformat()

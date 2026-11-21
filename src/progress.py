@@ -89,19 +89,34 @@ def _source_blocks(source):
         start = end
 
 
-def context_blocks(sources, limit, *, priority_source_ids=()):
+def context_blocks(sources, limit, *, priority_source_ids=(), retained_block_id=None):
     """Pack one exact block per source per round, giving new evidence a turn."""
-    pending = deque(
-        (source, iter(_source_blocks(source)))
-        for source in context_sources(sources, priority_source_ids=priority_source_ids)
-    )
+    ordered = context_sources(sources, priority_source_ids=priority_source_ids)
+    pending = deque((source, iter(_source_blocks(source))) for source in ordered)
     selected, remaining = [], limit
+    # Keep one dated citation comparable across rounds while leaving room for new sources.
+    if retained_block_id:
+        source_id, _, number = retained_block_id.partition(":B")
+        source = next((row for row in ordered if row["id"] == source_id), None)
+        retained = (
+            next((block for block in _source_blocks(source) if str(block[0]) == number), None)
+            if source
+            else None
+        )
+        if retained and len(retained[3]) <= remaining:
+            selected.append((source, *retained))
+            remaining -= len(retained[3])
+        else:
+            retained_block_id = None
     while pending and remaining > 0:
         source, blocks = pending.popleft()
         block = next(blocks, None)
         if block is None:
             continue
         block_no, start, end, text = block
+        if retained_block_id and f"{source['id']}:B{block_no}" == retained_block_id:
+            pending.append((source, blocks))
+            continue
         if len(text) > remaining:
             # Do not replace a full block by an orphan tail or change its ID.
             continue
