@@ -93,7 +93,7 @@ def settings() -> Settings:
             d.strip().lower()
             for d in os.getenv(
                 "WEB_DOMAINS",
-                "eia.gov,fred.stlouisfed.org,opec.org,iea.org,cbr.ru,economy.gov.ru,minfin.gov.ru,minenergo.gov.ru,reuters.com,interfax.ru,consilium.europa.eu,ofac.treasury.gov",
+                "eia.gov,fred.stlouisfed.org,opec.org,iea.org,cbr.ru,economy.gov.ru,minfin.gov.ru,minenergo.gov.ru,reuters.com,interfax.ru,consilium.europa.eu,ofac.treasury.gov,ru.wikipedia.org,en.wikipedia.org",
             ).split(",")
             if d.strip()
         ),
