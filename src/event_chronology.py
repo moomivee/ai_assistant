@@ -5,7 +5,7 @@ from collections import Counter
 from hashlib import sha256
 from typing import Literal
 
-from pydantic import Field, ValidationError, create_model
+from pydantic import Field, ValidationError, create_model, field_validator
 
 from .budget import check_budget
 from .clock import clock_payload
@@ -22,9 +22,26 @@ class EventCandidate(StrictModel):
     match: Literal["in_scope", "different_scope", "uncertain"]
 
 
+class ReportedExcerpt(StrictModel):
+    kind: Literal["held_report", "schedule_report"]
+    quote: str = Field(min_length=1, max_length=360)
+
+
 class EventAssessment(StrictModel):
     status: Literal["assessed", "uncertain"]
     events: list[EventCandidate]
+    reported_excerpt: ReportedExcerpt | None = None
+
+    @field_validator("reported_excerpt", mode="before")
+    @classmethod
+    def optional_excerpt(cls, value):
+        # A malformed optional excerpt must not discard a correctly dated event.
+        if value is None:
+            return None
+        try:
+            return ReportedExcerpt.model_validate(value)
+        except ValidationError:
+            return None
 
 
 class EventBlock(EventAssessment):
@@ -214,8 +231,17 @@ def build_event_chronology(
         context = []
     unresolved = set()
     held, scheduled = [], []
+    reported, other_scope = {}, []
     for key, source in evidence.items():
         block = reviews.get(key)
+        if block is not None:
+            if block.events and all(item.match == "different_scope" for item in block.events):
+                other_scope.append(key)
+            lead = block.reported_excerpt
+            if lead and (quote := lead.quote.strip()):
+                start = source["text"].find(quote)
+                if start >= 0:
+                    reported[key] = {"kind": lead.kind, "start": start, "end": start + len(quote)}
         if block is None or block.status == "uncertain":
             unresolved.add(key)
             continue
@@ -256,6 +282,8 @@ def build_event_chronology(
         ),
         "requested_context": list(dict.fromkeys(context or ())),
         "held_events": held,
+        "reported_excerpts": reported,
+        "other_scope_blocks": other_scope,
         "scheduled_events": scheduled,
         "unresolved_evidence_ids": sorted(unresolved),
         "extraction": {

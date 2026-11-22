@@ -93,6 +93,12 @@ def event_search_context(state):
     }
 
 
+def requested_publication_window(window, question):
+    if window and (quote := normalized(window.get("quote", ""))) and quote in normalized(question):
+        return window
+    return None
+
+
 def event_publication_search(decision, context, state):
     """Preserve the model's search terms and pass the publisher as a provider filter."""
     before = {
@@ -131,8 +137,9 @@ def event_publication_search(decision, context, state):
     # With no explicit bounds, search_web accepts undated leads for page reading
     # and still rejects known publication dates later than the request date.
     start = end = None
-    window = state["plan"].get("event_publication_window")
-    if window and (quote := normalized(window["quote"])) and quote in normalized(state["question"]):
+    if window := requested_publication_window(
+        state["plan"].get("event_publication_window"), state["question"]
+    ):
         start, end = window.get("start_date"), window.get("end_date")
         if end:
             end = min(end, clock_today().isoformat())

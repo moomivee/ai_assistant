@@ -20,16 +20,27 @@ from .budget import (
 from .clock import clock_payload, request_clock
 from .config import settings
 from .event_recovery import recover_event_search
-from .event_search import EventSearchAction, event_publication_search, event_search_context
-from .evidence import generate_answer, render_claims
+from .event_search import (
+    EventSearchAction,
+    event_publication_search,
+    event_search_context,
+)
+from .evidence import generate_answer, render_claims, render_preliminary_event
 from .forecast_memory import pending_forecast
 from .integrations.agent_skills import SkillUnavailable, skill_context
 from .integrations.llm import LLMUnavailable, llm
 from .integrations.telemetry import callbacks, request_trace, span
-from .integrations.web import DAILY, PAGE_DATE_NOTICE, SEARCH_DATE_NOTICE, WEB_QUERY_LIMIT
+from .integrations.web import (
+    DAILY,
+    NO_PUBLICATIONS_NOTICE,
+    PAGE_DATE_NOTICE,
+    SEARCH_DATE_NOTICE,
+    WEB_QUERY_LIMIT,
+)
 from .logging import log
 from .models.schemas import AgentResponse, CitedAnswer, NextAction, WebTimeFilterChoice
 from .planning import apply_report_scope, make_plan
+from .preliminary import preliminary_event_excerpts
 from .progress import action_signature, check_assessment, context_blocks, evidence_key, source_key
 from .request_context import plan_scope, scope_payload
 from .request_progress import announce_quote_fallback
@@ -750,6 +761,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
     def finish(state):
         p, calc = state.get("plan"), state["calc"]
         sources, claims, blocks = [], [], []
+        preliminary = []
         intent = p["intent"] if p else "unknown"
         stop = state.get("stop_reason", "completed")
         last_check = state["answer_checks"][-1] if state["answer_checks"] else {}
@@ -823,7 +835,25 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 blocks.append("Не удалось завершить обработку запроса. " + state["failure"])
             else:
                 status = "ok" if complete else "partial"
-                if stop == "chronology_format_incomplete":
+                if not complete and validation.get("reason") in {
+                    "no_confirmed_event",
+                    "chronology_format_incomplete",
+                }:
+                    preliminary = preliminary_event_excerpts(
+                        question=state["question"],
+                        sources=state["sources"],
+                        evidence=state["evidence"],
+                        validation=validation,
+                        exclude_ids={key for claim in claims for key in claim["evidence_ids"]},
+                        publication_window=p.get("event_publication_window"),
+                    )
+                if preliminary:
+                    additional_ids = {item["source_id"] for item in preliminary} - {
+                        source["id"] for source in sources
+                    }
+                    sources.extend(s for s in state["sources"] if s["id"] in additional_ids)
+                    blocks.extend(render_preliminary_event(preliminary, chronology))
+                elif stop == "chronology_format_incomplete":
                     if chronology.get("scheduled_leads") and not chronology.get("latest_held_date"):
                         blocks.append(
                             "В найденных материалах есть анонс. Подтвердить дату последнего "
@@ -863,6 +893,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         "Для части найденных материалов не удалось установить дату или состав "
                         "участников. Более позднее событие остаётся возможным."
                     )
+                elif (
+                    claims
+                    and not complete
+                    and validation.get("review_executed")
+                    and validation.get("missing_aspects")
+                ):
+                    gaps = list(dict.fromkeys(validation["missing_aspects"]))[:2]
+                    blocks.append("Что осталось уточнить\n" + "\n".join("• " + gap for gap in gaps))
                 elif citation_failure:
                     blocks.append(
                         "Источники найдены, но ссылки модели не совпали с фрагментами, "
@@ -888,9 +926,9 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 blocks.append(
                     "Использованы только загруженные отчёты; актуальность на сегодняшний день не проверялась."
                 )
-            if not complete:
+            if not complete and not preliminary:
                 omit_date_notices = stop == "chronology_format_incomplete" or (
-                    citation_failure
+                    (citation_failure or sources)
                     and not any(s["kind"] == "web" and not s.get("date") for s in sources)
                 )
                 for observation in state["observations"]:
@@ -898,16 +936,15 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         blocks.extend(
                             notice
                             for notice in observation.get("notices", [])
-                            if not (
+                            if notice != NO_PUBLICATIONS_NOTICE
+                            and not (
                                 omit_date_notices
                                 and notice in (SEARCH_DATE_NOTICE, PAGE_DATE_NOTICE)
                             )
                         )
-        if stop == "no_progress" and not citation_failure:
-            blocks.append("Поиск остановлен: повторные попытки не добавили новых данных.")
-        elif stop == "time_budget_exhausted":
+        if stop == "time_budget_exhausted":
             blocks.append("Достигнут общий лимит времени запроса. Обработка остановлена.")
-        elif stop == "research_budget_exhausted":
+        elif stop == "research_budget_exhausted" and not sources:
             blocks.append(
                 "Поиск остановлен, чтобы сохранить время на ответ по найденным источникам."
             )
@@ -921,6 +958,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "mode": getattr(client, "model", settings().active_model),
                 "sources": sources,
                 "claims": claims,
+                "preliminary_evidence": preliminary,
                 "trace": state["trace"],
                 "forecast": calc,
                 "decisions": state["decisions"],

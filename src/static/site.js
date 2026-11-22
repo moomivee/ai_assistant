@@ -138,7 +138,7 @@ $("remember-forecast").addEventListener("change", () => {
 $("choose-documents").addEventListener("click", () => {
   showTab("knowledge"); $("document-filter").focus();
 });
-window.Workbench = { showTab, selectQuery, updateScopeHint, checkDialogueScope, locatorLabel };
+window.Workbench = { showTab, selectQuery, updateScopeHint, checkDialogueScope, locatorLabel, partialNotice };
 function counter() {
   $("counter").textContent = $("question").value.length + " / 2000";
 }
@@ -218,6 +218,10 @@ function source(row) {
 }
 function citationData(data, paragraph, sourceId) {
   const clean = text => String(text || "").replace(/\s+/g, " ").trim();
+  const source = (data.sources || []).find(row => row.id === sourceId);
+  const preliminary = (data.preliminary_evidence || []).filter(item =>
+    item.source_id === sourceId && clean(item.quote) && clean(paragraph).includes(clean(item.quote)));
+  if (preliminary.length) return { source, rows: preliminary, preliminary: true };
   const matching = (data.claims || []).filter(claim => {
     const text = clean(claim.text);
     return text && clean(paragraph).includes(text);
@@ -233,7 +237,6 @@ function citationData(data, paragraph, sourceId) {
       rows.push(...(quotes.length ? quotes : claim.quote ? [{ quote: claim.quote }] : []));
     }
   }
-  const source = (data.sources || []).find(row => row.id === sourceId);
   return { source, rows };
 }
 let citationNumber = 0;
@@ -244,7 +247,7 @@ function appendAnswerParagraph(container, text, data) {
   let start = 0;
   for (const match of text.matchAll(expression)) {
     paragraph.append(document.createTextNode(text.slice(start, match.index)));
-    const id = match[1], { source, rows } = citationData(data, text, id);
+    const id = match[1], { source, rows, preliminary } = citationData(data, text, id);
     if (!source && !rows.length) {
       paragraph.append(document.createTextNode(match[0]));
       start = match.index + match[0].length;
@@ -253,13 +256,14 @@ function appendAnswerParagraph(container, text, data) {
     const button = element("button", match[0], "citation-button");
     const box = element("aside", undefined, "citation-excerpt");
     button.type = "button";
-    button.setAttribute("aria-label", "Показать подтверждение " + id);
+    button.setAttribute("aria-label", (preliminary ? "Показать цитату из источника " : "Показать подтверждение ") + id);
     box.id = "citation-" + (++citationNumber);
     button.setAttribute("aria-controls", box.id);
     button.setAttribute("aria-expanded", "false");
     box.hidden = true;
     box.append(element("strong", source?.title || id));
-    box.append(element("span", rows.length ? "Фрагмент, подтверждающий утверждение" : source?.kind === "model" ? "Описание расчёта" : "Найденный фрагмент источника; точная привязка к утверждению отсутствует", "citation-kind"));
+    const caption = preliminary ? "Цитата из источника · предварительные сведения" : rows.length ? "Фрагмент, подтверждающий утверждение" : source?.kind === "model" ? "Описание расчёта" : "Найденный фрагмент источника; точная привязка к утверждению отсутствует";
+    box.append(element("span", caption, "citation-kind"));
     for (const citation of rows.length ? rows : [source]) {
       const record = { ...source, ...citation };
       const where = locatorLabel(record.locator, record.page);
@@ -306,15 +310,28 @@ function forecastTable(calc) {
   box.append(table);
   return box;
 }
+function partialNotice(data) {
+  if (data.status !== "partial") return "";
+  if (data.preliminary_evidence?.length) return "Предварительные сведения. Агент может ошибаться в выводе. Цитаты можно сверить с оригиналами в источниках.";
+  if (data.claims?.length || data.sources?.length || data.forecast) return "Частичный ответ. Найденных данных хватило только на часть вопроса.";
+  return "Недостаточно сведений для ответа по существу.";
+}
 function render(q, data, elapsed) {
   const out = $("result");
   const heading = element("div", undefined, "result-heading");
   const help = data.intent === "capabilities" && data.status === "ok";
   const title = help ? "Возможности агента" : "Ответ аналитика";
-  heading.append(element("h2", title), element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
+  heading.append(element("h2", title));
+  const notice = partialNotice(data);
+  if (!notice) heading.append(element("span", TraceView.statusLabel(data.status), "response-status " + data.status));
   const answer = element("section", undefined, "answer-panel");
   answer.setAttribute("aria-label", title);
   answer.append(heading, element("div", q, "answer-q"));
+  if (notice) {
+    const banner = element("p", notice, "answer-caution");
+    banner.setAttribute("role", "note");
+    answer.append(banner);
+  }
   for (const p of (data.answer || "").split("\n\n")) appendAnswerParagraph(answer, p, data);
   if (data.forecast) {
     const detail = element("details", undefined, "forecast-details");

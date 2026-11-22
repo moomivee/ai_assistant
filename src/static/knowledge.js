@@ -299,7 +299,9 @@
           if (!detail.open || loaded) return;
           try {
             const full = await request("/api/notes/" + encodeURIComponent(note.note_id));
-            body.replaceChildren(node("p", full.question, "small"), node("p", full.answer, "saved-answer"));
+            body.replaceChildren(node("p", full.question, "small"));
+            for (const gap of full.unresolved || []) body.append(node("p", gap, "answer-caution"));
+            body.append(node("p", full.answer, "saved-answer"));
             if (full.source_refs?.length) {
               const refs = node("details", undefined, "note-references");
               refs.append(node("summary", "Ссылки, сохранённые с ответом"));
@@ -344,7 +346,8 @@
   async function save(question, data, button, feedback) {
     button.disabled = true; feedback.textContent = "Сохраняем…";
     try {
-      await request("/api/notes", { title: question.slice(0, 120), question, answer: data.answer, source_refs: data.sources || [], trace_id: data.trace_id || "", unresolved: data.status === "partial" ? ["Ответ отмечен как частичный. Требуется проверка полноты."] : [] });
+      const notice = window.Workbench.partialNotice(data);
+      await request("/api/notes", { title: question.slice(0, 120), question, answer: data.answer, source_refs: data.sources || [], trace_id: data.trace_id || "", unresolved: notice ? [notice] : [] });
       feedback.textContent = "Сохранено как непроверенная заметка исследования. Открыть её можно в разделе «Заметки исследования» ниже.";
       button.textContent = "Заметка сохранена";
       if ($("notes-panel").open) await refresh();

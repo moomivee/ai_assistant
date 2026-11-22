@@ -24,6 +24,9 @@ QUOTE_FALLBACK_TIMEOUT = 15.0
 WEB_QUERY_LIMIT = 400
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
+NO_PUBLICATIONS_NOTICE = (
+    "В доверенных источниках не найдено подходящей публикации с заданными параметрами."
+)
 SEARCH_DATE_NOTICE = (
     "У части веб-источников дата публикации неизвестна; актуальность этих сведений не подтверждена."
 )
@@ -561,9 +564,7 @@ def web_lookup(
     if any(row.get("content_type") == "snippet" and not row.get("date") for row in rows):
         notices.append(SEARCH_DATE_NOTICE)
     if not rows and not notices:
-        notices.append(
-            "В доверенных источниках не найдено подходящей публикации с заданными параметрами."
-        )
+        notices.append(NO_PUBLICATIONS_NOTICE)
     return {
         "items": [dict(r, id=f"W{i}") for i, r in enumerate(rows, 1)],
         "notices": notices,

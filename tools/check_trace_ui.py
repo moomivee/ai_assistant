@@ -314,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
                 title="Сообщение о заседании",
                 date=None,
                 url="https://example.invalid/meeting-fixture",
-                used_in_answer=confirmed,
+                used_in_answer=True,
                 text="Заседание прошло 1 ноября 2026 года."
                 if confirmed
                 else "Следующее заседание запланировано на 29 ноября 2026 года.",
@@ -351,8 +351,11 @@ class Handler(BaseHTTPRequestHandler):
                 )
             )
             response.update(
-                answer=source["text"] + " [W2]" if confirmed else "Найден только анонс.",
-                sources=[source] if confirmed else [],
+                answer=source["text"] + " [W2]",
+                sources=[source],
+                preliminary_evidence=[]
+                if confirmed
+                else [dict(source_id="W2", quote=source["text"])],
                 status="ok" if confirmed else "partial",
                 stop_reason="completed" if confirmed else "no_progress",
                 decisions=[
@@ -495,6 +498,7 @@ class Handler(BaseHTTPRequestHandler):
                 status="partial",
                 stop_reason="budget_exhausted",
                 answer="Данных недостаточно. Попытки поиска завершены.",
+                sources=[],
             )
         elif question in {"no_progress", "time_budget_exhausted", "research_budget_exhausted"}:
             response.update(status="partial", stop_reason=question)
@@ -955,6 +959,7 @@ async def check(url):
         # not expose a chart, while the forecast table below must still work.
         assert await page.locator("#market, #historychart").count() == 0
         await submit("partial")
+        assert "Недостаточно сведений" in await page.locator(".answer-caution").inner_text()
         assert "Достигнут лимит шагов" in await page.locator(".trace-stop").inner_text()
         await submit("no_progress")
         assert (
@@ -992,6 +997,7 @@ async def check(url):
         assert "Вопрос о возможностях агента" in await page.locator(".trace-fields").inner_text()
         assert await page.locator(".download-button").count() == 1
         await submit("web-only")
+        assert "Частичный ответ" in await page.locator(".answer-caution").inner_text()
         assert "интернет (1)" in await page.locator(".route-used-sources").inner_text()
         assert "Веб-поиск" in await page.locator(".route-executed").inner_text()
         assert "Поиск в отчётах" not in await page.locator(".route-executed").inner_text()
@@ -1016,6 +1022,7 @@ async def check(url):
         assert "Покрытие вопроса: не проверено" in await page.locator(".answer-check").inner_text()
         assert "Полнота перечня не подтверждена" in await page.locator(".answer-check").inner_text()
         await submit("latest-event")
+        assert not await page.locator(".answer-caution").count()
         await handoff.click()
         publisher = page.locator(".trace-step .trace-publisher")
         excluded = page.locator(".answer-check .event-excluded")
@@ -1030,6 +1037,14 @@ async def check(url):
             == "По найденным материалам последнее подтверждённое событие состоялось 2026-11-01 · W2:B1."
         )
         await submit("latest-event-unconfirmed")
+        assert "может ошибаться" in await page.locator(".answer-caution[role=note]").inner_text()
+        await page.get_by_role("button", name="Показать цитату из источника W2").click()
+        excerpt = page.locator(".answer-panel .citation-excerpt:visible")
+        assert "предварительные сведения" in await excerpt.locator(".citation-kind").inner_text()
+        assert "запланировано" in await excerpt.locator("blockquote").inner_text()
+        assert (
+            await excerpt.locator('a[href="https://example.invalid/meeting-fixture"]').count() == 1
+        )
         await handoff.click()
         assert await publisher.count() == await excluded.count() == await reused.count() == 0
         assert (

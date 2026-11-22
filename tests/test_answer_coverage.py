@@ -3,9 +3,12 @@
 import json
 
 import pytest
+from test_agent import plan
+from test_agent_loop import action, event
 from test_gigachat_client import auth_reply, completion
 from test_gigachat_client import client as gigachat_client
 
+from src.agent import ask
 from src.config import settings
 from src.evidence import generate_answer
 from src.models.schemas import CitationReview
@@ -208,3 +211,55 @@ def test_missing_aspects_remain_bounded_for_the_research_feedback(aspects):
             coverage="partial",
             missing_aspects=aspects,
         )
+
+
+@pytest.mark.parametrize("valid_estimate", [True, False])
+def test_partial_preserves_attributed_estimate_and_reports_the_specific_unknown(valid_estimate):
+    estimate = "Оператор оценивал отгрузку в апреле 2025 года в 14 партий нефти."
+    unsupported = "Фактическая отгрузка в апреле 2025 года составила 14 партий нефти."
+    gap = "В материалах нет фактического числа партий за апрель 2025 года."
+    source = {**SOURCE, "date": "2025-03-25", "text": estimate}
+
+    class Study:
+        def generate(self, name, payload, schema):
+            if name == "decide":
+                if payload["observations"]:
+                    return schema.model_validate(action("finish"))
+                return schema.model_validate(action("web_search", "оценка и факт отгрузки"))
+            if name == "cited_answer":
+                texts = [estimate, unsupported] if valid_estimate else [unsupported]
+                evidence_id = next(iter(payload["evidence"]))
+                return schema.model_validate(
+                    {
+                        "claims": [{"text": text, "evidence_ids": [evidence_id]} for text in texts],
+                        "complete": True,
+                    }
+                )
+            assert name == "citation_review"
+            return schema.model_validate(
+                {
+                    "supported": [0] if valid_estimate else [],
+                    "coverage": "partial" if valid_estimate else "unverified",
+                    "complete": False,
+                    "feedback": "",
+                    "missing_aspects": [gap],
+                }
+            )
+
+    response = ask(
+        "Сколько партий нефти планировали отгрузить в апреле 2025 года и сколько отгрузили?",
+        planner=lambda *_: plan(rag_query="отгрузка за апрель"),
+        client=Study(),
+        execute=lambda registry, name, **kwargs: (
+            {"items": [source], "notices": []},
+            None,
+            event(name),
+        ),
+    )
+    assert response["status"] == "partial" and unsupported not in response["answer"]
+    assert [claim["text"] for claim in response["claims"]] == ([estimate] if valid_estimate else [])
+    if valid_estimate:
+        assert response["sources"][0]["text"] == estimate
+        assert response["answer"].index(estimate + " [W1]") < response["answer"].index(gap)
+    else:
+        assert not response["sources"] and not response.get("preliminary_evidence")

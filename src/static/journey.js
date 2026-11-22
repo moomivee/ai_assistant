@@ -240,6 +240,7 @@ window.RequestJourney = (() => {
     const stop = label(stops, data.stop_reason);
     const claims = list(data.claims);
     facts(body, [["Остановка", stop], ["Сообщение об ошибке", diag.failure || data.failure], ["ID запроса", data.trace_id],
+      ["Источники предварительных сведений", [...new Set(list(data.preliminary_evidence).map(item => item.source_id))].join(", ")],
       ["Источники итогового ответа", list(data.sources).map(s => s.id).join(", ")], ["Этап в коде", data.agent_mode === "loop" ? "src/agent.py · finish" : ""]]);
     if (data.status === "clarification" || data.status === "outside" || data.status === "unavailable" || data.intent === "capabilities") {
       if (data.answer) body.append(el("p", data.answer));

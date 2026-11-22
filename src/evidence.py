@@ -276,6 +276,8 @@ def generate_answer(
             allow_format_repair=allow_format_repair,
             cache=chronology_cache,
         )
+        reported_excerpts = chronology.pop("reported_excerpts", {})
+        other_scope_blocks = chronology.pop("other_scope_blocks", [])
         latest = chronology["latest_held_date"]
         overdue = sorted(
             {
@@ -304,7 +306,10 @@ def generate_answer(
         format_incomplete = extraction.get("status") in {"incomplete", "invalid_format"}
         related, related_gaps = _requested_event_context(chronology)
         checks["event_chronology"]["missing_requested_context"] = related_gaps
+        checks["event_chronology"]["requested_context"] = chronology.get("requested_context", [])
         if not latest:
+            checks["event_chronology"]["reported_excerpts"] = reported_excerpts
+            checks["event_chronology"]["other_scope_blocks"] = other_scope_blocks
             unreadable = extraction.get("status") == "invalid_format"
             checks.update(
                 reason="chronology_format_incomplete" if unreadable else "no_confirmed_event",
@@ -718,3 +723,24 @@ def render_claims(draft, evidence, sources):
                 }
             )
     return blocks, claims, list(used.values())
+
+
+def render_preliminary_event(excerpts, chronology):
+    """Attribute each excerpt to its publication; keep open chronology questions explicit."""
+    blocks = []
+    for item in excerpts:
+        label = "О планах в публикации" if item["kind"] == "schedule_report" else "Сообщение"
+        published = item["publication_date"]
+        when = (
+            "от " + date.fromisoformat(published).strftime("%d.%m.%Y")
+            if published
+            else "без даты публикации"
+        )
+        blocks.append(f"{label} {when} — «{item['quote']}» [{item['source_id']}]")
+    as_of = date.fromisoformat(chronology["as_of"]).strftime("%d.%m.%Y")
+    gap = f"По этим материалам нельзя установить, какое событие было последним на {as_of}."
+    if "next_scheduled" in chronology.get("requested_context", []) and not any(
+        lead["date"] >= chronology["as_of"] for lead in chronology.get("scheduled_leads", [])
+    ):
+        gap += " Актуальная дата следующего события тоже остаётся открытой."
+    return [*blocks, gap]

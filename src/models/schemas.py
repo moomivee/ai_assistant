@@ -253,6 +253,15 @@ class AgentDiagnostics(StrictModel):
     answer_checks: list[dict] = Field(default_factory=list)
 
 
+class PreliminaryExcerpt(StrictModel):
+    source_id: str
+    evidence_id: str
+    quote: str
+    publication_date: str | None
+    title: str
+    kind: Literal["held_report", "schedule_report"]
+
+
 class AgentResponse(StrictModel):
     question: str
     answer: str
@@ -262,6 +271,7 @@ class AgentResponse(StrictModel):
     mode: str
     sources: list[Source]
     claims: list[Claim]
+    preliminary_evidence: list[PreliminaryExcerpt] = Field(default_factory=list)
     trace: list[ToolEvent]
     trace_id: str
     forecast: dict | None
