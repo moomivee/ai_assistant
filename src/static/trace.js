@@ -81,7 +81,8 @@ window.TraceView = (() => {
     const title = node("div", undefined, "step-heading");
     title.append(node("span", String(index), "step-number"), node("strong", tools[decision.action] || decision.action));
     const state = execution?.status;
-    const badgeText = state === "rejected" ? "Отклонён" : state === "error" ? "Ошибка" : state === "ok" ? duration(execution.ms) : decision.action === "finish" ? "Решение" : "Нет результата";
+    const emptyRead = execution?.tool === "read_web" && state === "ok" && execution.result_count === 0;
+    const badgeText = emptyRead ? "Текст не получен" : state === "rejected" ? "Отклонён" : state === "error" ? "Ошибка" : state === "ok" ? duration(execution.ms) : decision.action === "finish" ? "Решение" : "Нет результата";
     title.append(node("span", badgeText, "step-state " + (state || "decision")));
     li.append(title);
     if (decision.origin === "plan_policy") {

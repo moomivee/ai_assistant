@@ -445,7 +445,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
             if (
-                decision["action"] in {"web_search", "read_web"}
+                decision["action"] in {"web_search", "read_web", "finish"}
                 and event_context is not None
                 and not decision.get("quote_lookup")
             ):
@@ -544,6 +544,12 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             ):
                 if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
+            if (
+                args.get("publisher_domain") == "opec.org"
+                and p.get("latest_completed_event")
+                and args["search"]
+            ):
+                args["official_event_query"] = p.get("context_request") or state["question"]
         elif name == "read_web":
             args = {"url": d["url"], "query": d["query"]}
             if d["url"] not in {s["url"] for s in state["sources"] if s["kind"] == "web"}:

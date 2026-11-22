@@ -28,6 +28,7 @@ class WebArgs(ReportArgs):
     quote_fallback: bool = False
     publisher_domain: str = Field(default="", max_length=254)
     omit_publisher_domain: str = Field(default="", max_length=254)
+    official_event_query: str = Field(default="", max_length=2500)
     topic: str = "general"
     days: int | None = None
     start_date: str | None = None

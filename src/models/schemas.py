@@ -281,7 +281,7 @@ class PreliminaryExcerpt(StrictModel):
     quote: str
     publication_date: str | None
     title: str
-    kind: Literal["held_report", "schedule_report"]
+    kind: Literal["held_report", "schedule_report", "snippet_date_lead"]
 
 
 class AgentResponse(StrictModel):

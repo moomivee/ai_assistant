@@ -4,7 +4,7 @@ import re
 
 from .event_dates import mentioned_dates
 from .event_search import requested_publication_window
-from .event_subject import canonical_event_question
+from .event_subject import canonical_event_question, other_event_body
 from .integrations.web import web_date
 
 # Optional model-selected quotations work in any language. For older or incomplete
@@ -72,6 +72,30 @@ def _archive_excerpts(passage, title, query_words, published):
             yield "held_report", line
 
 
+def _yearless_search_lead(question, passage):
+    """Keep a short search excerpt only when its opening clause names the requested
+    participant, a day/month and an occurrence together. Never infer the year."""
+    text = passage.strip()
+    if not 20 <= len(text) <= 360 or re.search(r"\b\d{4}\b|https?://|\.\.\.|…", text, re.I):
+        return False
+    clause = re.split(r"[,;:.!?\n]", text, maxsplit=1)[0]
+    if not _REPORTED.search(clause) or _ANNOUNCED.search(text):
+        return False
+    if "?" in text or re.search(
+        r"\b(?:не|нет|если|ли|якобы|not|never|if|whether|denied|denies)\b", text, re.I
+    ):
+        return False
+    if other_event_body(question, clause, clause):
+        return False
+    # Acronyms, including a trailing plus, distinguish participants even when
+    # GigaChat supplied no quote. For prose-only names use its ordinary review.
+    names = re.findall(r"(?<!\w)[A-ZА-ЯЁ]{2,}\+?(?![\w+])", clause)
+    if not any(re.search(rf"(?<!\w){re.escape(name)}(?![\w+])", question, re.I) for name in names):
+        return False
+    # A leap year recognizes all possible day/month pairs. No year is returned.
+    return len(mentioned_dates(clause, default_year=2000)) == 1
+
+
 def preliminary_event_excerpts(
     *, question, sources, evidence, validation, exclude_ids=(), publication_window=None
 ):
@@ -89,7 +113,8 @@ def preliminary_event_excerpts(
     unparsed = set(chronology.get("extraction", {}).get("unparsed_evidence_ids", []))
     unrelated = set(chronology.get("other_scope_blocks", []))
     legacy_blocks = unresolved - unparsed
-    query_words = _topic_words(canonical_event_question(question))
+    canonical_question = canonical_event_question(question)
+    query_words = _topic_words(canonical_question)
     start_date = end_date = None
     if window := requested_publication_window(publication_window, question):
         start_date = window.get("start_date")
@@ -129,6 +154,15 @@ def preliminary_event_excerpts(
             )
             if quote:
                 rows.append((lead["kind"], quote, True))
+        if (
+            not rows
+            and key in legacy_blocks
+            and source.get("kind") == "web"
+            and source.get("content_type") == "snippet"
+            and text.strip() == passage.strip()
+            and _yearless_search_lead(canonical_question, passage)
+        ):
+            rows.append(("snippet_date_lead", passage.strip(), False))
         if (
             published
             and source.get("content_type") == "extracted"
@@ -172,4 +206,6 @@ def preliminary_event_excerpts(
             if item["kind"] == kind and all(item["quote"] != old["quote"] for old in result):
                 result.append(item)
                 break
+    if not result:
+        result = [item for _, item in candidates if item["kind"] == "snippet_date_lead"][:1]
     return result

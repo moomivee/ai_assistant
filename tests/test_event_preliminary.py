@@ -3,7 +3,7 @@
 import pytest
 
 from src.event_chronology import build_event_chronology
-from src.evidence import catalog
+from src.evidence import catalog, render_preliminary_event
 from src.preliminary import preliminary_event_excerpts
 
 QUESTION = "Когда участники газового форума встретились в последний раз?"
@@ -89,6 +89,50 @@ def test_misspelled_name_still_matches_an_attributed_archive_excerpt():
         question="когда была последняя встреча опэк?",
     )
     assert [(row["source_id"], row["quote"]) for row in result] == [("W1", quote)]
+
+
+SNIPPET = (
+    "5 мая состоялась последняя встреча министров стран ОПЕК+, по результатам которой "
+    "было заявлено, что до июня страны продолжат следовать правилу увеличения добычи"
+)
+
+
+def test_unopened_search_excerpt_with_partial_date_is_labelled_and_keeps_its_words():
+    note = article(SNIPPET, content_type="snippet", date=None, url="https://news.example/2022/note")
+    result = choose([note], question="когда была последняя встреча опэк+?")
+    assert len(result) == 1 and result[0]["quote"] == SNIPPET
+    assert result[0]["kind"] == "snippet_date_lead" and result[0]["publication_date"] is None
+    text = " ".join(render_preliminary_event(result, {"as_of": "2026-11-22"}))
+    assert "Год в нём не указан" in text and "2022" not in text and "[W1]" in text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "5 мая не состоялась встреча министров ОПЕК+.",
+        "Если 5 мая состоялась встреча ОПЕК+, коммюнике скоро опубликуют.",
+        "Вопрос о том, состоялась ли встреча ОПЕК+ 5 мая, ещё обсуждается.",
+        "5 мая состоялась встреча ФРС, позднее обсуждались решения ОПЕК+.",
+        "5 мая состоялась встреча ЕС. В ней обсуждали ОПЕК+.",
+        "5 мая запланирована встреча ОПЕК+.",
+        "5 мая 2019 года состоялась встреча ОПЕК+.",
+        "5 мая состоялась конференция ОПЕК в Вене.",
+        "5 мая представители ОПЕК+ ... собрались в Вене.",
+        "ОПЕК+ обсуждала майский отчёт. 5 мая была публикация.",
+    ],
+)
+def test_yearless_search_lead_cannot_borrow_a_year_participant_or_occurrence(text):
+    note = article(text, content_type="snippet", date=None)
+    assert not choose([note], question="когда была последняя встреча опэк+?")
+
+
+def test_missing_relevance_review_prevents_rendering_yearless_search_excerpt():
+    note = article(SNIPPET, content_type="snippet", date=None)
+    assert not choose(
+        [note],
+        question="когда была последняя встреча опэк+?",
+        relevance={"unverified_source_ids": ["W1"]},
+    )
 
 
 @pytest.mark.parametrize("day", [None, "н/д", "2026-11-23"])

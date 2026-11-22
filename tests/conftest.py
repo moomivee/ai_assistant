@@ -9,6 +9,11 @@ from src.integrations.telemetry import langfuse_client
 
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch, tmp_path):
+    # Unit tests simulate external services; archive-specific cases supply publisher HTML.
+    async def empty_archive(*args, **kwargs):
+        return b""
+
+    monkeypatch.setattr("src.integrations.opec_publications._fetch_html", empty_archive)
     for name, value in {
         "LLM_API_KEY": "",
         "LLM_PROVIDER": "openai",

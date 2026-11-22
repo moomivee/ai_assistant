@@ -13,7 +13,7 @@ from ..budget import RequestBudgetExceeded, bounded_timeout, check_budget, remai
 from ..clock import clock_today
 from ..config import settings
 from ..logging import log
-from . import web_cache
+from . import opec_publications, web_cache
 from .feeds import search_feeds
 from .http_deadline import request_before
 
@@ -24,6 +24,7 @@ QUOTE_FALLBACK_TIMEOUT = 15.0
 WEB_QUERY_LIMIT = 400
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
+ORGANIZER_ARCHIVE_TIMEOUT = 15.0
 # A different publisher may replace a repeat only within 10% of its Tavily score.
 NEWS_RELATIVE_SCORE_FLOOR = 0.9
 NO_PUBLICATIONS_NOTICE = (
@@ -309,6 +310,7 @@ def search_web(
     quote_fallback: bool = False,
     publisher_domain: str = "",
     omit_publisher_domain: str = "",
+    official_event_query: str = "",
     topic: str = "general",
     days: int | None = None,
     start_date: str | None = None,
@@ -336,6 +338,34 @@ def search_web(
         max_results=max_results,
         search_depth=search_depth,
     )
+    if official_event_query and domains == ("opec.org",):
+        today = clock_today()
+        cache_params = {
+            "subject": official_event_query,
+            "start": str(start),
+            "end": str(end),
+            "as_of": today.isoformat(),
+            "limit": max_results,
+        }
+        cached = web_cache.get("opec.published", cache_params)
+        if cached and cached.get("items"):
+            return [dict(row, cache_hit=True) for row in cached["items"]]
+        archive_timeout = min(ORGANIZER_ARCHIVE_TIMEOUT, cfg.timeout)
+        remaining = remaining_seconds()
+        if remaining is not None:
+            archive_timeout = min(archive_timeout, remaining / 2)
+        rows = opec_publications.search_opec_releases(
+            official_event_query,
+            limit=max_results,
+            start=start,
+            end=end,
+            today=today,
+            deadline=monotonic() + bounded_timeout(archive_timeout),
+        )
+        if rows:
+            web_cache.put("opec.published", cache_params, {"items": rows}, ttl=300)
+            log("web.search_completed", provider="opec_press", accepted=len(rows))
+            return rows
     deadline = None
     if quote_fallback:
         deadline = monotonic() + bounded_timeout(min(cfg.timeout, QUOTE_FALLBACK_TIMEOUT))
@@ -564,11 +594,18 @@ def web_lookup(
     quote_fallback=False,
     publisher_domain="",
     omit_publisher_domain="",
+    official_event_query="",
     **search_options,
 ) -> dict:
     # Validate before the provider-error handlers below (and before FRED calls).
     # The tool registry must record invalid arguments as an error, not status=ok.
     validate_search_options(**search_options)
+    if official_event_query:
+        if not search or publisher_domain != "opec.org" or omit_publisher_domain:
+            raise ValueError(
+                "Архив ОПЕК доступен только при поиске публикаций на сайте организатора."
+            )
+        search_options["official_event_query"] = official_event_query
     if publisher_domain or omit_publisher_domain:
         if not search:
             raise ValueError("Домен издателя применим только к поиску публикаций.")
@@ -610,7 +647,11 @@ def web_lookup(
             if quote_fallback:
                 search_options["quote_fallback"] = True
             rows += search_web(query, fresh, **search_options)
-            if fresh and not settings().web_key:
+            if (
+                fresh
+                and not settings().web_key
+                and not any(row.get("provider") == "opec_press" for row in rows)
+            ):
                 notices.append(
                     "Доступен только ограниченный поиск по RSS EIA и Банка России; это не полный веб-поиск."
                 )

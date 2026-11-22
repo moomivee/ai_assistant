@@ -90,9 +90,9 @@ window.RequestJourney = (() => {
     const where = window.Workbench?.locatorLabel?.(record.locator, page) || record.locator?.label || (page ? "Страница PDF " + page : "");
     facts(box, [
       ["Место в документе", where], ["Дата источника", record.date || (record.kind === "web" ? "Не указана" : "")],
-      ["Установление даты", record.date_basis === "provider_estimate" ? "По оценке поискового провайдера" : ""],
+      ["Установление даты", record.date_basis === "publisher_archive" ? "Дата публикации в архиве издателя" : record.date_basis === "provider_estimate" ? "По оценке поискового провайдера" : ""],
       ["Материал", record.content_type === "snippet" ? "Фрагмент поисковой выдачи" : record.content_scope === "query_chunks" ? "Выбранные фрагменты страницы" : ""],
-      ["Поставщик", record.provider],
+      ["Поставщик", record.provider === "opec_press" ? "Архив пресс-релизов ОПЕК" : record.provider],
       ["В итоговом ответе", yesNo(record.used_in_answer)],
     ]);
     const text = citation ? citation.quote : source.text;
@@ -140,7 +140,7 @@ window.RequestJourney = (() => {
 
   const argLabels = { query: "Поисковая фраза", search: "Поиск публикаций", quotes: "Котировки", fresh: "Актуальные сведения",
     quote_fallback: "Поиск альтернативной котировки", report: "Документ", page: "Страница", block_id: "Блок", version_id: "Версия",
-    source_id: "Источник", publisher_domain: "Сайт издателя", omit_publisher_domain: "Ранее проверенный сайт, исключённый из этого поиска", benchmark: "Сорт", months: "Горизонт, мес.", discount: "Дисконт",
+    source_id: "Источник", publisher_domain: "Сайт издателя", official_event_query: "Запрос к архиву организатора", omit_publisher_domain: "Ранее проверенный сайт, исключённый из этого поиска", benchmark: "Сорт", months: "Горизонт, мес.", discount: "Дисконт",
     cut: "Сокращение добычи", sensitivity: "Чувствительность", start_date: "Начало периода", end_date: "Конец периода", url: "Адрес страницы", topic: "Тема", days: "Период, дней" };
   function argumentsView(body, args) {
     if (!args || !Object.keys(args).length) return;
@@ -159,10 +159,11 @@ window.RequestJourney = (() => {
   function actionStage(flow, number, decision, run, catalog) {
     const action = run?.tool || decision?.action;
     const state = run?.status;
+    const emptyRead = action === "read_web" && state === "ok" && run.result_count === 0;
     const badge = { ok: "Выполнено", rejected: "Отклонено", error: "Ошибка" };
     const title = (number ? "Шаг " + number + " · " : "") + actionName(action, decision, run);
-    const body = stage(flow, "action", title, label(badge, state) || (action === "finish" ? "Решение" : "Исполнение не зафиксировано"),
-      state === "rejected" ? "warning" : state === "error" ? "error" : state === "ok" ? "success" : "neutral", number ? {step: number} : {});
+    const body = stage(flow, "action", title, emptyRead ? "Текст не получен" : label(badge, state) || (action === "finish" ? "Решение" : "Исполнение не зафиксировано"),
+      emptyRead || state === "rejected" ? "warning" : state === "error" ? "error" : state === "ok" ? "success" : "neutral", number ? {step: number} : {});
     const repair = run?.argument_repair;
     const periodChanged = repair?.mode === "event_search" && publicationPeriod(repair.before) !== publicationPeriod(repair.after);
     facts(body, [

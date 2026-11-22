@@ -278,3 +278,77 @@ def test_a_new_committee_name_can_be_a_substantive_single_word_change(web_today)
     decision, context, state = news_batch([("wire.example", "2009-05-01")])
     decision["query"] += " JMMC"
     assert recover_event_search(decision, context, state, ["web_search", "read_web"]) is decision
+
+
+def test_reviewed_undated_archive_topic_and_background_prompt_a_new_primary_search(web_today):
+    decision, context, state = news_batch(
+        [("wire.example", None), ("press.example", None), ("wire.example", None)]
+    )
+    paths = ["/news/22/05/2022/story", "/tag/gas", "/about/cooperation"]
+    state["evidence"] = {}
+    context["publisher_pages"] = {}
+    for source, path in zip(state["sources"], paths, strict=True):
+        source["url"] = source["url"].split("/news/")[0] + path
+        context["publisher_pages"][source["url"]] = [source["id"]]
+        state["evidence"][source["id"] + ":B1"] = {"source": source["id"]}
+    state["answer_checks"][-1]["validation"]["event_chronology"] = {
+        "unresolved_evidence_ids": ["W1:B1"],
+    }
+    result = recover_event_search(decision, context, state, ["web_search", "read_web"])
+    assert result["action"] == "web_search" and result["publisher_domain"] == "forum.example"
+    assert all(s["date"] is None for s in state["sources"])
+    assert not (result["start_date"] or result["end_date"]) and "2022" not in result["query"]
+
+
+@pytest.mark.parametrize("proposal", ["read_web", "web_search", "finish"])
+@pytest.mark.parametrize("primary", ["forum.example", ""])
+def test_one_failed_read_switches_discovery_before_another_empty_read(proposal, primary):
+    decision, context, state = news_batch(
+        [("wire.example", None), ("press.example", None)], primary=primary
+    )
+    first, second = state["sources"]
+    state["observations"].append(
+        {"tool": "read_web", "arguments": {"url": first["url"]}, "result_count": 0}
+    )
+    decision.update(action=proposal)
+    if proposal == "read_web":
+        decision.update(url=second["url"], query="")
+    if proposal == "finish":
+        decision["query"] = ""
+    result = recover_event_search(decision, context, state, ["web_search", "read_web", "finish"])
+    assert result["action"] == "web_search" and bool(result["query"])
+    assert (result.get("publisher_domain") or "") == primary
+    assert result["query"] != state["observations"][0]["arguments"]["query"]
+    assert result["model_action"] == proposal
+
+
+def test_finish_can_open_a_known_primary_once_even_when_there_is_no_published_date():
+    decision, context, state = news_batch([("forum.example", None), ("wire.example", None)])
+    decision.update(action="finish", query="")
+    result = recover_event_search(decision, context, state, ["web_search", "read_web", "finish"])
+    assert result["action"] == "read_web" and result["url"] == state["sources"][0]["url"]
+    state["observations"].append(
+        {"tool": "read_web", "arguments": {"url": result["url"]}, "new_evidence": True}
+    )
+    retry = recover_event_search(decision, context, state, ["web_search", "read_web", "finish"])
+    assert retry["action"] != "read_web" or retry["url"] != result["url"]
+
+
+@pytest.mark.parametrize("proposal", ["web_search", "finish"])
+def test_failed_organizer_lookup_consumes_one_attempt_then_independent_scope(proposal):
+    decision, context, state = news_batch(
+        [("wire.example", "2009-05-01"), ("press.example", "2014-01-12")]
+    )
+    actions = ["web_search", "read_web", "finish"]
+    primary = recover_event_search(decision, context, state, actions)
+    assert primary["publisher_domain"] == "forum.example"
+    state["observations"].append(
+        {
+            "tool": "web_search",
+            "arguments": {**primary, "search": True},
+            "error": "provider timeout",
+        }
+    )
+    retry = recover_event_search({**primary, "action": proposal}, context, state, actions)
+    assert retry["action"] == "web_search" and retry["omit_publisher_domain"] == "forum.example"
+    assert not retry.get("publisher_domain") and retry["query"] != primary["query"]

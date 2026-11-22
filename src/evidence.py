@@ -729,6 +729,12 @@ def render_preliminary_event(excerpts, chronology):
     """Attribute each excerpt to its publication; keep open chronology questions explicit."""
     blocks = []
     for item in excerpts:
+        if item["kind"] == "snippet_date_lead":
+            blocks.append(
+                "В поисковом фрагменте упомянуты событие и дата. Год в нём не указан. "
+                f"«{item['quote']}» [{item['source_id']}]"
+            )
+            continue
         label = "О планах в публикации" if item["kind"] == "schedule_report" else "Сообщение"
         published = item["publication_date"]
         when = (
