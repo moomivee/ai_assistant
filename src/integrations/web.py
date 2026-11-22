@@ -172,10 +172,14 @@ def _date_bounds(days, start_date, end_date):
             continue
         try:
             day = date.fromisoformat(raw)
-            if day.isoformat() != raw or day > today:
+            if day.isoformat() != raw:
                 raise ValueError
         except (ValueError, TypeError):
             raise ValueError(f"{label}: нужна дата YYYY-MM-DD не позже сегодняшней.") from None
+        if day > today:
+            if label == "start_date":
+                raise ValueError("start_date: запрошенный период публикаций ещё не начался.")
+            raise ValueError(f"{label}: нужна дата YYYY-MM-DD не позже сегодняшней.")
         parsed.append(day)
     start, end = parsed
     if start and end and start > end:
@@ -344,7 +348,7 @@ def search_web(
         if not isinstance(item, dict):
             continue
         url, snippet = str(item.get("url") or ""), str(item.get("content") or "").strip()
-        published = web_date(item.get("published_date"))
+        published = web_date(item.get("published_date") or item.get("date"))
         if not allowed(url, domains) or url in seen or not snippet:
             continue
         if not _within_window(published, start, end):
@@ -442,7 +446,7 @@ def read_web(url: str, query: str = "") -> dict:
             notices.append("Tavily вернул адрес вне доверенных источников; содержимое отклонено.")
             continue
         text = str(item.get("raw_content") or "").strip()
-        published = web_date(item.get("published_date"))
+        published = web_date(item.get("published_date") or item.get("date"))
         if published and published > clock_today():
             notices.append("Источник с будущей датой публикации отклонён.")
             continue

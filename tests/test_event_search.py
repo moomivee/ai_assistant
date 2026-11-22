@@ -3,10 +3,12 @@
 from datetime import date
 
 import pytest
+from pydantic import ValidationError
 
 from src.agent import action_schema
 from src.event_search import event_publication_search, event_search_context
-from src.integrations.web import WEB_QUERY_LIMIT
+from src.integrations.web import WEB_QUERY_LIMIT, validate_search_options
+from src.models.schemas import EventPublicationWindow
 
 
 def research(**changes):
@@ -64,13 +66,81 @@ def test_open_discovery_drops_invented_period_in_both_plan_and_action():
     assert "official" in fallback["query"] and "2024" not in fallback["query"]
 
 
-def test_current_month_hypothesis_is_a_search_term_not_a_date_filter(monkeypatch):
+@pytest.mark.parametrize(
+    "observations", [[], [{"tool": "web_search", "arguments": {"search": True}}]]
+)
+def test_current_month_is_not_a_publication_window_or_search_constraint(monkeypatch, observations):
     monkeypatch.setattr("src.event_search.clock_today", lambda: date(2026, 11, 21))
-    state = research(question="Когда прошла последняя встреча ОПЕК+? Сегодня 2026 год 21 ноября.")
-    query = "последняя встреча ОПЕК+ ноябрь 2026"
-    actual = search(state, query=query)
-    assert actual["query"] == query and actual["days"] is None
+    state = research(
+        question="Когда прошла последняя встреча, а когда будет следующая?",
+        observations=observations,
+    )
+    actual = search(
+        state,
+        query="итоги встречи ноябрь 2026",
+        days=None,
+        start_date="2026-11-01",
+        end_date="2026-11-30",
+    )
+    assert actual["query"] == "итоги встречи" and actual["days"] is None
     assert actual["start_date"] is actual["end_date"] is None
+    assert actual["argument_repair"]["before"]["end_date"] == "2026-11-30"
+
+
+@pytest.mark.parametrize(
+    "observations", [[], [{"tool": "web_search", "arguments": {"search": True}}]]
+)
+def test_explicit_publication_window_survives_provider_choices_and_retries(
+    monkeypatch, observations
+):
+    monkeypatch.setattr("src.event_search.clock_today", lambda: date(2026, 11, 22))
+    state = research(
+        question="Когда была последняя встреча? Используй публикации за ноябрь 2026.",
+        observations=observations,
+    )
+    state["plan"]["event_publication_window"] = {
+        "quote": "Используй публикации за ноябрь 2026",
+        "start_date": "2026-11-01",
+        "end_date": "2026-11-30",
+    }
+    actual = search(state, days=365)
+    assert actual["days"] is None
+    assert (actual["start_date"], actual["end_date"]) == ("2026-11-01", "2026-11-22")
+
+
+def test_invented_user_quote_cannot_authorize_a_publication_window():
+    state = research()
+    state["plan"]["event_publication_window"] = {
+        "quote": "только публикации сентября",
+        "start_date": "2024-09-01",
+        "end_date": "2024-09-30",
+    }
+    actual = search(state)
+    assert actual["days"] is actual["start_date"] is actual["end_date"] is None
+
+
+def test_future_only_publication_window_cannot_be_widened_into_past(monkeypatch):
+    monkeypatch.setattr("src.event_search.clock_today", lambda: date(2026, 11, 22))
+    monkeypatch.setattr("src.integrations.web.clock_today", lambda: date(2026, 11, 22))
+    state = research(question="Используй только публикации за декабрь 2026.")
+    state["plan"]["event_publication_window"] = {
+        "quote": "публикации за декабрь 2026",
+        "start_date": "2026-12-01",
+        "end_date": "2026-12-31",
+    }
+    actual = search(state)
+    assert actual["start_date"] == "2026-12-01"
+    with pytest.raises(ValueError, match="start_date"):
+        validate_search_options(start_date=actual["start_date"], end_date=actual["end_date"])
+
+
+@pytest.mark.parametrize(
+    "bounds",
+    [{}, {"start_date": "2026-02-30"}, {"start_date": "2026-11-30", "end_date": "2026-11-01"}],
+)
+def test_malformed_explicit_windows_are_rejected_in_the_plan(bounds):
+    with pytest.raises(ValidationError):
+        EventPublicationWindow(quote="за ноябрь", **bounds)
 
 
 def test_first_search_can_target_unseen_trusted_organizer_in_its_own_language(monkeypatch):

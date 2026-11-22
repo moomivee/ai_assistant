@@ -89,7 +89,11 @@ window.TraceView = (() => {
       li.append(node("p", message, "small step-origin"));
     }
     if (decision.purpose) li.append(node("p", "Цель по плану: " + decision.purpose, "step-purpose"));
-    if (decision.controller_note) li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
+    if (decision.origin === "event_recovery") {
+      li.append(node("p", decision.controller_note, "small step-origin"));
+    } else if (decision.controller_note) {
+      li.append(node("p", `Модель отметила, что данных достаточно. Контроллер перевёл запрос к ответу вместо действия «${tools[decision.model_action] || decision.model_action}».`, "small"));
+    }
     if (decision.missing_facts?.length || decision.evidence_checks?.length) {
       const assessment = node("div");
       const list = node("ul");
@@ -162,7 +166,7 @@ window.TraceView = (() => {
     const first = steps.find(step => step.status === "ok");
     const decision = first && (data.decisions || [])[first.step - 1];
     if (first && decision && decision.action === first.tool && decision.purpose) {
-      const label = decision.origin === "plan_policy" ? "Цель шага контроллера: " : "Цель модели: ";
+      const label = ["plan_policy", "event_recovery"].includes(decision.origin) ? "Цель шага контроллера: " : "Цель модели: ";
       box.append(node("p", label + decision.purpose, "small route-purpose"));
     }
     const plan = data.diagnostics?.plan;

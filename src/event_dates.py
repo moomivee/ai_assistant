@@ -66,11 +66,11 @@ _SEARCH_PERIOD = re.compile(
 )
 
 
-def open_event_query(query, *, question, today, lead_date=""):
+def open_event_query(query, *, question, lead_date=""):
     """Drop unsupported month/year filters from an open discovery query.
 
-    A current-month hypothesis, an explicit user period, or a chosen dated
-    lead may improve retrieval. None of these terms establish the event date.
+    An explicit user period or a chosen dated lead may improve retrieval.
+    The current month alone is not evidence of when the last event occurred.
     """
 
     def period(match):
@@ -81,7 +81,6 @@ def open_event_query(query, *, question, today, lead_date=""):
         )
 
     allowed = {period(m) for m in _SEARCH_PERIOD.finditer(question)}
-    allowed.add((today.year, today.month))
     if lead_date:
         day = date.fromisoformat(lead_date)
         allowed.add((day.year, day.month))

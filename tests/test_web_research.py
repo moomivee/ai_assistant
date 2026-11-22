@@ -108,6 +108,7 @@ def test_current_general_search_preserves_latest_older_event_and_unknown_date(
                 result(published=old),
                 result(url="https://www.opec.org/announcement"),
                 result(url="https://www.eia.gov/future", published=tomorrow),
+                dict(result(url="https://www.eia.gov/future-alternative"), date=tomorrow),
             ]
         },
     )

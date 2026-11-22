@@ -1,6 +1,7 @@
-from typing import Annotated, Literal
+from datetime import date
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
 Grade = Literal["Brent", "WTI", "Urals"]
 FORECAST_TARGET = "Сорт, цену которого пользователь просит спрогнозировать. Упомянутая база сравнения или дисконта сама по себе не является целью прогноза."
@@ -27,6 +28,29 @@ class LatestEventScope(StrictModel):
     latest_completed_event: bool = Field(description=LAST_EVENT_SCOPE)
 
 
+class EventPublicationWindow(StrictModel):
+    quote: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Verbatim request clause limiting publication dates of sources.",
+    )
+    start_date: str | None = Field(
+        default=None, max_length=10, description="Inclusive YYYY-MM-DD, null if open."
+    )
+    end_date: str | None = Field(
+        default=None, max_length=10, description="Inclusive YYYY-MM-DD, null if open."
+    )
+
+    @model_validator(mode="after")
+    def validate_period(self) -> Self:
+        bounds = [value for value in (self.start_date, self.end_date) if value is not None]
+        if not bounds or any(date.fromisoformat(value).isoformat() != value for value in bounds):
+            raise ValueError("A publication window requires at least one ISO calendar date.")
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("The publication window ends before its start.")
+        return self
+
+
 class Plan(StrictModel):
     skill: Literal["report_analysis", "web_research", "price_forecast"] | None = None
     intent: Literal["research", "forecast", "capabilities", "outside"] = Field(
@@ -48,6 +72,10 @@ class Plan(StrictModel):
         )
     )
     latest_completed_event: bool = Field(default=False, description=LAST_EVENT_SCOPE)
+    event_publication_window: EventPublicationWindow | None = Field(
+        default=None,
+        description="Only for latest-event research with a user-specified period for source publication. Event dates, request time and the word 'latest' do not specify a publication window.",
+    )
     report_only: bool
     wants_context: bool
     news: bool

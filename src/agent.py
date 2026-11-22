@@ -19,6 +19,7 @@ from .budget import (
 )
 from .clock import clock_payload, request_clock
 from .config import settings
+from .event_recovery import recover_event_search
 from .event_search import EventSearchAction, event_publication_search, event_search_context
 from .evidence import generate_answer, render_claims
 from .forecast_memory import pending_forecast
@@ -421,6 +422,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 and not decision.get("quote_lookup")
             ):
                 decision = event_publication_search(decision, event_context, state)
+                decision = recover_event_search(decision, event_context, state, actions)
             if "web_search" in actions and not (event_context and event_context["followup"]):
                 decision = repair_web_time_filter(
                     client, state["question"], state.get("previous"), decision

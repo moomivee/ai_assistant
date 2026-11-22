@@ -140,6 +140,10 @@ window.RequestJourney = (() => {
     if (action === "web_search" && (decision?.quote_lookup || (execution?.arguments?.search === false && execution.arguments.quotes?.length))) return "Получение котировки";
     return label(tools, action) || "Действие";
   }
+  function publicationPeriod(args) {
+    if (args?.days != null) return `Последние ${args.days} дн.`;
+    return [args?.start_date && "с " + args.start_date, args?.end_date && "по " + args.end_date].filter(Boolean).join(" ") || "Без заданного периода";
+  }
   function actionStage(flow, number, decision, run, catalog) {
     const action = run?.tool || decision?.action;
     const state = run?.status;
@@ -147,8 +151,10 @@ window.RequestJourney = (() => {
     const title = (number ? "Шаг " + number + " · " : "") + actionName(action, decision, run);
     const body = stage(flow, "action", title, label(badge, state) || (action === "finish" ? "Решение" : "Исполнение не зафиксировано"),
       state === "rejected" ? "warning" : state === "error" ? "error" : state === "ok" ? "success" : "neutral", number ? {step: number} : {});
+    const repair = run?.argument_repair;
+    const periodChanged = repair?.mode === "event_search" && publicationPeriod(repair.before) !== publicationPeriod(repair.after);
     facts(body, [
-      ["Выбор действия", label({plan_policy: "Контроллер по плану модели", llm: "Языковая модель"}, decision?.origin)],
+      ["Выбор действия", label({plan_policy: "Контроллер по плану модели", llm: "Языковая модель", event_recovery: "Контроллер после повторного предложения модели"}, decision?.origin)],
       ["Цель", decision?.purpose || run?.purpose],
       ["Предложение модели", decision?.model_action && actionName(decision.model_action)],
       ["Причина перехода", decision?.controller_note],
@@ -158,6 +164,8 @@ window.RequestJourney = (() => {
       ["Появились новые данные", yesNo(run?.new_evidence)], ["Новые источники", join(run?.new_source_ids)],
       ["Попыток подряд без новых данных", run?.no_progress_steps], ["Повтор шага", run?.duplicate_of], ["Ранее найдено", join(run?.reused_source_ids)],
       ["Пересобранный запрос", run?.argument_repair?.after?.query], ["Причина отклонения или ошибки", localError(run?.error)],
+      ["Период публикаций, предложенный моделью", periodChanged ? publicationPeriod(repair.before) : ""],
+      ["Период в поиске", periodChanged ? publicationPeriod(repair.after) : ""],
       ["Этап в коде", run && decision ? "src/agent.py · decide → act" : run ? "src/agent.py · act" : "src/agent.py · decide"],
       ["Расчёт", run?.result?.benchmark], ["История по", run?.result?.as_of], ["Последняя цена в ряду", run?.result?.last],
     ]);

@@ -113,7 +113,7 @@ def event_publication_search(decision, context, state):
         goal = decision.get("event_search_goal", "outcome")
         language = decision.get("event_language", "ru")
         initial_query += " " + _PUBLICATION_TERMS[goal][language]
-    query = open_event_query(initial_query, question=question, today=clock_today(), lead_date=lead)
+    query = open_event_query(initial_query, question=question, lead_date=lead)
     # A confirmed lead is optional. No historical publication cutoff follows from it.
     suffix = " " + lead if lead and lead not in query else ""
     query = query[: WEB_QUERY_LIMIT - len(suffix)].rstrip() + suffix
@@ -127,9 +127,23 @@ def event_publication_search(decision, context, state):
             ),
             "",
         )
-    after = {**before, "query": query, "publisher_domain": publisher}
-    if context["followup"]:
-        after.update(days=None, start_date=None, end_date=None)
+    # Only the user's requested publication period carries over across searches.
+    # With no explicit bounds, search_web accepts undated leads for page reading
+    # and still rejects known publication dates later than the request date.
+    start = end = None
+    window = state["plan"].get("event_publication_window")
+    if window and (quote := normalized(window["quote"])) and quote in normalized(state["question"]):
+        start, end = window.get("start_date"), window.get("end_date")
+        if end:
+            end = min(end, clock_today().isoformat())
+    after = {
+        **before,
+        "query": query,
+        "publisher_domain": publisher,
+        "days": None,
+        "start_date": start,
+        "end_date": end,
+    }
     return {
         **decision,
         **after,
