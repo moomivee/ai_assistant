@@ -8,6 +8,7 @@ from pydantic import Field
 from .clock import clock_today
 from .config import settings
 from .event_dates import open_event_query
+from .event_subject import canonical_event_question, organizer_domain, requested_event_publisher
 from .integrations.web import WEB_QUERY_LIMIT, allowed
 from .models.schemas import NextAction
 from .validation import normalized
@@ -85,8 +86,19 @@ def event_search_context(state):
             and allowed(source.get("url", ""), trusted)
         ):
             publisher_pages.setdefault(source["url"], []).append(source["id"])
+    source_limit, requested_domain = requested_event_publisher(state["question"], plan, trusted)
     return {
         "trusted_publishers": list(trusted),
+        "source_limit": source_limit,
+        "requested_domain": requested_domain,
+        "organizer_domain": ""
+        if source_limit
+        else organizer_domain(
+            plan.get("context_request") or state["question"],
+            plan,
+            trusted,
+            state.get("previous") or "",
+        ),
         "followup": followup,
         "lead_dates": sorted(lead_dates),
         "publisher_pages": publisher_pages,
@@ -119,7 +131,9 @@ def event_publication_search(decision, context, state):
         goal = decision.get("event_search_goal", "outcome")
         language = decision.get("event_language", "ru")
         initial_query += " " + _PUBLICATION_TERMS[goal][language]
-    query = open_event_query(initial_query, question=question, lead_date=lead)
+    query = canonical_event_question(
+        open_event_query(initial_query, question=question, lead_date=lead)
+    )
     # A confirmed lead is optional. No historical publication cutoff follows from it.
     suffix = " " + lead if lead and lead not in query else ""
     query = query[: WEB_QUERY_LIMIT - len(suffix)].rstrip() + suffix
@@ -146,7 +160,7 @@ def event_publication_search(decision, context, state):
     after = {
         **before,
         "query": query,
-        "publisher_domain": publisher,
+        "publisher_domain": context.get("requested_domain") or publisher,
         "days": None,
         "start_date": start,
         "end_date": end,

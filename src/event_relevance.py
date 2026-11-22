@@ -6,6 +6,7 @@ from hashlib import sha256
 from pydantic import StrictInt
 
 from .budget import check_budget
+from .event_subject import canonical_event_question, other_event_body
 from .integrations.llm import InvalidModelOutput
 from .models.schemas import StrictModel
 
@@ -24,12 +25,15 @@ def _excerpt(text):
 
 def select_event_sources(client, question, sources, *, previous=None, cache=None):
     """Exclude only explicit off-topic judgments. A malformed judgment retains the batch."""
+    question = canonical_event_question(question)
     cache = {} if cache is None else cache
     publications = [
         source for source in sources if source.get("kind") == "web" and "price" not in source
     ]
     excluded = set()
     pending = []
+    scope_excluded = []
+    cache_hits = 0
     for source in publications:
         key = sha256(
             json.dumps(
@@ -44,7 +48,11 @@ def select_event_sources(client, question, sources, *, previous=None, cache=None
                 ensure_ascii=False,
             ).encode()
         ).hexdigest()
-        if key in cache:
+        if other_event_body(question, source.get("title") or "", source["text"]):
+            scope_excluded.append(source["id"])
+            excluded.add(source["id"])
+        elif key in cache:
+            cache_hits += 1
             if cache[key]:
                 excluded.add(source["id"])
         else:
@@ -88,8 +96,9 @@ def select_event_sources(client, question, sources, *, previous=None, cache=None
     return selected, {
         "status": "unverified" if unverified else "ok" if publications else "skipped",
         "considered_source_ids": [source["id"] for source in publications],
-        "checked_source_ids": [source["id"] for _, source in pending],
-        "cache_hits": len(publications) - len(pending),
+        "checked_source_ids": scope_excluded + [source["id"] for _, source in pending],
+        "other_event_body_source_ids": scope_excluded,
+        "cache_hits": cache_hits,
         "excluded_source_ids": [
             source["id"] for source in publications if source["id"] in excluded
         ],

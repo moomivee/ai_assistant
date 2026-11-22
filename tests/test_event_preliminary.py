@@ -24,11 +24,11 @@ def article(text, **overrides):
     }
 
 
-def choose(sources, *, ledger=None, relevance=None, **kwargs):
+def choose(sources, *, ledger=None, relevance=None, question=None, **kwargs):
     evidence = catalog(sources)
     return preliminary_event_excerpts(
         sources=sources,
-        question=QUESTION + " Используй публикации сентября 2025.",
+        question=question or QUESTION + " Используй публикации сентября 2025.",
         evidence=evidence,
         validation={
             "event_chronology": {
@@ -79,6 +79,16 @@ def test_navigation_rejected_even_on_another_evidence_block():
     body = "Новости по теме\n" + ("обзор " * 270) + "\n" + ARTICLE
     assert len(catalog([article(body)])) > 1
     assert not choose([article(body)])
+
+
+def test_misspelled_name_still_matches_an_attributed_archive_excerpt():
+    quote = "Министерская встреча ОПЕК состоялась в Вене."
+    unrelated = "Встреча участников газового форума состоялась в Москве."
+    result = choose(
+        [article(quote), article(unrelated, id="W2", date="2026-11-20")],
+        question="когда была последняя встреча опэк?",
+    )
+    assert [(row["source_id"], row["quote"]) for row in result] == [("W1", quote)]
 
 
 @pytest.mark.parametrize("day", [None, "н/д", "2026-11-23"])

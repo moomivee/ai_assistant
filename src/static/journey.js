@@ -110,6 +110,18 @@ window.RequestJourney = (() => {
       else parent.append(el("p", id + " · описание источника не передано"));
     }
   }
+  function webDomains(ids, catalog) {
+    const domains = new Set();
+    for (const id of list(ids)) {
+      const record = catalog.get(id);
+      if (record?.kind !== "web" || !record.url) continue;
+      try {
+        const url = new URL(record.url);
+        if (["https:", "http:"].includes(url.protocol)) domains.add(url.hostname.replace(/^www\./, ""));
+      } catch { /* Older traces may omit a complete URL. */ }
+    }
+    return [...domains].join(", ");
+  }
   function planStage(flow, data, diag) {
     const plan = diag.plan;
     if (!plan) return;
@@ -128,7 +140,7 @@ window.RequestJourney = (() => {
 
   const argLabels = { query: "Поисковая фраза", search: "Поиск публикаций", quotes: "Котировки", fresh: "Актуальные сведения",
     quote_fallback: "Поиск альтернативной котировки", report: "Документ", page: "Страница", block_id: "Блок", version_id: "Версия",
-    source_id: "Источник", publisher_domain: "Сайт издателя", benchmark: "Сорт", months: "Горизонт, мес.", discount: "Дисконт",
+    source_id: "Источник", publisher_domain: "Сайт издателя", omit_publisher_domain: "Ранее проверенный сайт, исключённый из этого поиска", benchmark: "Сорт", months: "Горизонт, мес.", discount: "Дисконт",
     cut: "Сокращение добычи", sensitivity: "Чувствительность", start_date: "Начало периода", end_date: "Конец периода", url: "Адрес страницы", topic: "Тема", days: "Период, дней" };
   function argumentsView(body, args) {
     if (!args || !Object.keys(args).length) return;
@@ -154,13 +166,14 @@ window.RequestJourney = (() => {
     const repair = run?.argument_repair;
     const periodChanged = repair?.mode === "event_search" && publicationPeriod(repair.before) !== publicationPeriod(repair.after);
     facts(body, [
-      ["Выбор действия", label({plan_policy: "Контроллер по плану модели", llm: "Языковая модель", event_recovery: "Контроллер после повторного предложения модели"}, decision?.origin)],
+      ["Выбор действия", label({plan_policy: "Контроллер по плану модели", llm: "Языковая модель", event_recovery: "Контроллер по результатам проверки события"}, decision?.origin)],
       ["Цель", decision?.purpose || run?.purpose],
       ["Предложение модели", decision?.model_action && actionName(decision.model_action)],
       ["Причина перехода", decision?.controller_note],
       ["Оценка модели перед действием", label({need_evidence: "Нужны источники", need_detail: "Нужны подробности", enough: "Сведений достаточно", unavailable: "Сведения недоступны"}, decision?.assessment)],
       ["Модель запрашивает", join(decision?.missing_facts)], ["Неизвестные ссылки", join(decision?.unknown_source_ids)],
       ["Время исполнения", duration(run?.ms)], ["Получено фрагментов", run?.result_count],
+      ["Сайты в выдаче", action === "web_search" && run?.arguments?.search ? webDomains(run.source_ids, catalog) : ""],
       ["Появились новые данные", yesNo(run?.new_evidence)], ["Новые источники", join(run?.new_source_ids)],
       ["Попыток подряд без новых данных", run?.no_progress_steps], ["Повтор шага", run?.duplicate_of], ["Ранее найдено", join(run?.reused_source_ids)],
       ["Пересобранный запрос", run?.argument_repair?.after?.query], ["Причина отклонения или ошибки", localError(run?.error)],
@@ -217,7 +230,7 @@ window.RequestJourney = (() => {
       const c = v.event_chronology;
       const box = disclosure(body, "Проверка дат события", "journey-section");
       facts(box, [
-        ["Дата сравнения", c.as_of], ["Последнее подтверждённое событие", c.latest_held_date || "Дата не установлена"],
+        ["Дата сравнения", c.as_of], [v.archive_event_gap ? "Событие в архивной публикации" : "Последнее подтверждённое событие", c.latest_held_date || "Дата не установлена"],
         ["Подтверждающие фрагменты", join(c.latest_evidence_ids)], ["Фрагменты с невыясненной датой", join(c.unresolved_evidence_ids)],
         ["Прошедшие даты анонсов", join(c.overdue_scheduled_dates)], ["Пропуски в контексте", join(c.missing_requested_context)],
         ["Фрагменты с ошибкой разбора", join(c.extraction?.unparsed_evidence_ids)],

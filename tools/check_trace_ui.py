@@ -287,7 +287,14 @@ class Handler(BaseHTTPRequestHandler):
                 plan=dict(intent="research", report_only=False, wants_context=True, fresh=False),
                 steps=[
                     dict(step=1, tool="web_search", status="rejected", error="Empty query"),
-                    dict(step=2, tool="web_search", status="ok", ms=200, source_ids=["W4"]),
+                    dict(
+                        step=2,
+                        tool="web_search",
+                        status="ok",
+                        ms=200,
+                        source_ids=["W4"],
+                        arguments={"search": True, "query": "oil grades"},
+                    ),
                 ],
                 retrieved_sources=[web_source],
                 semantic_review_enabled=False,
@@ -816,6 +823,8 @@ async def check_journey(page, submit):
     await submit("web-only", open_technical=False)
     await expand_detail(journey)
     web = await open_stage("action", '[data-step="2"]')
+    assert await web.get_by_text("Сайты в выдаче", exact=True).count() == 1
+    assert await web.get_by_text("example.invalid", exact=True).count() == 1
     snippet = web.locator('details.journey-source[data-source-id="W4"]')
     await expand_detail(snippet)
     assert "Orion и Vega" in await snippet.inner_text()

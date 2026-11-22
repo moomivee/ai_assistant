@@ -4,6 +4,7 @@ import re
 
 from .event_dates import mentioned_dates
 from .event_search import requested_publication_window
+from .event_subject import canonical_event_question
 from .integrations.web import web_date
 
 # Optional model-selected quotations work in any language. For older or incomplete
@@ -88,7 +89,7 @@ def preliminary_event_excerpts(
     unparsed = set(chronology.get("extraction", {}).get("unparsed_evidence_ids", []))
     unrelated = set(chronology.get("other_scope_blocks", []))
     legacy_blocks = unresolved - unparsed
-    query_words = _topic_words(question)
+    query_words = _topic_words(canonical_event_question(question))
     start_date = end_date = None
     if window := requested_publication_window(publication_window, question):
         start_date = window.get("start_date")

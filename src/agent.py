@@ -19,6 +19,7 @@ from .budget import (
 )
 from .clock import clock_payload, request_clock
 from .config import settings
+from .event_archive import archive_event_gap, archive_verification_search
 from .event_recovery import recover_event_search
 from .event_search import (
     EventSearchAction,
@@ -305,7 +306,8 @@ def can_finish_unreviewed(state):
     if state.get("plan", {}).get("latest_completed_event"):
         chronology = validation.get("event_chronology") or {}
         if (
-            not chronology.get("latest_held_date")
+            validation.get("archive_event_gap")
+            or not chronology.get("latest_held_date")
             or validation.get("chronology_matches_draft") is not True
             or chronology.get("overdue_scheduled_dates")
             or chronology.get("unresolved_evidence_ids")
@@ -360,7 +362,14 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 state["answer_checks"][-1].get("validation", {}) if state["answer_checks"] else {}
             )
             event_context = event_search_context(state) if "web_search" in actions else None
-            if (
+            archive_search = (
+                archive_verification_search(state, last_validation["archive_event_gap"])
+                if event_context and last_validation.get("archive_event_gap")
+                else None
+            )
+            if archive_search:
+                decision = archive_search
+            elif (
                 state["attempts"] == 0
                 and p["intent"] == "research"
                 and p["quotes"]
@@ -386,7 +395,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 ).model_dump()
                 decision["origin"] = "plan_policy"
             else:
-                decision = client.generate(
+                choice = client.generate(
                     "decide",
                     {
                         "question": state["question"],
@@ -424,15 +433,24 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                         },
                     },
                     action_schema(tuple(actions), event_followup=event_context is not None),
-                ).model_dump()
+                )
+                decision = choice.model_dump()
+                if (
+                    choice.action == "web_search"
+                    and p.get("news")
+                    and not p.get("latest_completed_event")
+                    and "topic" not in choice.model_fields_set
+                ):
+                    decision["topic"] = "news"
                 decision["origin"] = "llm"
             decision.update(check_assessment(decision, state["sources"]))
             if (
-                decision["action"] == "web_search"
+                decision["action"] in {"web_search", "read_web"}
                 and event_context is not None
                 and not decision.get("quote_lookup")
             ):
-                decision = event_publication_search(decision, event_context, state)
+                if decision["action"] == "web_search":
+                    decision = event_publication_search(decision, event_context, state)
                 decision = recover_event_search(decision, event_context, state, actions)
             if "web_search" in actions and not (event_context and event_context["followup"]):
                 decision = repair_web_time_filter(
@@ -522,6 +540,7 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 "end_date",
                 "search_depth",
                 "publisher_domain",
+                "omit_publisher_domain",
             ):
                 if d.get(key) not in (None, "", "general", "basic"):
                     args[key] = d[key]
@@ -705,6 +724,18 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                 ),
                 **chronology_options,
             )
+            if chronology_options and draft.claims:
+                gap = archive_event_gap({**state, "evidence": evidence}, validation)
+                if gap:
+                    accepted_ids = {key for claim in draft.claims for key in claim.evidence_ids}
+                    dated = gap["dated_claim"]
+                    cited = [key for key in dated["evidence_ids"] if key in accepted_ids]
+                    if cited:
+                        draft = CitedAnswer.model_validate(
+                            {"claims": [{**dated, "evidence_ids": cited}], "complete": False}
+                        )
+                        validation["archive_event_gap"] = gap
+                        feedback = gap["notice"]
             relevance = validation.get("event_relevance", {})
             excluded = set(relevance.get("excluded_source_ids", []))
             new_ids = (
@@ -791,7 +822,11 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
             draft = CitedAnswer.model_validate(state["draft"])
             blocks, claims, sources = render_claims(draft, state["evidence"], state["sources"])
             chronology = validation.get("event_chronology") or {}
-            if claims and chronology.get("latest_held_date"):
+            if (
+                claims
+                and chronology.get("latest_held_date")
+                and not validation.get("archive_event_gap")
+            ):
                 blocks.insert(0, "По найденным источникам")
             if calc:
                 blocks.insert(0, forecast_answer(calc))
@@ -853,6 +888,8 @@ def build_graph(client=None, registry=None, execute=run_tool, planner=make_plan)
                     }
                     sources.extend(s for s in state["sources"] if s["id"] in additional_ids)
                     blocks.extend(render_preliminary_event(preliminary, chronology))
+                elif validation.get("archive_event_gap"):
+                    blocks.append(validation["archive_event_gap"]["notice"])
                 elif stop == "chronology_format_incomplete":
                     if chronology.get("scheduled_leads") and not chronology.get("latest_held_date"):
                         blocks.append(

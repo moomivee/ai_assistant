@@ -1,7 +1,12 @@
-"""Recover one useful action when event discovery repeats an inconclusive search."""
+"""Choose a new publication lead after inconclusive latest-event discovery."""
 
+from datetime import date
+from urllib.parse import urlsplit
+
+from .clock import clock_today
 from .config import settings
-from .integrations.web import WEB_QUERY_LIMIT, allowed
+from .event_subject import organizer_search_terms
+from .integrations.web import WEB_QUERY_LIMIT, allowed, publication_domains, web_date
 from .validation import normalized
 
 
@@ -10,6 +15,7 @@ def _search_key(arguments):
     return (
         normalized(arguments.get("query", "")),
         arguments.get("publisher_domain") or "",
+        arguments.get("omit_publisher_domain") or "",
         arguments.get("topic") or "general",
         arguments.get("days"),
         arguments.get("start_date"),
@@ -17,28 +23,76 @@ def _search_key(arguments):
     )
 
 
+def _minor_rewording(first, second):
+    if first[1:] != second[1:]:
+        return False
+    a, b = set(first[0].split()), set(second[0].split())
+    changed = a ^ b
+    # Reordered words or a speculative year do not introduce a new lead.
+    # One substantive word (e.g. the name of a committee) certainly can.
+    return bool(a and b) and (
+        not changed
+        or (len(changed) == 1 and all(len(token) == 4 and token.isdecimal() for token in changed))
+    )
+
+
+def _publisher(url, domains):
+    # Group e.g. www and mobile subdomains under the configured publisher.
+    return next(
+        (domain for domain in sorted(domains, key=len) if allowed(url, (domain,))),
+        urlsplit(url).hostname,
+    )
+
+
+def publication_query(query, *, organizer_domain="", question="", language="ru"):
+    """Preserve the query and add publication vocabulary for the selected site."""
+    alias = organizer_search_terms(question, organizer_domain) if organizer_domain else ""
+    english = organizer_domain in {"opec.org", "iea.org", "eia.gov"} or (
+        language == "en" and organizer_domain != "cbr.ru"
+    )
+    terms = "official communiqué" if english else "итоговое коммюнике организатора"
+    additions = [
+        term for term in (alias, terms) if term and normalized(term) not in normalized(query)
+    ]
+    if not additions:
+        return query
+    suffix = " " + " ".join(additions)
+    return query[: WEB_QUERY_LIMIT - len(suffix)].rstrip() + suffix
+
+
 def recover_event_search(decision, context, state, actions):
-    """Leave new proposals alone; use validation feedback only for a repeated search."""
+    """Keep novel actions; spend recovery steps on distinct, relevant evidence."""
+    requested_domain = context.get("requested_domain")
+    if context.get("source_limit") and not requested_domain:
+        # A free-form constraint can exclude publishers or allow multiple sites.
+        # Do not invent a different scope for the model's proposed action.
+        return decision
     validation = state["answer_checks"][-1].get("validation", {}) if state["answer_checks"] else {}
-    if not context["followup"] or validation.get("reason") != "no_confirmed_event":
+    if not context["followup"] or validation.get("reason") not in {
+        "no_confirmed_event",
+        "no_relevant_event_sources",
+        "no_evidence",
+    }:
         return decision
     searches = [
         (step, row)
         for step, row in enumerate(state["observations"], 1)
-        if row["tool"] == "web_search" and row["arguments"].get("search")
+        if row["tool"] == "web_search" and row["arguments"].get("search") and not row.get("error")
     ]
     key = _search_key(decision)
-    repeated = next(
-        (
-            (step, row)
-            for step, row in reversed(searches)
-            if not row.get("error") and _search_key(row["arguments"]) == key
-        ),
-        None,
-    )
-    if not repeated:
+    read = decision["action"] == "read_web"
+    if read:
+        page_ids = {s["id"] for s in state["sources"] if s.get("url") == decision["url"]}
+        matches = [row for row in searches if page_ids.intersection(row[1].get("source_ids", []))]
+    else:
+        matches = [
+            row for row in searches if _minor_rewording(_search_key(row[1]["arguments"]), key)
+        ]
+    if not matches:
         return decision
-    step, previous = repeated
+    step, previous = matches[-1]
+    original = previous["arguments"]
+    base = original if read else decision
     before = {
         field: decision.get(field)
         for field in (
@@ -52,53 +106,167 @@ def recover_event_search(decision, context, state, actions):
             "search_depth",
         )
     }
+    if read:
+        before["url"] = decision["url"]
+    filters = {
+        field: base.get(field)
+        for field in ("publisher_domain", "days", "start_date", "end_date", "topic", "search_depth")
+    }
+    organizer = context.get("organizer_domain")
+    domains = context.get("trusted_publishers", ())
+    publisher = requested_domain or base.get("publisher_domain")
+    if requested_domain:
+        filters["publisher_domain"] = requested_domain
+    if organizer not in domains or (publisher and publisher != organizer):
+        organizer = None
+
+    relevance = validation.get("event_relevance", {})
+    source_ids = set(previous.get("source_ids", ()))
+    # A later primary or independent search can contribute a better lead even
+    # when the model proposes its original broad query again.
+    for lookup_step, row in searches:
+        args = row["arguments"]
+        new_scope = (organizer and args.get("publisher_domain") == organizer) or (
+            not publisher and args.get("omit_publisher_domain")
+        )
+        if (
+            lookup_step > step
+            and new_scope
+            and all(args.get(k) == filters[k] for k in ("days", "start_date", "end_date"))
+        ):
+            source_ids.update(row.get("source_ids", ()))
+    ids = source_ids.intersection(relevance.get("kept_source_ids", ()))
+    ids.difference_update(relevance.get("unverified_source_ids", ()))
+    batch = [
+        s
+        for s in state["sources"]
+        if s["id"] in ids
+        and s["id"] in context["publisher_pages"].get(s.get("url"), ())
+        and s.get("content_type") == "snippet"
+        and (not publisher or allowed(s["url"], (publisher,)))
+    ]
+    opened = {
+        row["arguments"]["url"]
+        for row in state["observations"]
+        if row["tool"] == "read_web" and row["arguments"].get("url")
+    }
+    opened.update(s["url"] for s in state["sources"] if s.get("content_type") == "extracted")
+    opened_publishers = {_publisher(url, domains) for url in opened}
+    today = clock_today()
+
+    # A year-old publication can document the latest event. Its age is a reason
+    # to seek independent evidence, never an event date or an exclusion window.
+    def archived(source):
+        day = web_date(source.get("date"))
+        return (
+            day is not None
+            and (today - day).days > 365
+            and not any(filters[k] for k in ("start_date", "end_date", "days"))
+        )
+
+    def primary(source):
+        return bool(organizer and allowed(source["url"], (organizer,)))
+
+    candidates = [
+        s
+        for s in batch
+        if "read_web" in actions
+        and s["url"] not in opened
+        and (s.get("provider") == "tavily" or settings().web_key)
+    ]
+    candidates.sort(
+        key=lambda s: (
+            not archived(s),
+            primary(s),
+            _publisher(s["url"], domains) not in opened_publishers,
+            web_date(s.get("date")) or date.min,
+        ),
+        reverse=True,
+    )
+    exhausted = not candidates or all(
+        archived(s) or _publisher(s["url"], domains) in opened_publishers for s in candidates
+    )
+    exact = key == _search_key(original) and not read
+    proposed = next((s for s in batch if s["url"] == decision.get("url")), None)
+    weak_read = read and (
+        proposed is None
+        or archived(proposed)
+        or _publisher(proposed["url"], domains) in opened_publishers
+    )
+    if not exact and not exhausted and not weak_read:
+        return decision
+
     repair = {
         "mode": "event_recovery",
         "repeated_step": step,
         "before": before,
         "normalization": decision.get("argument_repair"),
     }
-    opened = {
-        row["arguments"].get("url") for row in state["observations"] if row["tool"] == "read_web"
-    }
-    # Extract may have followed a redirect from a different discovered URL.
-    opened.update(s["url"] for s in state["sources"] if s.get("content_type") == "extracted")
-    relevance = validation.get("event_relevance", {})
-    candidates = (
-        set(previous.get("source_ids", []))
-        .intersection(relevance.get("kept_source_ids", []))
-        .difference(relevance.get("unverified_source_ids", []))
+    targeted = any(row["arguments"].get("publisher_domain") == organizer for _, row in searches)
+    pivot = organizer and not targeted and exhausted and not any(primary(s) for s in candidates)
+    omit = ""
+    if (
+        exhausted
+        and not pivot
+        and not publisher
+        and len(set(domains)) >= 2
+        and not any(filters[k] for k in ("days", "start_date", "end_date"))
+        and not any(row["arguments"].get("omit_publisher_domain") for _, row in searches)
+    ):
+        batch_ids = set(previous.get("source_ids", ()))
+        publishers = {
+            _publisher(s["url"], domains)
+            for s in state["sources"]
+            if s["id"] in batch_ids and s.get("url") and allowed(s["url"], domains)
+        }
+        if len(publishers) == 1:
+            omit = publishers.pop()
+            try:
+                publication_domains("", tuple(domains), omit=omit)
+            except ValueError:
+                omit = ""
+    if read and not pivot and not omit and proposed and proposed["url"] not in opened:
+        # A deliberately selected, unopened page may answer a different part of
+        # the question. Keep it unless we have genuinely better evidence.
+        alternative = next((s for s in candidates if s["url"] != proposed["url"]), None)
+        if not weak_read or not alternative or (archived(alternative) and not primary(alternative)):
+            return decision
+        if not archived(proposed) and not primary(alternative):
+            return decision
+    candidate = next(
+        (s for s in candidates if _publisher(s["url"], domains) not in opened_publishers), None
     )
-    publisher = decision.get("publisher_domain")
-    for source in state["sources"]:
-        url = source.get("url")
-        if (
-            "read_web" in actions
-            and source["id"] in candidates
-            and source["id"] in context["publisher_pages"].get(url, [])
-            and source.get("content_type") == "snippet"
-            and (source.get("provider") == "tavily" or settings().web_key)
-            and url not in opened
-            and (not publisher or allowed(url, (publisher,)))
-        ):
-            after = {"action": "read_web", "url": url, "query": ""}
-            repair["source_id"] = source["id"]
-            purpose = "Открыть найденную публикацию и проверить, указаны ли в ней даты события."
-            break
+    if candidate and not pivot and not omit:
+        if read and candidate["url"] == decision["url"]:
+            return decision
+        after = {"action": "read_web", "url": candidate["url"], "query": ""}
+        repair["source_id"] = candidate["id"]
+        purpose = "Открыть найденную публикацию и проверить, указаны ли в ней даты события."
     else:
-        terms = (
-            "organizer official communiqué"
-            if decision.get("event_language") == "en"
-            else "итоговое коммюнике организатора"
+        query = publication_query(
+            base["query"],
+            organizer_domain=organizer if pivot else "",
+            question=state.get("question", ""),
+            language=decision.get("event_language", "ru"),
         )
-        query = decision["query"]
-        if normalized(terms) in normalized(query):
+        after = {"action": "web_search", **filters, "query": query}
+        if pivot:
+            after["publisher_domain"] = organizer
+        elif omit:
+            after["omit_publisher_domain"] = omit
+        out_of_scope = (
+            read and requested_domain and not allowed(decision["url"], (requested_domain,))
+        )
+        if "web_search" not in actions or (
+            not out_of_scope
+            and any(_search_key(row["arguments"]) == _search_key(after) for _, row in searches)
+        ):
             return decision
-        query = query[: WEB_QUERY_LIMIT - len(terms) - 1].rstrip() + " " + terms
-        after = {**before, "query": query}
-        if any(_search_key(row["arguments"]) == _search_key(after) for _, row in searches):
-            return decision
-        purpose = "Найти итоговое коммюнике организатора с датой состоявшегося события."
+        purpose = (
+            "Проверить дату события в других разрешённых изданиях."
+            if omit
+            else "Найти итоговое коммюнике организатора с датой состоявшегося события."
+        )
     repair["after"] = after
     return {
         **decision,
@@ -107,6 +275,6 @@ def recover_event_search(decision, context, state, actions):
         "origin": "event_recovery",
         "model_action": decision["action"],
         "model_purpose": decision["purpose"],
-        "controller_note": f"Поиск повторяет шаг {step}. Проверка не подтвердила дату события.",
+        "controller_note": f"Материалы поиска на шаге {step} не подтвердили дату события.",
         "argument_repair": repair,
     }

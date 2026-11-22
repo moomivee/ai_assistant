@@ -11,6 +11,26 @@ from pydantic import BaseModel, Field, field_validator
 ROOT = Path(__file__).resolve().parents[1]
 MAX_UPLOAD_MIB = 100
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MIB * 1024 * 1024
+DEFAULT_WEB_DOMAINS = (
+    "eia.gov",
+    "fred.stlouisfed.org",
+    "opec.org",
+    "iea.org",
+    "cbr.ru",
+    "economy.gov.ru",
+    "minfin.gov.ru",
+    "minenergo.gov.ru",
+    "consilium.europa.eu",
+    "ofac.treasury.gov",
+    "reuters.com",
+    "interfax.ru",
+    "rbc.ru",
+    "euronews.com",
+    "ft.com",
+    "theguardian.com",
+    "ru.wikipedia.org",
+    "en.wikipedia.org",
+)
 load_dotenv(ROOT / ".env")
 
 
@@ -91,10 +111,7 @@ def settings() -> Settings:
         web_key=os.getenv("TAVILY_API_KEY", "").strip(),
         domains=tuple(
             d.strip().lower()
-            for d in os.getenv(
-                "WEB_DOMAINS",
-                "eia.gov,fred.stlouisfed.org,opec.org,iea.org,cbr.ru,economy.gov.ru,minfin.gov.ru,minenergo.gov.ru,reuters.com,interfax.ru,consilium.europa.eu,ofac.treasury.gov,ru.wikipedia.org,en.wikipedia.org",
-            ).split(",")
+            for d in os.getenv("WEB_DOMAINS", ",".join(DEFAULT_WEB_DOMAINS)).split(",")
             if d.strip()
         ),
         timeout=float(os.getenv("HTTP_TIMEOUT", "25")),

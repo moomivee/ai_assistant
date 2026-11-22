@@ -24,6 +24,8 @@ QUOTE_FALLBACK_TIMEOUT = 15.0
 WEB_QUERY_LIMIT = 400
 SEARCH_TEXT_LIMIT = 2000
 EXTRACT_TEXT_LIMIT = 12000
+# A different publisher may replace a repeat only within 10% of its Tavily score.
+NEWS_RELATIVE_SCORE_FLOOR = 0.9
 NO_PUBLICATIONS_NOTICE = (
     "В доверенных источниках не найдено подходящей публикации с заданными параметрами."
 )
@@ -70,8 +72,26 @@ def allowed(url: str, domains: tuple[str, ...]) -> bool:
         return False
 
 
-def publication_domains(publisher_domain: str, configured: tuple[str, ...]) -> tuple[str, ...]:
+def publication_domains(
+    publisher_domain: str, configured: tuple[str, ...], *, omit: str = ""
+) -> tuple[str, ...]:
     """Narrow a publication search to a DNS hostname inside the configured trust scope."""
+    if omit:
+        if publisher_domain or omit not in configured:
+            raise ValueError(
+                "Для независимого поиска можно исключить одного настроенного издателя."
+            )
+        # A child or parent hostname could admit the same publisher again.
+        alternatives = tuple(
+            domain
+            for domain in configured
+            if domain != omit
+            and not domain.endswith("." + omit)
+            and not omit.endswith("." + domain)
+        )
+        if not alternatives:
+            raise ValueError("Для независимого поиска нужен ещё один разрешённый издатель.")
+        return alternatives
     if publisher_domain == "":
         return configured
     host = publisher_domain.lower().removesuffix(".")
@@ -242,12 +262,53 @@ def _evidence(item, *, text, content_type, retrieved_at, limit):
     }
 
 
+def _news_selection(candidates: list[dict], domains: tuple[str, ...], limit: int) -> list[dict]:
+    """Diversify close matches, returning selected articles in provider order."""
+    if len(candidates) <= limit:
+        return candidates
+    publisher_domains = sorted((d.lower().rstrip(".") for d in domains if d), key=len)
+    publishers = []
+    scores = []
+    for item in candidates:
+        host = urlparse(item["url"]).hostname.lower().rstrip(".")
+        # www, press and other subdomains of a configured publisher count together.
+        publishers.append(
+            next(
+                domain
+                for domain in publisher_domains
+                if host == domain or host.endswith("." + domain)
+            )
+        )
+        score = item.get("score")
+        scores.append(score if type(score) in (float, int) and 0 < score <= 1 else None)
+    remaining = list(range(len(candidates)))
+    counts = {}
+    selected = []
+    for _ in range(limit):
+        best = remaining[0]
+        chosen = best
+        count = counts.get(publishers[best], 0)
+        if count and scores[best] is not None:
+            floor = scores[best] * NEWS_RELATIVE_SCORE_FLOOR
+            for index in remaining[1:]:
+                if scores[index] is None or scores[index] < floor:
+                    continue
+                if counts.get(publishers[index], 0) < count:
+                    chosen = index
+                    break
+        remaining.remove(chosen)
+        counts[publishers[chosen]] = counts.get(publishers[chosen], 0) + 1
+        selected.append(chosen)
+    return [candidates[i] for i in sorted(selected)]
+
+
 def search_web(
     query: str,
     fresh: bool,
     *,
     quote_fallback: bool = False,
     publisher_domain: str = "",
+    omit_publisher_domain: str = "",
     topic: str = "general",
     days: int | None = None,
     start_date: str | None = None,
@@ -263,7 +324,7 @@ def search_web(
     """
     check_budget()
     cfg = settings()
-    domains = publication_domains(publisher_domain, cfg.domains)
+    domains = publication_domains(publisher_domain, cfg.domains, omit=omit_publisher_domain)
     query = " ".join(query.split())[:WEB_QUERY_LIMIT]
     if not query:
         raise ValueError("Для веб-поиска нужен непустой запрос.")
@@ -305,9 +366,10 @@ def search_web(
         )
     if not domains:
         raise ValueError("Для веб-поиска не настроены доверенные домены.")
+    diversify = max_results > 1 and len(set(domains)) > 1 and (fresh or topic == "news")
     payload = {
         "query": query,
-        "max_results": max_results,
+        "max_results": 2 * max_results if diversify else max_results,
         "include_domains": sorted(set(domains)),
         "include_domains_mode": "restrict",
         "include_answer": False,
@@ -326,7 +388,7 @@ def search_web(
     if fresh:
         # Refresh the provider's cached page, not an arbitrary publication window.
         payload["max_age_hours"] = 1
-    cache_params = dict(payload, fresh=fresh)
+    cache_params = dict(payload, fresh=fresh, result_limit=max_results)
     cached = web_cache.get("tavily.search", cache_params)
     if cached is not None:
         hits = cached.get("items", [])
@@ -345,8 +407,7 @@ def search_web(
     data = response.json()
     if not isinstance(data, dict) or not isinstance(data.get("results"), list):
         raise ValueError("Tavily вернул некорректный список результатов.")
-    retrieved = _retrieved_at()
-    hits, seen = [], set()
+    candidates, seen = [], set()
     for item in data["results"]:
         if not isinstance(item, dict):
             continue
@@ -357,23 +418,27 @@ def search_web(
         if not _within_window(published, start, end):
             continue
         seen.add(url)
-        hits.append(
-            dict(
-                _evidence(
-                    dict(item, url=url),
-                    text=snippet,
-                    content_type="snippet",
-                    retrieved_at=retrieved,
-                    limit=SEARCH_TEXT_LIMIT,
-                ),
-                provider="tavily",
-                cache_hit=False,
-            )
+        candidates.append(dict(item, url=url, content=snippet))
+    selected = (
+        _news_selection(candidates, domains, max_results) if diversify else candidates[:max_results]
+    )
+    retrieved = _retrieved_at()
+    hits = [
+        dict(
+            _evidence(
+                item,
+                text=item["content"],
+                content_type="snippet",
+                retrieved_at=retrieved,
+                limit=SEARCH_TEXT_LIMIT,
+            ),
+            provider="tavily",
+            cache_hit=False,
         )
-        if len(hits) >= max_results:
-            break
+        for item in selected
+    ]
     web_cache.put("tavily.search", cache_params, {"items": hits}, ttl=300 if fresh else 3600)
-    log("web.search_completed", provider="tavily", accepted=len(hits))
+    log("web.search_completed", provider="tavily", candidates=len(candidates), accepted=len(hits))
     return hits
 
 
@@ -498,17 +563,22 @@ def web_lookup(
     *,
     quote_fallback=False,
     publisher_domain="",
+    omit_publisher_domain="",
     **search_options,
 ) -> dict:
     # Validate before the provider-error handlers below (and before FRED calls).
     # The tool registry must record invalid arguments as an error, not status=ok.
     validate_search_options(**search_options)
-    if publisher_domain:
+    if publisher_domain or omit_publisher_domain:
         if not search:
             raise ValueError("Домен издателя применим только к поиску публикаций.")
-        (search_options["publisher_domain"],) = publication_domains(
-            publisher_domain, settings().domains
+        effective_domains = publication_domains(
+            publisher_domain, settings().domains, omit=omit_publisher_domain
         )
+        if publisher_domain:
+            (search_options["publisher_domain"],) = effective_domains
+        else:
+            search_options["omit_publisher_domain"] = omit_publisher_domain
     rows, notices = [], []
     for grade in dict.fromkeys(quotes):
         if grade not in DAILY:

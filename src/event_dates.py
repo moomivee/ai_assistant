@@ -66,6 +66,9 @@ _SEARCH_PERIOD = re.compile(
 )
 
 
+_STANDALONE_YEAR = re.compile(r"(?<![\w-])(?:19|20)\d{2}(?![\w-])")
+
+
 def open_event_query(query, *, question, lead_date=""):
     """Drop unsupported month/year filters from an open discovery query.
 
@@ -84,6 +87,6 @@ def open_event_query(query, *, question, lead_date=""):
     if lead_date:
         day = date.fromisoformat(lead_date)
         allowed.add((day.year, day.month))
-    return " ".join(
-        _SEARCH_PERIOD.sub(lambda m: m[0] if period(m) in allowed else " ", query).split()
-    )
+    query = _SEARCH_PERIOD.sub(lambda m: m[0] if period(m) in allowed else " ", query)
+    years = set(_STANDALONE_YEAR.findall(question)) | {str(year) for year, _ in allowed}
+    return " ".join(_STANDALONE_YEAR.sub(lambda m: m[0] if m[0] in years else " ", query).split())

@@ -28,6 +28,19 @@ class LatestEventScope(StrictModel):
     latest_completed_event: bool = Field(description=LAST_EVENT_SCOPE)
 
 
+class EventOrganizer(StrictModel):
+    quote: str = Field(
+        min_length=1,
+        max_length=240,
+        description="Verbatim name or hostname of the organizer in the question.",
+    )
+    domain: str = Field(
+        min_length=1,
+        max_length=253,
+        description="Official organizer hostname, without scheme or path.",
+    )
+
+
 class EventPublicationWindow(StrictModel):
     quote: str = Field(
         min_length=1,
@@ -72,6 +85,15 @@ class Plan(StrictModel):
         )
     )
     latest_completed_event: bool = Field(default=False, description=LAST_EVENT_SCOPE)
+    event_organizer: EventOrganizer | None = Field(
+        default=None,
+        description="Optional organizer of the requested event. A reporter covering the event is a different role.",
+    )
+    event_source_limit: str = Field(
+        default="",
+        max_length=500,
+        description="Verbatim user clause limiting which publishers may be used for the event; empty for unrestricted discovery.",
+    )
     event_publication_window: EventPublicationWindow | None = Field(
         default=None,
         description="Only for latest-event research with a user-specified period for source publication. Event dates, request time and the word 'latest' do not specify a publication window.",
